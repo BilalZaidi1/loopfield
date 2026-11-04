@@ -1,0 +1,23 @@
+# Fly.io deployment for the job worker (one of several supported hosts; see docs/SETUP.md).
+#   fly launch --no-deploy --config services/worker/fly.toml --dockerfile services/worker/Dockerfile
+#   fly secrets set SUPABASE_URL=... SUPABASE_SECRET_KEY=... SUPABASE_DB_URL=... TICKET_SIGNING_SECRET=... (see .env.example)
+app = "loopfield-worker"
+primary_region = "bom"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  WORKER_CONCURRENCY = "2"
+  SENTRY_ENVIRONMENT = "staging"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+[checks.health]
+  type = "http"
+  port = 8080
+  path = "/"
+  interval = "30s"
+  timeout = "5s"

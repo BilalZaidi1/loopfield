@@ -18,6 +18,14 @@ language sql stable security definer set search_path = pg_catalog, public as $$
   select coalesce((select (value)::text::boolean from public.app_config where key = p_key), p_default);
 $$;
 
+create or replace function internal.ring_to_polygon(p_ring jsonb) returns extensions.geometry
+language sql immutable set search_path = pg_catalog, extensions as $$
+  -- p_ring: [[lng, lat], ...] without the closing point.
+  select st_setsrid(st_makepolygon(st_addpoint(line, st_startpoint(line))), 4326)
+    from (select st_makeline(array_agg(st_makepoint((pt ->> 0)::float8, (pt ->> 1)::float8) order by ord)) as line
+            from jsonb_array_elements(p_ring) with ordinality as r(pt, ord)) s;
+$$;
+
 -- ---------------------------------------------------------------------------------------------
 -- Cell cache
 -- ---------------------------------------------------------------------------------------------
@@ -31,21 +39,14 @@ begin
   select (c ->> 'cell')::bigint, (c ->> 'res')::smallint, g.geom, st_area(g.geom::geography), (c ->> 'parent')::bigint
     from jsonb_array_elements(p_cells) c
     cross join lateral (
-      select st_setsrid(st_makepolygon(st_makeline(array_agg(st_makepoint((pt ->> 0)::float8, (pt ->> 1)::float8) order by ord))), 4326) as geom
-        from jsonb_array_elements(c -> 'ring') with ordinality as r(pt, ord)
+      select internal.ring_to_polygon(c -> 'ring') as geom
     ) g
   on conflict (cell) do nothing;
   get diagnostics v_count = row_count;
   return v_count;
 end $$;
 
-create or replace function internal.ring_to_polygon(p_ring jsonb) returns extensions.geometry
-language sql immutable set search_path = pg_catalog, extensions as $$
-  -- p_ring: [[lng, lat], ...] without the closing point.
-  select st_setsrid(st_makepolygon(st_addpoint(line, st_startpoint(line))), 4326)
-    from (select st_makeline(array_agg(st_makepoint((pt ->> 0)::float8, (pt ->> 1)::float8) order by ord)) as line
-            from jsonb_array_elements(p_ring) with ordinality as r(pt, ord)) s;
-$$;
+
 
 -- ---------------------------------------------------------------------------------------------
 -- Claim geometry evaluation (PRD §6 Eligible land, §11 masks, §17 cell selection)

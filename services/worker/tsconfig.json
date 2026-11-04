@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "../../supabase/functions/_shared/**/*.ts"],
+  "exclude": ["../../supabase/functions/_shared/deno.ts"]
+}

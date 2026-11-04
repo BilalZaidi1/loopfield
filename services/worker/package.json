@@ -1,0 +1,25 @@
+{
+  "name": "@loopfield/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Durable job worker (Node) running the shared job handlers in supabase/functions/_shared/jobs. Deployable as a container; the same handlers also run in the `jobs` edge function.",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@sentry/node": "11.10.0",
+    "@supabase/supabase-js": "2.118.0",
+    "h3-js": "4.5.0",
+    "postgres": "3.4.9",
+    "stream-chat": "9.54.4",
+    "tsx": "4.23.15"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "~6.0.3",
+    "vitest": "^5.1.0"
+  }
+}

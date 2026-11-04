@@ -1,0 +1,33 @@
+# Render Blueprint alternative for the job worker.
+services:
+  - type: worker
+    name: loopfield-worker
+    runtime: docker
+    dockerfilePath: ./services/worker/Dockerfile
+    dockerContext: .
+    plan: starter
+    envVars:
+      - key: WORKER_CONCURRENCY
+        value: "2"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: TICKET_SIGNING_SECRET
+        sync: false
+      - key: STREAM_API_KEY
+        sync: false
+      - key: STREAM_API_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        sync: false
+      - key: REVENUECAT_SECRET_API_KEY
+        sync: false
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
+      - key: SENTRY_DSN_BACKEND
+        sync: false

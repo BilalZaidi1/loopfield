@@ -1,0 +1,12 @@
+{
+  "imports": {
+    "postgres": "npm:postgres@3.4.9",
+    "h3-js": "npm:h3-js@4.5.0",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.118.0",
+    "stream-chat": "npm:stream-chat@9.54.4",
+    "@sentry/deno": "npm:@sentry/deno@11.10.0"
+  },
+  "compilerOptions": {
+    "strict": true
+  }
+}
