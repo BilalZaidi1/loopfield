@@ -1,0 +1,35 @@
+node_modules/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+*.local
+coverage/
+dist/
+build/
+tmp/
+.turbo/
+
+# Expo / native
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/dist/
+apps/mobile/web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.keystore
+google-services.json
+GoogleService-Info.plist
+
+# Supabase
+supabase/.branches
+supabase/.temp
+supabase/functions/.env
+
+# Local test database
+.pgdata/

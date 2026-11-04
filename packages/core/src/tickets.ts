@@ -1,0 +1,37 @@
+import type { SessionTicketClaims } from './recording/types.ts';
+import { hmacSha256Hex, timingSafeEqual } from './webhooks/verify.ts';
+
+/**
+ * Signed competitive-session tickets (PRD §6 "Competitive sessions start with an online signed
+ * ticket"). The server signs a canonical JSON payload with HMAC-SHA256; the database also stores
+ * the issued ticket so it can be consumed exactly once.
+ */
+
+export function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
+}
+
+export async function signTicket(claims: SessionTicketClaims, secret: string): Promise<string> {
+  if (!secret || secret.length < 32) throw new Error('Ticket signing secret must be at least 32 characters');
+  return hmacSha256Hex(secret, canonicalJson(claims));
+}
+
+export async function verifyTicket(claims: SessionTicketClaims, signature: string, secret: string): Promise<boolean> {
+  if (!signature) return false;
+  const expected = await hmacSha256Hex(secret, canonicalJson(claims));
+  return timingSafeEqual(expected, signature);
+}
+
+export type TicketCheck = { ok: true } | { ok: false; reason: 'ticket_invalid' | 'ticket_expired' | 'mode_not_enabled' };
+
+/** Validate ticket timing against the competitive interval start (server time anchor). */
+export function checkTicketTiming(claims: SessionTicketClaims, intervalStart: number, maxClockSkewMs: number): TicketCheck {
+  if (intervalStart + maxClockSkewMs < claims.issuedAt) return { ok: false, reason: 'ticket_invalid' };
+  if (intervalStart > claims.startBy) return { ok: false, reason: 'ticket_expired' };
+  return { ok: true };
+}

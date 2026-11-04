@@ -1,0 +1,127 @@
+import {
+  bearingDegrees,
+  densify,
+  destination,
+  haversineMeters,
+  makeProjector,
+  pathLengthMeters,
+  pointToPolylineDistance,
+  simplify,
+  type LatLng
+} from '../geo/geo.ts';
+import { SPEED_RULES } from '../rules/config.ts';
+
+export interface Gate {
+  a: LatLng;
+  b: LatLng;
+  /** Bearing (deg) a runner must travel across the gate. */
+  bearing: number;
+}
+
+export interface Checkpoint {
+  point: LatLng;
+  radiusM: number;
+}
+
+/** Immutable geometry of one published course version. */
+export interface CourseGeometry {
+  path: LatLng[];
+  startGate: Gate;
+  finishGate: Gate;
+  checkpoints: Checkpoint[];
+  corridorM: number;
+  lengthM: number;
+}
+
+function gateAt(point: LatLng, travelBearing: number, halfWidthM: number): Gate {
+  return {
+    a: destination(point, halfWidthM, travelBearing - 90),
+    b: destination(point, halfWidthM, travelBearing + 90),
+    bearing: travelBearing
+  };
+}
+
+function pointAtDistance(path: readonly LatLng[], targetM: number): { point: LatLng; bearing: number } {
+  let acc = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1]!;
+    const b = path[i]!;
+    const d = haversineMeters(a, b);
+    if (acc + d >= targetM) {
+      const t = d === 0 ? 0 : (targetM - acc) / d;
+      return { point: { lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t }, bearing: bearingDegrees(a, b) };
+    }
+    acc += d;
+  }
+  const n = path.length;
+  return { point: path[n - 1]!, bearing: bearingDegrees(path[n - 2]!, path[n - 1]!) };
+}
+
+/** Bearing of the path a few metres away from an endpoint, robust to GPS jitter. */
+function endpointBearing(path: readonly LatLng[], atStart: boolean, lookM = 15): number {
+  if (atStart) return bearingDegrees(path[0]!, pointAtDistance(path, lookM).point);
+  const total = pathLengthMeters(path);
+  return bearingDegrees(pointAtDistance(path, Math.max(0, total - lookM)).point, path[path.length - 1]!);
+}
+
+/**
+ * Build a course from a validated source trace: simplified geometry, start/finish gates
+ * perpendicular to the direction of travel, and ordered checkpoints every ~quarter of the course
+ * (at least 3) so a shortcut cannot pass by coverage alone.
+ */
+export function buildCourse(trace: readonly LatLng[], opts: { closed: boolean; rules?: typeof SPEED_RULES } = { closed: true }): CourseGeometry {
+  const rules = opts.rules ?? SPEED_RULES;
+  const path = simplify(trace, 2);
+  if (opts.closed && haversineMeters(path[0]!, path[path.length - 1]!) > 0.5) path.push(path[0]!);
+  const lengthM = pathLengthMeters(path);
+  const halfWidth = rules.gateHalfWidthMeters.value;
+  const startGate = gateAt(path[0]!, endpointBearing(path, true), halfWidth);
+  const finishGate = opts.closed ? { ...startGate } : gateAt(path[path.length - 1]!, endpointBearing(path, false), halfWidth);
+  const count = Math.max(3, Math.min(8, Math.round(lengthM / 750)));
+  const checkpoints: Checkpoint[] = [];
+  for (let i = 1; i <= count; i++) {
+    const { point } = pointAtDistance(path, (lengthM * i) / (count + 1));
+    checkpoints.push({ point, radiusM: rules.checkpointRadiusMeters.value });
+  }
+  return { path, startGate, finishGate, checkpoints, corridorM: rules.corridorMeters.value, lengthM: Math.round(lengthM) };
+}
+
+/** Symmetric discrete Hausdorff distance (m) between two courses, plus direction agreement. */
+export function courseSimilarity(a: CourseGeometry, b: CourseGeometry): { hausdorffM: number; sameDirection: boolean } {
+  const proj = makeProjector(a.path[0]!);
+  const ad = densify(a.path, 10).map(proj.toXY);
+  const bd = densify(b.path, 10).map(proj.toXY);
+  const directed = (from: typeof ad, to: typeof bd) => {
+    let worst = 0;
+    for (const p of from) worst = Math.max(worst, pointToPolylineDistance(p, to));
+    return worst;
+  };
+  const hausdorffM = Math.max(directed(ad, bd), directed(bd, ad));
+  const diff = Math.abs(((a.startGate.bearing - b.startGate.bearing + 540) % 360) - 180);
+  // Same direction when checkpoints are visited in the same order along the other path.
+  const order = (geom: CourseGeometry, cps: Checkpoint[]) => {
+    const dens = densify(geom.path, 5);
+    return cps.map((cp) => {
+      let best = 0;
+      let bestD = Infinity;
+      dens.forEach((p, i) => {
+        const d = haversineMeters(p, cp.point);
+        if (d < bestD) {
+          bestD = d;
+          best = i;
+        }
+      });
+      return best;
+    });
+  };
+  const idx = order(b, a.checkpoints);
+  const increasing = idx.every((v, i) => i === 0 || v >= idx[i - 1]!);
+  return { hausdorffM: Math.round(hausdorffM), sameDirection: increasing && diff <= 90 };
+}
+
+export function isDuplicateCourse(a: CourseGeometry, b: CourseGeometry, rules = SPEED_RULES): boolean {
+  const lengthRatio = Math.min(a.lengthM, b.lengthM) / Math.max(a.lengthM, b.lengthM);
+  if (lengthRatio < 0.9) return false;
+  const sim = courseSimilarity(a, b);
+  return sim.sameDirection && sim.hausdorffM <= rules.duplicateRouteMaxHausdorffMeters.value;
+}

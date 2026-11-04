@@ -1,0 +1,95 @@
+/**
+ * Reference implementation of the land-control rule (PRD §5, §17):
+ *   each cell's controller is the eligible claim with the latest verified completion order;
+ *   ties on completion time are broken deterministically by claim identifier.
+ * Pace never participates. The PostgreSQL engine (territory.apply_claim / replay) is authoritative;
+ * this module is used for previews and to cross-check the SQL engine in tests.
+ */
+
+export interface LedgerClaim {
+  id: string;
+  userId: string;
+  /** Verified completion time (epoch ms). */
+  completedAt: number;
+  cells: readonly string[];
+  eligible: boolean;
+}
+
+export interface CellOwner {
+  claimId: string;
+  userId: string;
+  completedAt: number;
+}
+
+export function compareOrder(a: { completedAt: number; id: string }, b: { completedAt: number; id: string }): number {
+  if (a.completedAt !== b.completedAt) return a.completedAt - b.completedAt;
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+/** Full deterministic replay; independent of the order in which claims arrived. */
+export function resolveControl(claims: readonly LedgerClaim[]): Map<string, CellOwner> {
+  const control = new Map<string, CellOwner>();
+  const ordered = claims.filter((c) => c.eligible).sort(compareOrder);
+  for (const claim of ordered) {
+    for (const cell of claim.cells) control.set(cell, { claimId: claim.id, userId: claim.userId, completedAt: claim.completedAt });
+  }
+  return control;
+}
+
+export interface ApplyResult {
+  gained: string[];
+  /** Cells taken from each previous controller. */
+  takenFrom: Record<string, string[]>;
+  /** Cells that already belonged to the same runner (newer claim recorded). */
+  refreshed: string[];
+  /** Cells where a later claim already controls the cell (late-arriving earlier loop). */
+  unchanged: string[];
+}
+
+/** Incremental application of one claim, mirroring territory.apply_claim. */
+export function applyClaim(control: Map<string, CellOwner>, claim: LedgerClaim): ApplyResult {
+  const result: ApplyResult = { gained: [], takenFrom: {}, refreshed: [], unchanged: [] };
+  if (!claim.eligible) return result;
+  for (const cell of claim.cells) {
+    const current = control.get(cell);
+    const next = { claimId: claim.id, userId: claim.userId, completedAt: claim.completedAt };
+    if (!current) {
+      control.set(cell, next);
+      result.gained.push(cell);
+    } else if (compareOrder({ completedAt: current.completedAt, id: current.claimId }, { completedAt: claim.completedAt, id: claim.id }) < 0) {
+      if (current.userId === claim.userId) result.refreshed.push(cell);
+      else {
+        (result.takenFrom[current.userId] ??= []).push(cell);
+        result.gained.push(cell);
+      }
+      control.set(cell, next);
+    } else {
+      result.unchanged.push(cell);
+    }
+  }
+  return result;
+}
+
+export interface RankEntry {
+  userId: string;
+  areaM2: number;
+}
+
+/** Standard competition ranking; exact ties share rank (PRD §6 Territory ranking). */
+export function rankByArea(entries: readonly RankEntry[]): Array<RankEntry & { rank: number }> {
+  const sorted = [...entries].sort((a, b) => b.areaM2 - a.areaM2 || (a.userId < b.userId ? -1 : 1));
+  let rank = 0;
+  let prev: number | null = null;
+  return sorted.map((e, i) => {
+    if (prev === null || e.areaM2 !== prev) rank = i + 1;
+    prev = e.areaM2;
+    return { ...e, rank };
+  });
+}
+
+/** Sum of unique controlled cell area per user (each cell counted once). */
+export function areaByUser(control: Map<string, CellOwner>, cellArea: (cell: string) => number): RankEntry[] {
+  const totals = new Map<string, number>();
+  for (const [cell, owner] of control) totals.set(owner.userId, (totals.get(owner.userId) ?? 0) + cellArea(cell));
+  return [...totals.entries()].map(([userId, areaM2]) => ({ userId, areaM2 }));
+}

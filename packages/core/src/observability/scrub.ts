@@ -1,0 +1,89 @@
+/**
+ * Scrubbing for crash reports, breadcrumbs and server logs (Sentry before-send, edge/worker logs).
+ * Removes secrets, credentials, email addresses, precise coordinates, health values and message
+ * or post text before anything leaves the device or server.
+ */
+
+const SENSITIVE_KEY =
+  /^(lat|lng|lon|latitude|longitude|coords?|coordinates|location|locations|samples?|trace|polygon|ring|geometry|geojson|heart.?rate|hr|hrv|sleep|vo2.?max|steps|calories|energy|body|text|message_text|content|caption|comment|bio|email|phone|password|passcode|token|access_token|refresh_token|id_token|authorization|cookie|set-cookie|secret|api.?key|signature|x-signature|svix-signature|webhook-signature|stream.?token|jwt|address)$/i;
+
+const PATTERNS: Array<[RegExp, string]> = [
+  [/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g, '[jwt]'],
+  [/\b(sk|pk|rk|whsec|re|phc|phx|sntrys|sbp)_[A-Za-z0-9_]{12,}\b/g, '[key]'],
+  [/\b(sk|pk)\.[A-Za-z0-9._-]{20,}\b/g, '[mapbox-token]'],
+  [/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [redacted]'],
+  [/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '[email]'],
+  // Decimal coordinate pairs such as "24.86071, 67.00113" or "lat=24.8 lng=67.0"
+  [/-?\d{1,3}\.\d{3,}\s*,\s*-?\d{1,3}\.\d{3,}/g, '[coords]'],
+  [/\b(lat|lng|lon|latitude|longitude)\s*[=:]\s*-?\d{1,3}\.\d+/gi, '$1=[redacted]'],
+  [/POINT\s*\([^)]*\)|POLYGON\s*\(\([^)]*\)\)|LINESTRING\s*\([^)]*\)/gi, '[wkt]']
+];
+
+export function scrubText(input: string): string {
+  let out = input;
+  for (const [re, replacement] of PATTERNS) out = out.replace(re, replacement);
+  return out;
+}
+
+export function scrubValue(value: unknown, depth = 0): unknown {
+  if (depth > 8) return '[depth]';
+  if (typeof value === 'string') return scrubText(value);
+  if (Array.isArray(value)) return value.slice(0, 50).map((v) => scrubValue(v, depth + 1));
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out[k] = SENSITIVE_KEY.test(k) ? '[redacted]' : scrubValue(v, depth + 1);
+    }
+    return out;
+  }
+  return value;
+}
+
+interface SentryLikeEvent {
+  message?: string;
+  user?: Record<string, unknown> | null;
+  request?: Record<string, unknown>;
+  extra?: Record<string, unknown>;
+  contexts?: Record<string, unknown>;
+  tags?: Record<string, unknown>;
+  breadcrumbs?: Array<Record<string, unknown>> | { values?: Array<Record<string, unknown>> };
+  exception?: { values?: Array<{ value?: string; type?: string }> };
+  [key: string]: unknown;
+}
+
+/** Sentry beforeSend/beforeSendTransaction compatible scrubber (mobile, edge functions, worker). */
+export function scrubSentryEvent<T extends SentryLikeEvent>(event: T): T {
+  const e = { ...event } as SentryLikeEvent;
+  if (e.message) e.message = scrubText(e.message);
+  if (e.user) e.user = e.user.id ? { id: e.user.id } : null;
+  if (e.request) {
+    const { url, method } = e.request as { url?: string; method?: string };
+    e.request = { method, url: url ? scrubText(url.split('?')[0]!) : undefined };
+  }
+  if (e.extra) e.extra = scrubValue(e.extra) as Record<string, unknown>;
+  if (e.contexts) e.contexts = scrubValue(e.contexts) as Record<string, unknown>;
+  if (e.tags) e.tags = scrubValue(e.tags) as Record<string, unknown>;
+  if (e.exception?.values) {
+    e.exception = { ...e.exception, values: e.exception.values.map((v) => ({ ...v, value: v.value ? scrubText(v.value) : v.value })) };
+  }
+  if (Array.isArray(e.breadcrumbs)) e.breadcrumbs = e.breadcrumbs.map(scrubBreadcrumb).filter(Boolean) as Array<Record<string, unknown>>;
+  else if (e.breadcrumbs?.values) e.breadcrumbs = { values: e.breadcrumbs.values.map(scrubBreadcrumb).filter(Boolean) as Array<Record<string, unknown>> };
+  return e as T;
+}
+
+export function scrubBreadcrumb(b: Record<string, unknown>): Record<string, unknown> | null {
+  // Network breadcrumbs may carry request bodies or query strings with tokens or locations.
+  const category = String(b.category ?? '');
+  const out: Record<string, unknown> = { ...b };
+  if (typeof out.message === 'string') out.message = scrubText(out.message);
+  if (out.data) out.data = scrubValue(out.data);
+  if (category === 'console' && typeof out.message === 'string' && out.message.length > 500) out.message = out.message.slice(0, 500);
+  if (category === 'xhr' || category === 'fetch') {
+    const data = (out.data ?? {}) as Record<string, unknown>;
+    if (typeof data.url === 'string') data.url = scrubText(data.url.split('?')[0]!);
+    delete data.request_body;
+    delete data.response_body;
+    out.data = data;
+  }
+  return out;
+}

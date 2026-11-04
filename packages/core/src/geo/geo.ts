@@ -1,0 +1,327 @@
+/**
+ * Lightweight geodesy helpers used for validation, previews and timing.
+ * The database (PostGIS) remains authoritative for polygon validity, area and cell containment;
+ * these functions are used for pre-validation, speed matching and client-side estimates.
+ */
+
+export interface LatLng {
+  lat: number;
+  lng: number;
+}
+
+export interface XY {
+  x: number;
+  y: number;
+}
+
+export const EARTH_RADIUS_M = 6_371_008.8;
+const DEG = Math.PI / 180;
+
+export function haversineMeters(a: LatLng, b: LatLng): number {
+  const dLat = (b.lat - a.lat) * DEG;
+  const dLng = (b.lng - a.lng) * DEG;
+  const s =
+    Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * DEG) * Math.cos(b.lat * DEG) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+/** Local equirectangular projection around an origin. Accurate to well under 1% for areas < 50 km. */
+export function makeProjector(origin: LatLng) {
+  const cosLat = Math.cos(origin.lat * DEG);
+  return {
+    toXY(p: LatLng): XY {
+      return {
+        x: (p.lng - origin.lng) * DEG * EARTH_RADIUS_M * cosLat,
+        y: (p.lat - origin.lat) * DEG * EARTH_RADIUS_M
+      };
+    },
+    toLatLng(p: XY): LatLng {
+      return {
+        lat: origin.lat + p.y / (EARTH_RADIUS_M * DEG),
+        lng: origin.lng + p.x / (EARTH_RADIUS_M * DEG * cosLat)
+      };
+    }
+  };
+}
+
+export function centroidOf(points: readonly LatLng[]): LatLng {
+  let lat = 0;
+  let lng = 0;
+  for (const p of points) {
+    lat += p.lat;
+    lng += p.lng;
+  }
+  return { lat: lat / points.length, lng: lng / points.length };
+}
+
+export function pathLengthMeters(points: readonly LatLng[]): number {
+  let total = 0;
+  for (let i = 1; i < points.length; i++) total += haversineMeters(points[i - 1]!, points[i]!);
+  return total;
+}
+
+/** Signed shoelace area in m² of a ring (closing edge implied). */
+export function ringAreaSquareMeters(ring: readonly LatLng[]): number {
+  if (ring.length < 3) return 0;
+  const proj = makeProjector(centroidOf(ring));
+  const xy = ring.map(proj.toXY);
+  let sum = 0;
+  for (let i = 0; i < xy.length; i++) {
+    const a = xy[i]!;
+    const b = xy[(i + 1) % xy.length]!;
+    sum += a.x * b.y - b.x * a.y;
+  }
+  return Math.abs(sum) / 2;
+}
+
+/** Closed ring perimeter including the closing edge. */
+export function ringPerimeterMeters(ring: readonly LatLng[]): number {
+  if (ring.length < 2) return 0;
+  return pathLengthMeters(ring) + haversineMeters(ring[ring.length - 1]!, ring[0]!);
+}
+
+/** Polsby–Popper compactness 4πA/P² — 1 for a circle, ≈0 for a sliver or out-and-back. */
+export function compactness(areaM2: number, perimeterM: number): number {
+  if (perimeterM <= 0) return 0;
+  return (4 * Math.PI * areaM2) / (perimeterM * perimeterM);
+}
+
+function orient(a: XY, b: XY, c: XY): number {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+function onSegment(a: XY, b: XY, c: XY): boolean {
+  return (
+    Math.min(a.x, b.x) - 1e-9 <= c.x &&
+    c.x <= Math.max(a.x, b.x) + 1e-9 &&
+    Math.min(a.y, b.y) - 1e-9 <= c.y &&
+    c.y <= Math.max(a.y, b.y) + 1e-9
+  );
+}
+
+/** Proper or touching intersection test for segments p1p2 and p3p4. */
+export function segmentsIntersect(p1: XY, p2: XY, p3: XY, p4: XY): boolean {
+  const d1 = orient(p3, p4, p1);
+  const d2 = orient(p3, p4, p2);
+  const d3 = orient(p1, p2, p3);
+  const d4 = orient(p1, p2, p4);
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) return true;
+  if (d1 === 0 && onSegment(p3, p4, p1)) return true;
+  if (d2 === 0 && onSegment(p3, p4, p2)) return true;
+  if (d3 === 0 && onSegment(p1, p2, p3)) return true;
+  if (d4 === 0 && onSegment(p1, p2, p4)) return true;
+  return false;
+}
+
+/** Intersection parameter t along p1->p2 where it crosses p3->p4, or null. */
+export function segmentIntersectionParam(p1: XY, p2: XY, p3: XY, p4: XY): { t: number; u: number } | null {
+  const rx = p2.x - p1.x;
+  const ry = p2.y - p1.y;
+  const sx = p4.x - p3.x;
+  const sy = p4.y - p3.y;
+  const denom = rx * sy - ry * sx;
+  if (Math.abs(denom) < 1e-12) return null;
+  const qpx = p3.x - p1.x;
+  const qpy = p3.y - p1.y;
+  const t = (qpx * sy - qpy * sx) / denom;
+  const u = (qpx * ry - qpy * rx) / denom;
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null;
+  return { t, u };
+}
+
+/**
+ * Returns true when the closed ring (closing edge implied) has no self-intersections other than
+ * shared endpoints of adjacent edges. Uses grid bucketing so typical runs are near-linear.
+ */
+export function isSimpleRing(ringXY: readonly XY[], cellSize = 50): boolean {
+  const n = ringXY.length;
+  if (n < 3) return false;
+  const edges: Array<[XY, XY]> = [];
+  for (let i = 0; i < n; i++) edges.push([ringXY[i]!, ringXY[(i + 1) % n]!]);
+  const buckets = new Map<string, number[]>();
+  edges.forEach(([a, b], idx) => {
+    const minX = Math.floor(Math.min(a.x, b.x) / cellSize);
+    const maxX = Math.floor(Math.max(a.x, b.x) / cellSize);
+    const minY = Math.floor(Math.min(a.y, b.y) / cellSize);
+    const maxY = Math.floor(Math.max(a.y, b.y) / cellSize);
+    for (let gx = minX; gx <= maxX; gx++) {
+      for (let gy = minY; gy <= maxY; gy++) {
+        const key = `${gx}:${gy}`;
+        const list = buckets.get(key);
+        if (list) list.push(idx);
+        else buckets.set(key, [idx]);
+      }
+    }
+  });
+  const checked = new Set<number>();
+  for (const list of buckets.values()) {
+    for (let i = 0; i < list.length; i++) {
+      for (let j = i + 1; j < list.length; j++) {
+        const a = list[i]!;
+        const b = list[j]!;
+        const lo = Math.min(a, b);
+        const hi = Math.max(a, b);
+        // adjacent edges (including closing adjacency) share a vertex legitimately
+        if (hi - lo === 1 || (lo === 0 && hi === n - 1)) continue;
+        const key = lo * n + hi;
+        if (checked.has(key)) continue;
+        checked.add(key);
+        const [p1, p2] = edges[lo]!;
+        const [p3, p4] = edges[hi]!;
+        if (segmentsIntersect(p1, p2, p3, p4)) return false;
+      }
+    }
+  }
+  return true;
+}
+
+export function pointToSegmentDistance(p: XY, a: XY, b: XY): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  let t = len2 === 0 ? 0 : ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const cx = a.x + t * dx;
+  const cy = a.y + t * dy;
+  return Math.hypot(p.x - cx, p.y - cy);
+}
+
+/** Minimum distance from a point to a polyline (projected coordinates). */
+export function pointToPolylineDistance(p: XY, line: readonly XY[]): number {
+  let best = Infinity;
+  for (let i = 1; i < line.length; i++) {
+    const d = pointToSegmentDistance(p, line[i - 1]!, line[i]!);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+/** Densify a polyline so consecutive points are at most stepM apart. */
+export function densify(points: readonly LatLng[], stepM: number): LatLng[] {
+  if (points.length === 0) return [];
+  const out: LatLng[] = [points[0]!];
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    const d = haversineMeters(a, b);
+    const steps = Math.max(1, Math.ceil(d / stepM));
+    for (let s = 1; s <= steps; s++) {
+      const t = s / steps;
+      out.push({ lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t });
+    }
+  }
+  return out;
+}
+
+/** Ramer–Douglas–Peucker simplification in metres. Keeps endpoints. */
+export function simplify(points: readonly LatLng[], toleranceM: number): LatLng[] {
+  if (points.length <= 2) return points.slice();
+  const proj = makeProjector(centroidOf(points));
+  const xy = points.map(proj.toXY);
+  const keep = new Uint8Array(points.length);
+  keep[0] = 1;
+  keep[points.length - 1] = 1;
+  const stack: Array<[number, number]> = [[0, points.length - 1]];
+  while (stack.length) {
+    const [s, e] = stack.pop()!;
+    let maxD = -1;
+    let idx = -1;
+    for (let i = s + 1; i < e; i++) {
+      const d = pointToSegmentDistance(xy[i]!, xy[s]!, xy[e]!);
+      if (d > maxD) {
+        maxD = d;
+        idx = i;
+      }
+    }
+    if (maxD > toleranceM && idx > 0) {
+      keep[idx] = 1;
+      stack.push([s, idx], [idx, e]);
+    }
+  }
+  return points.filter((_, i) => keep[i] === 1);
+}
+
+/** Google encoded polyline (precision 5 by default). */
+export function encodePolyline(points: readonly LatLng[], precision = 5): string {
+  const factor = 10 ** precision;
+  let lastLat = 0;
+  let lastLng = 0;
+  let out = '';
+  const enc = (v: number) => {
+    let n = v < 0 ? ~(v << 1) : v << 1;
+    let s = '';
+    while (n >= 0x20) {
+      s += String.fromCharCode((0x20 | (n & 0x1f)) + 63);
+      n >>= 5;
+    }
+    return s + String.fromCharCode(n + 63);
+  };
+  for (const p of points) {
+    const lat = Math.round(p.lat * factor);
+    const lng = Math.round(p.lng * factor);
+    out += enc(lat - lastLat) + enc(lng - lastLng);
+    lastLat = lat;
+    lastLng = lng;
+  }
+  return out;
+}
+
+export function decodePolyline(str: string, precision = 5): LatLng[] {
+  const factor = 10 ** precision;
+  const out: LatLng[] = [];
+  let index = 0;
+  let lat = 0;
+  let lng = 0;
+  while (index < str.length) {
+    for (const which of [0, 1]) {
+      let result = 0;
+      let shift = 0;
+      let b: number;
+      do {
+        b = str.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      const delta = result & 1 ? ~(result >> 1) : result >> 1;
+      if (which === 0) lat += delta;
+      else lng += delta;
+    }
+    out.push({ lat: lat / factor, lng: lng / factor });
+  }
+  return out;
+}
+
+export function bboxOf(points: readonly LatLng[]) {
+  let minLat = Infinity;
+  let minLng = Infinity;
+  let maxLat = -Infinity;
+  let maxLng = -Infinity;
+  for (const p of points) {
+    if (p.lat < minLat) minLat = p.lat;
+    if (p.lat > maxLat) maxLat = p.lat;
+    if (p.lng < minLng) minLng = p.lng;
+    if (p.lng > maxLng) maxLng = p.lng;
+  }
+  return { minLat, minLng, maxLat, maxLng };
+}
+
+/** Destination point given distance (m) and bearing (deg) — used by fixtures and gate construction. */
+export function destination(from: LatLng, distanceM: number, bearingDeg: number): LatLng {
+  const d = distanceM / EARTH_RADIUS_M;
+  const br = bearingDeg * DEG;
+  const lat1 = from.lat * DEG;
+  const lng1 = from.lng * DEG;
+  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(br));
+  const lng2 =
+    lng1 + Math.atan2(Math.sin(br) * Math.sin(d) * Math.cos(lat1), Math.cos(d) - Math.sin(lat1) * Math.sin(lat2));
+  return { lat: lat2 / DEG, lng: ((lng2 / DEG + 540) % 360) - 180 };
+}
+
+export function bearingDegrees(a: LatLng, b: LatLng): number {
+  const lat1 = a.lat * DEG;
+  const lat2 = b.lat * DEG;
+  const dLng = (b.lng - a.lng) * DEG;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return ((Math.atan2(y, x) / DEG) + 360) % 360;
+}

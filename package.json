@@ -1,0 +1,26 @@
+{
+  "name": "loopfield",
+  "private": true,
+  "description": "Territory running app (working codename Loopfield) - Expo mobile app, Supabase backend, job worker and shared rules engine.",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.11 <23"
+  },
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:core": "npm run test -w @loopfield/core",
+    "test:db": "bash scripts/test-db.sh",
+    "test:worker": "npm run test -w @loopfield/worker",
+    "worker": "npm run start -w @loopfield/worker",
+    "verify": "bash scripts/verify.sh"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}
