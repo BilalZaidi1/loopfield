@@ -4,7 +4,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError, rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
-import { Button, EmptyState, ErrorState, LoadingState, Row, Screen, Segmented } from '@/components/ui';
+import { Avatar, Button, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Segmented } from '@/components/ui';
 import { useSession } from '@/state/session';
 import { spacing } from '@/theme/tokens';
 
@@ -39,15 +39,15 @@ export default function Connections() {
     if (tab === 'requests')
       return (
         <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-          <Button label="Approve" onPress={() => act.mutate(async () => { await rpc('respond_follow_request', { p_follower: c.user_id, p_accept: true }); track('social_action', { action: 'follow_approved', audience_class: 'none', outcome: 'ok' }); })} />
-          <Button label="Decline" variant="ghost" onPress={() => act.mutate(() => rpc('respond_follow_request', { p_follower: c.user_id, p_accept: false }))} />
+          <Button label="Approve" size="sm" onPress={() => act.mutate(async () => { await rpc('respond_follow_request', { p_follower: c.user_id, p_accept: true }); track('social_action', { action: 'follow_approved', audience_class: 'none', outcome: 'ok' }); })} />
+          <Button label="Decline" size="sm" variant="ghost" onPress={() => act.mutate(() => rpc('respond_follow_request', { p_follower: c.user_id, p_accept: false }))} />
         </View>
       );
-    if (tab === 'followers') return <Button label="Remove" variant="ghost" onPress={() => Alert.alert('Remove follower?', `${c.display_name} will no longer see your followers-only posts. They are not notified.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => act.mutate(() => rpc('remove_follower', { p_follower: c.user_id })) }])} />;
+    if (tab === 'followers') return <Button label="Remove" size="sm" variant="ghost" onPress={() => Alert.alert('Remove follower?', `${c.display_name} will no longer see your followers-only posts. They are not notified.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove', style: 'destructive', onPress: () => act.mutate(() => rpc('remove_follower', { p_follower: c.user_id })) }])} />;
     return (
       <View style={{ flexDirection: 'row', gap: spacing.xs }}>
-        <Button label="Mute" variant="ghost" onPress={() => act.mutate(() => rpc('mute_user', { p_target: c.user_id, p_muted: true }))} />
-        <Button label="Unfollow" variant="ghost" onPress={() => act.mutate(() => rpc('unfollow', { p_target: c.user_id }))} />
+        <Button label="Mute" size="sm" variant="ghost" onPress={() => act.mutate(() => rpc('mute_user', { p_target: c.user_id, p_muted: true }))} />
+        <Button label="Unfollow" size="sm" variant="secondary" onPress={() => act.mutate(() => rpc('unfollow', { p_target: c.user_id }))} />
       </View>
     );
   };
@@ -57,9 +57,11 @@ export default function Connections() {
       <Stack.Screen options={{ title: 'Connections' }} />
       <Segmented label="Connection list" value={tab} onChange={setTab} options={[...(own ? [{ value: 'requests' as const, label: 'Requests' }] : []), { value: 'followers', label: 'Followers' }, { value: 'following', label: 'Following' }]} />
       {list.isLoading ? <LoadingState /> : list.error ? <ErrorState error={list.error} onRetry={() => void list.refetch()} /> : list.data?.length ? (
-        list.data.map((c) => <Row key={c.user_id} title={c.display_name} subtitle={`@${c.handle}`} onPress={() => router.push({ pathname: '/profile/[id]', params: { id: c.user_id } })} right={right(c)} />)
+        <ListGroup>
+          {list.data.map((c) => <Row key={c.user_id} leading={<Avatar name={c.display_name} size={40} />} title={c.display_name} subtitle={`@${c.handle}`} onPress={() => router.push({ pathname: '/profile/[id]', params: { id: c.user_id } })} right={right(c)} />)}
+        </ListGroup>
       ) : (
-        <EmptyState title={tab === 'requests' ? 'No pending requests' : tab === 'followers' ? 'No followers to show' : 'Not following anyone yet'} />
+        <EmptyState icon="clubs" title={tab === 'requests' ? 'No pending requests' : tab === 'followers' ? 'No followers to show' : 'Not following anyone yet'} action={tab === 'following' && own ? { label: 'Discover runners', onPress: () => router.push('/discover') } : undefined} />
       )}
     </Screen>
   );

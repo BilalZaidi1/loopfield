@@ -6,7 +6,8 @@ import { SOCIAL_RULES } from '@loopfield/core';
 import { friendlyError, rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { fmtRelative } from '@/lib/format';
-import { Button, EmptyState, ErrorState, LoadingState, Row, Screen, Section, TextField, Txt } from '@/components/ui';
+import { Avatar, Button, EmptyState, ErrorState, IconButton, ListGroup, LoadingState, Row, Screen, Section, TextField, Txt } from '@/components/ui';
+import { spacing } from '@/theme/tokens';
 import { PostCard, type PostJson } from '@/features/social/PostCard';
 
 interface Comment {
@@ -39,20 +40,32 @@ export default function PostDetail() {
   });
   const del = useMutation({ mutationFn: (cid: string) => rpc('delete_comment', { p_comment: cid }), onSuccess: () => void qc.invalidateQueries({ queryKey: ['comments', id] }) });
 
-  if (post.isLoading) return <LoadingState />;
-  if (post.error) return <ErrorState error={post.error} onRetry={() => void post.refetch()} />;
-  if (!post.data) return <Screen><Stack.Screen options={{ title: 'Post' }} /><EmptyState title="This post is not available" body="It may have been removed, or its audience no longer includes you." /></Screen>;
+  if (post.isLoading) return <Screen><Stack.Screen options={{ title: 'Post' }} /><LoadingState variant="cards" /></Screen>;
+  if (post.error) return <Screen><Stack.Screen options={{ title: 'Post' }} /><ErrorState error={post.error} onRetry={() => void post.refetch()} /></Screen>;
+  if (!post.data) return <Screen><Stack.Screen options={{ title: 'Post' }} /><EmptyState icon="chat" title="This post is not available" body="It may have been removed, or its audience no longer includes you." /></Screen>;
   const p = post.data;
   return (
-    <Screen>
+    <Screen
+      footer={
+        p.comments_enabled ? (
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm }}>
+            <View style={{ flex: 1 }}>
+              <TextField label="Add a comment" value={text} onChangeText={setText} multiline maxLength={SOCIAL_RULES.maxCommentChars.value} />
+            </View>
+            <IconButton icon="send" label="Post comment" variant="soft" onPress={() => add.mutate()} disabled={!text.trim() || add.isPending} />
+          </View>
+        ) : undefined
+      }>
       <Stack.Screen options={{ title: 'Post' }} />
       <PostCard post={p} onOpen={false} />
       {p.status === 'removed' && p.is_mine ? <Button variant="secondary" label="Request a review of the removal" onPress={() => router.push({ pathname: '/appeals', params: { type: 'post', id: p.id } })} /> : null}
-      <Section title={`Comments (${comments.data?.length ?? p.comment_count})`}>
+      <Section title={`Comments (${comments.data?.length ?? p.comment_count})`} icon="chat">
         {comments.isLoading ? <LoadingState /> : comments.data?.length ? (
-          comments.data.map((c) => (
+          <ListGroup>
+          {comments.data.map((c) => (
             <Row
               key={c.id}
+              leading={<Avatar name={c.display_name} size={36} />}
               title={`${c.display_name} · ${fmtRelative(c.created_at)}`}
               subtitle={c.body}
               onPress={() =>
@@ -64,15 +77,11 @@ export default function PostDetail() {
                 ])
               }
             />
-          ))
-        ) : <Txt color="textMuted">No comments yet.</Txt>}
+          ))}
+          </ListGroup>
+        ) : <Txt color="textMuted">No comments yet. Start the conversation.</Txt>}
       </Section>
-      {p.comments_enabled ? (
-        <View>
-          <TextField label="Add a comment" value={text} onChangeText={setText} multiline maxLength={SOCIAL_RULES.maxCommentChars.value} />
-          <Button label="Comment" onPress={() => add.mutate()} loading={add.isPending} disabled={!text.trim() || add.isPending} />
-        </View>
-      ) : <Txt color="textMuted">Comments are turned off for this post.</Txt>}
+      {p.comments_enabled ? null : <Txt color="textMuted">Comments are turned off for this post.</Txt>}
     </Screen>
   );
 }

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { friendlyError, rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { Banner, Button, Card, Screen, Txt } from '@/components/ui';
+import { Icon } from '@/components/icons';
 
 /**
  * S29 (email invitation deep link: loopfield://club-invite/<token>). Accepting is an explicit action;
@@ -29,15 +30,14 @@ export default function ClubEmailInvite() {
     }
   };
   return (
-    <Screen>
+    <Screen maxWidth={560} footer={<><Button label="Accept invitation" size="lg" arrow onPress={accept} loading={busy} /><Button variant="ghost" label="Not now" onPress={() => router.replace('/clubs')} /></>}>
       <Stack.Screen options={{ title: 'Group invitation' }} />
-      <Card>
-        <Txt variant="heading">You were invited to a group</Txt>
+      <Card tone="orange">
+        <Icon name="clubs" color="#121318" size={32} />
+        <Txt variant="display" style={{ fontSize: 32, lineHeight: 36 }}>You were invited to a group</Txt>
         <Txt color="textMuted">Accept to join with this account. The invitation works once and expires.</Txt>
-        {error ? <Banner tone="danger" text={error.includes('invalid') || error.includes('expired') ? 'This invitation is invalid, expired or was already used.' : error} /> : null}
-        <Button label="Accept invitation" onPress={accept} loading={busy} />
-        <Button variant="ghost" label="Not now" onPress={() => router.replace('/clubs')} />
       </Card>
+      {error ? <Banner tone="danger" text={error.includes('invalid') || error.includes('expired') ? 'This invitation is invalid, expired or was already used.' : error} /> : null}
     </Screen>
   );
 }

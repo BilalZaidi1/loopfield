@@ -7,11 +7,13 @@ import { friendlyError, rpc } from '@/lib/api';
 import { setAnalyticsConsent, track } from '@/lib/analytics';
 import { isExpoGo } from '@/lib/runtime';
 import { supabase } from '@/lib/supabase';
-import { Banner, Button, Card, Screen, Segmented, Toggle, Txt } from '@/components/ui';
+import { Badge, Banner, Button, Card, Chip, ListGroup, Screen, Toggle, Txt } from '@/components/ui';
+import { Icon, type IconName } from '@/components/icons';
+import { StepHeader } from '@/features/onboarding/StepHeader';
 import { requestNotificationPermission, notificationPermission } from '@/notifications/push';
 import { ensureLocationPermission } from '@/recording/recorder';
 import { useSession } from '@/state/session';
-import { spacing } from '@/theme/tokens';
+import { radius, spacing, usePalette } from '@/theme/tokens';
 
 type LocState = 'unknown' | 'granted' | 'foreground_only' | 'denied' | 'services_disabled';
 
@@ -75,41 +77,66 @@ export default function PermissionsSetup() {
     services_disabled: 'Location services are off on this phone.'
   };
 
+  const locBadge: Record<LocState, { label: string; tone: 'success' | 'warning' | 'danger' | 'muted' }> = {
+    unknown: { label: 'Not set up', tone: 'muted' },
+    granted: { label: 'Ready', tone: 'success' },
+    foreground_only: { label: 'While open', tone: 'warning' },
+    denied: { label: 'Off', tone: 'danger' },
+    services_disabled: { label: 'Off', tone: 'danger' }
+  };
+
   return (
-    <Screen>
-      <View style={{ gap: spacing.md, marginTop: spacing.lg, paddingBottom: spacing.xl }}>
-        <Txt variant="caption">Step 2 of 2</Txt>
-        <Txt variant="title">Get ready to run</Txt>
-        <Card>
-          <Txt variant="heading">Location</Txt>
-          <Txt color="textMuted">{locText[loc]}</Txt>
-          <Txt variant="caption">Location is recorded only during runs you start. Raw traces are never shown to other runners.</Txt>
-          {loc === 'denied' || loc === 'services_disabled' ? (
-            <Button variant="secondary" label="Open settings" onPress={() => void Linking.openSettings()} />
-          ) : loc !== 'granted' && !(isExpoGo && loc === 'foreground_only') ? (
-            <Button variant="secondary" label="Allow location" onPress={askLocation} />
-          ) : null}
-        </Card>
-        <Card>
-          <Txt variant="heading">Notifications (optional)</Txt>
-          <Txt color="textMuted">Follow requests, messages, club updates and one daily territory digest. Previews never include message text.</Txt>
-          {notif === 'granted' ? <Txt variant="label" color="success">On</Txt> : notif === 'denied' ? <Button variant="ghost" label="Open settings" onPress={() => void Linking.openSettings()} /> : <Button variant="secondary" label="Allow notifications" onPress={() => void requestNotificationPermission().then(read)} />}
-        </Card>
-        <Card>
-          <Txt variant="heading">Health data (later)</Txt>
-          <Txt color="textMuted">You can connect {Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect'} any time from Progress → Health. It stays on this phone and never affects competition.</Txt>
-        </Card>
-        <Card>
-          <Txt variant="heading">How do you want to start?</Txt>
-          <Segmented label="Starting mode" value={mode} onChange={setMode} options={[{ value: 'explore', label: 'Explore' }, { value: 'compete', label: 'Compete' }, { value: 'social', label: 'Social' }]} />
+    <Screen maxWidth={560} footer={<Button label="Finish setup" size="lg" arrow onPress={finish} loading={busy} />}>
+      <StepHeader step={2} of={2} title="Get ready to run" subtitle="Location is the only thing a run needs. Everything else is optional and can change later." />
+      <Card>
+        <PermissionHead icon="locate" title="Location" badge={locBadge[loc]} />
+        <Txt color="textMuted">{locText[loc]}</Txt>
+        <Txt variant="caption">Location is recorded only during runs you start. Raw traces are never shown to other runners.</Txt>
+        {loc === 'denied' || loc === 'services_disabled' ? (
+          <Button variant="secondary" label="Open settings" icon="settings" onPress={() => void Linking.openSettings()} />
+        ) : loc !== 'granted' && !(isExpoGo && loc === 'foreground_only') ? (
+          <Button label="Allow location" icon="locate" onPress={askLocation} />
+        ) : null}
+      </Card>
+      <Card>
+        <PermissionHead icon="bell" title="Notifications" badge={notif === 'granted' ? { label: 'On', tone: 'success' } : notif === 'denied' ? { label: 'Off', tone: 'danger' } : { label: 'Optional', tone: 'muted' }} />
+        <Txt color="textMuted">Follow requests, messages, club updates and one daily territory digest. Previews never include message text.</Txt>
+        {notif === 'granted' ? null : notif === 'denied' ? <Button variant="ghost" label="Open settings" onPress={() => void Linking.openSettings()} /> : <Button variant="secondary" label="Allow notifications" icon="bell" onPress={() => void requestNotificationPermission().then(read)} />}
+      </Card>
+      <Card>
+        <PermissionHead icon="pulse" title="Health data" badge={{ label: 'Later', tone: 'muted' }} />
+        <Txt color="textMuted">You can connect {Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect'} any time from Progress → Health. It stays on this phone and never affects competition.</Txt>
+      </Card>
+      <View style={{ gap: spacing.md }}>
+        <Txt variant="headline">How do you want to start?</Txt>
+        <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }} accessibilityRole="radiogroup" accessibilityLabel="Starting mode">
+          <Chip label="Explore" icon="compass" selected={mode === 'explore'} onPress={() => setMode('explore')} />
+          <Chip label="Compete" icon="trophy" selected={mode === 'compete'} onPress={() => setMode('compete')} />
+          <Chip label="Social" icon="clubs" selected={mode === 'social'} onPress={() => setMode('social')} />
+        </View>
+        <ListGroup>
           <Toggle label="Take part in territory" description="Eligible loops you start in competitive mode can claim land on the shared map. You can turn this off later; your land is then withdrawn." value={territory} onChange={setTerritory} />
           <Toggle label="Take part in route titles" description="Timed attempts on approved routes can earn titles. Separate from land." value={speed} onChange={setSpeed} />
-          <Txt variant="caption">Competition rules and thresholds are proposed pilot values and may change after field testing.</Txt>
-        </Card>
-        <Toggle label="Share anonymous usage analytics" description="Helps improve the app. Never includes GPS, health readings, messages or what you write. Off by default." value={analytics} onChange={setAnalytics} />
-        {error ? <Banner tone="danger" text={error} /> : null}
-        <Button label="Finish setup" onPress={finish} loading={busy} />
+        </ListGroup>
+        <Txt variant="caption">Competition rules and thresholds are proposed pilot values and may change after field testing.</Txt>
       </View>
+      <ListGroup>
+        <Toggle label="Share anonymous usage analytics" description="Helps improve the app. Never includes GPS, health readings, messages or what you write. Off by default." value={analytics} onChange={setAnalytics} />
+      </ListGroup>
+      {error ? <Banner tone="danger" text={error} /> : null}
     </Screen>
+  );
+}
+
+function PermissionHead({ icon, title, badge }: { icon: IconName; title: string; badge: { label: string; tone: 'success' | 'warning' | 'danger' | 'muted' } }) {
+  const p = usePalette();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+      <View style={{ width: 44, height: 44, borderRadius: radius.sm, backgroundColor: p.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
+        <Icon name={icon} color={p.primary} size={22} />
+      </View>
+      <Txt variant="heading" style={{ flex: 1 }}>{title}</Txt>
+      <Badge label={badge.label} tone={badge.tone} />
+    </View>
   );
 }

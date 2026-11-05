@@ -15,8 +15,8 @@ export function useReasonPrompt() {
   const element = (
     <Modal visible={Boolean(state)} transparent animationType="fade" onRequestClose={() => setState(null)}>
       <View style={{ flex: 1, backgroundColor: p.overlay, justifyContent: 'center', padding: spacing.xl }}>
-        <View style={{ backgroundColor: p.surface, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md }}>
-          <Txt variant="heading">{state?.title}</Txt>
+        <View style={{ backgroundColor: p.surface, borderRadius: radius.xl, padding: spacing.xxl, gap: spacing.md, width: '100%', maxWidth: 480, alignSelf: 'center' }}>
+          <Txt variant="headline">{state?.title}</Txt>
           <TextField label="Reason (recorded in the audit log)" value={reason} onChangeText={setReason} multiline maxLength={500} />
           <Button label="Confirm" disabled={reason.trim().length < 5} onPress={() => { const s = state; setState(null); s?.onSubmit(reason.trim()); }} />
           <Button variant="ghost" label="Cancel" onPress={() => setState(null)} />

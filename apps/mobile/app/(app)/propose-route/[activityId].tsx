@@ -1,17 +1,21 @@
 import { useMemo, useState } from 'react';
+import { View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { buildCourse, decodePolyline, haversineMeters, SPEED_RULES } from '@loopfield/core';
 import { ROUTE_PUBLICATION_CONSENT_VERSION } from '@/config/env';
 import { friendlyError, rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { fmtDistance } from '@/lib/format';
-import { Banner, Button, Card, LoadingState, Screen, TextField, Toggle, Txt } from '@/components/ui';
+import { Banner, Button, Card, ListGroup, LoadingState, Screen, TextField, Toggle, Txt } from '@/components/ui';
+import { Icon } from '@/components/icons';
+import { spacing, usePalette } from '@/theme/tokens';
 import { MapCanvas, type MapMarker } from '@/features/map/MapCanvas';
 import { useActivityDetail } from '@/features/results/useActivity';
 import { useUnits } from '@/state/session';
 
 /** S26 Propose speed route — geometry, direction, gates, publication consent and submit. */
 export default function ProposeRoute() {
+  const p = usePalette();
   const { activityId } = useLocalSearchParams<{ activityId: string }>();
   const units = useUnits();
   const detail = useActivityDetail(activityId);
@@ -45,23 +49,27 @@ export default function ProposeRoute() {
   };
 
   return (
-    <Screen>
+    <Screen footer={<Button label="Submit for review" size="lg" arrow onPress={() => void submit()} loading={busy} disabled={!consent || name.trim().length < 3 || !path.length || !lengthOk || busy} />}>
       <Stack.Screen options={{ title: 'Propose a route' }} />
       {!path.length ? <Banner tone="warning" text="This run has no processed route yet, so it cannot be proposed." /> : (
         <>
           <MapCanvas height={260} layers={{ path, markers }} accessibilityLabel="Proposed route geometry with start and finish." />
           <Card>
-            <Txt variant="heading">{preview ? fmtDistance(preview.lengthM, units) : '—'} · {closed ? 'loop' : 'one way'}</Txt>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Icon name="route" color={p.greenText} size={22} />
+              <Txt variant="headline" style={{ flex: 1 }}>{`${preview ? fmtDistance(preview.lengthM, units) : '—'} · ${closed ? 'loop' : 'one way'}`}</Txt>
+            </View>
             <Txt color="textMuted">Direction follows your run. Start and finish gates are placed across the path at each end; a reviewer may adjust gates and checkpoints and will check it is public, safe and not a duplicate.</Txt>
-            {!lengthOk ? <Txt color="warning">Routes must be {fmtDistance(SPEED_RULES.minCourseLengthMeters.value, units, 0)}–{fmtDistance(SPEED_RULES.maxCourseLengthMeters.value, units, 0)} long.</Txt> : null}
+            {!lengthOk ? <Banner tone="warning" text={`Routes must be ${fmtDistance(SPEED_RULES.minCourseLengthMeters.value, units, 0)}–${fmtDistance(SPEED_RULES.maxCourseLengthMeters.value, units, 0)} long.`} /> : null}
           </Card>
         </>
       )}
       <TextField label="Route name" value={name} onChangeText={setName} maxLength={60} />
-      <Toggle label="Publish this route geometry if approved" description="The course line (not your run’s timing or the rest of your trace) becomes visible to everyone in the competition. Required to submit." value={consent} onChange={setConsent} />
-      <Toggle label="Count this run as the founding attempt" description="If approved, your time on this run can set the first record." value={founding} onChange={setFounding} />
+      <ListGroup>
+        <Toggle label="Publish this route geometry if approved" description="The course line (not your run’s timing or the rest of your trace) becomes visible to everyone in the competition. Required to submit." value={consent} onChange={setConsent} />
+        <Toggle label="Count this run as the founding attempt" description="If approved, your time on this run can set the first record." value={founding} onChange={setFounding} />
+      </ListGroup>
       {error ? <Banner tone="danger" text={error} /> : null}
-      <Button label="Submit for review" onPress={() => void submit()} loading={busy} disabled={!consent || name.trim().length < 3 || !path.length || !lengthOk || busy} />
     </Screen>
   );
 }

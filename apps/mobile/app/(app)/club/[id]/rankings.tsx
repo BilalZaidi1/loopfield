@@ -5,7 +5,7 @@ import { formatDuration } from '@loopfield/core';
 import { rpc } from '@/lib/api';
 import { fmtArea } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { Badge, EmptyState, ErrorState, LoadingState, Row, Screen, Segmented, Txt } from '@/components/ui';
+import { Avatar, Badge, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Segmented, Txt } from '@/components/ui';
 import { useCompetition, type Season } from '@/state/competition';
 import { useUnits } from '@/state/session';
 
@@ -47,15 +47,19 @@ export default function ClubRankings() {
     <Screen>
       <Stack.Screen options={{ title: `${comp.name} rankings` }} />
       <Segmented label="Ranking type" value={view} onChange={setView} options={[{ value: 'territory', label: 'Land area' }, { value: 'routes', label: 'Route titles' }]} />
-      {season.isLoading ? <LoadingState /> : !season.data ? <EmptyState title="No active season" /> : view === 'territory' ? (
+      {season.isLoading ? <LoadingState /> : !season.data ? <EmptyState icon="calendar" title="No active season" /> : view === 'territory' ? (
         board.isLoading ? <LoadingState /> : board.error ? <ErrorState error={board.error} onRetry={() => void board.refetch()} /> : board.data?.length ? (
-          board.data.map((r) => <Row key={r.user_id} title={`${r.rank}. ${r.is_me ? 'You' : r.display_name}`} subtitle={r.is_me ? undefined : `@${r.handle}`} right={<Txt variant="label">{fmtArea(r.area_m2, units)}</Txt>} />)
-        ) : <EmptyState title="No published land yet this season" />
+          <ListGroup>
+            {board.data.map((r) => <Row key={r.user_id} rank={r.rank} highlight={r.is_me} leading={<Avatar name={r.display_name} size={36} />} title={r.is_me ? 'You' : r.display_name} subtitle={r.is_me ? undefined : `@${r.handle}`} value={fmtArea(r.area_m2, units)} />)}
+          </ListGroup>
+        ) : <EmptyState icon="hexagon" title="No published land yet this season" />
       ) : routes.isLoading ? <LoadingState /> : routes.error ? <ErrorState error={routes.error} onRetry={() => void routes.refetch()} /> : routes.data?.length ? (
-        routes.data.map((r) => (
-          <Row key={r.course_id} title={r.name} subtitle={r.champion_name ? `Champion: ${r.i_am_champion ? 'You' : r.champion_name}` : 'No champion yet'} right={r.benchmark_ms ? <Badge tone="title" label={formatDuration(r.benchmark_ms)} /> : undefined} onPress={() => router.push({ pathname: '/routes/[id]', params: { id: r.course_id, competition: comp.id } })} />
-        ))
-      ) : <EmptyState title="No approved routes in this area yet" />}
+        <ListGroup>
+          {routes.data.map((r) => (
+            <Row key={r.course_id} icon={r.i_am_champion ? 'crown' : 'route'} title={r.name} subtitle={r.champion_name ? `Title: ${r.i_am_champion ? 'you' : r.champion_name}` : 'No title holder yet'} right={r.benchmark_ms ? <Badge tone="title" icon="stopwatch" label={formatDuration(r.benchmark_ms)} /> : undefined} onPress={() => router.push({ pathname: '/routes/[id]', params: { id: r.course_id, competition: comp.id } })} />
+          ))}
+        </ListGroup>
+      ) : <EmptyState icon="route" title="No approved routes in this area yet" />}
       <Txt variant="caption">Land area and route titles are separate: a title never moves land, and land never protects a title.</Txt>
     </Screen>
   );

@@ -51,13 +51,49 @@ export function useActivities(days: number | null = null) {
   });
 }
 
+/** Local calendar day as YYYY-MM-DD (never shifted to UTC). */
+export function localDayKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 /** Monday-based local week key for weekly trends. */
 export function weekKey(t: number): string {
   const d = new Date(t);
   const day = (d.getDay() + 6) % 7;
   d.setHours(0, 0, 0, 0);
   d.setDate(d.getDate() - day);
-  return d.toISOString().slice(0, 10);
+  return localDayKey(d);
+}
+
+/** Distance per day of the current week (Monday first) next to the same weekday last week. */
+export function thisWeekByDay(rows: ActivityRow[], now = Date.now()): { day: string; date: Date; distanceM: number; lastWeekM: number; runs: number }[] {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + i);
+    return { day: localDayKey(date), date, distanceM: 0, lastWeekM: 0, runs: 0 };
+  });
+  const thisWeek = new Map(days.map((d) => [d.day, d]));
+  const lastWeek = new Map(
+    days.map((d) => {
+      const prev = new Date(d.date);
+      prev.setDate(prev.getDate() - 7);
+      return [localDayKey(prev), d];
+    })
+  );
+  for (const r of rows) {
+    const key = localDayKey(new Date(Date.parse(r.started_at)));
+    const cur = thisWeek.get(key);
+    if (cur) {
+      cur.distanceM += r.distance_m ?? 0;
+      cur.runs++;
+    }
+    const prev = lastWeek.get(key);
+    if (prev) prev.lastWeekM += r.distance_m ?? 0;
+  }
+  return days;
 }
 
 export function weeklyTotals(rows: ActivityRow[], weeks: number): { week: string; runs: number; distanceM: number; durationMs: number }[] {

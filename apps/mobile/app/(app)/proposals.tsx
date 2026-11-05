@@ -1,4 +1,4 @@
-import { Alert } from 'react-native';
+import { Alert, View } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError, rpc } from '@/lib/api';
@@ -6,6 +6,8 @@ import { track } from '@/lib/analytics';
 import { fmtDate, fmtDistance } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, Screen, Txt } from '@/components/ui';
+import { Icon } from '@/components/icons';
+import { spacing, usePalette } from '@/theme/tokens';
 import { useSession, useUnits } from '@/state/session';
 
 interface Proposal {
@@ -31,6 +33,7 @@ const STATUS: Record<Proposal['status'], { label: string; tone: 'info' | 'warnin
 
 /** S27 My route proposals — pending, approved, duplicate-linked, declined or withdrawn states with reasons. */
 export default function Proposals() {
+  const pal = usePalette();
   const units = useUnits();
   const { userId } = useSession();
   const qc = useQueryClient();
@@ -58,18 +61,21 @@ export default function Proposals() {
           const s = STATUS[pr.status];
           return (
             <Card key={pr.id}>
-              <Txt variant="heading">{pr.name}</Txt>
-              <Badge label={s.label} tone={s.tone} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <Icon name="route" color={pal.greenText} size={22} />
+                <Txt variant="heading" style={{ flex: 1 }}>{pr.name}</Txt>
+                <Badge label={s.label} tone={s.tone} />
+              </View>
               <Txt variant="caption">{pr.length_m ? `${fmtDistance(pr.length_m, units)} · ` : ''}submitted {fmtDate(pr.created_at)}{pr.decided_at ? ` · decided ${fmtDate(pr.decided_at)}` : ''}</Txt>
               <Txt color="textMuted">{s.help}</Txt>
               {pr.decision_reason ? <Txt>Reason: {pr.decision_reason}</Txt> : null}
-              {pr.canonical_course_id && (pr.status === 'approved' || pr.status === 'duplicate_linked') ? <Button variant="secondary" label="Open route" onPress={() => router.push({ pathname: '/routes/[id]', params: { id: pr.canonical_course_id! } })} /> : null}
+              {pr.canonical_course_id && (pr.status === 'approved' || pr.status === 'duplicate_linked') ? <Button variant="secondary" icon="route" label="Open route" onPress={() => router.push({ pathname: '/routes/[id]', params: { id: pr.canonical_course_id! } })} /> : null}
               {pr.status === 'processing' || pr.status === 'pending_review' ? <Button variant="ghost" label="Withdraw" onPress={() => withdraw.mutate(pr.id)} /> : null}
               {pr.status === 'declined' ? <Button variant="ghost" label="Request a review" onPress={() => router.push({ pathname: '/appeals', params: { type: 'route_proposal', id: pr.id } })} /> : null}
             </Card>
           );
         })
-      ) : <EmptyState title="No proposals yet" body="Open a run in Activity history and choose “Propose as a speed route”." />}
+      ) : <EmptyState icon="route" title="No proposals yet" body="Open a run in Activity history and choose “Propose as a speed route”." />}
     </Screen>
   );
 }

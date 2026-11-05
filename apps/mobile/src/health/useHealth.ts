@@ -13,7 +13,13 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useSession } from '@/state/session';
 import { getConnection, loadStore, type ConnectionState } from './cache';
-import { HEALTH_PLATFORM, healthVersion, onHealthChange } from './sync';
+import { HEALTH_PLATFORM, healthVersion, onHealthChange, platformAvailability, type Availability } from './sync';
+
+/** Whether Apple Health / Health Connect can be used here (null while checking). */
+export function useHealthAvailability(): Availability | null {
+  const q = useQuery({ queryKey: ['health_availability'], queryFn: platformAvailability, staleTime: Infinity });
+  return q.data ?? null;
+}
 
 export function useHealthVersion(): number {
   const [v, setV] = useState(healthVersion());

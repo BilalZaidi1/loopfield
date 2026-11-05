@@ -1,36 +1,42 @@
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { Button, Card, Screen, Txt } from '@/components/ui';
+import { Badge, Button, Screen, Txt } from '@/components/ui';
+import { LoopMark, Wordmark } from '@/components/Brand';
+import { HexBoard } from '@/features/onboarding/Illustrations';
+import { useLayout } from '@/theme/layout';
 import { spacing, usePalette } from '@/theme/tokens';
 
-/** S01 Welcome — territory, speed, social and health introduction; Get Started and Log In. */
-const PILLARS = [
-  { title: 'Claim land with loops', body: 'Start a capture, run a loop anywhere and close it near where you began. The newest eligible loop takes the cells it fully encloses.' },
-  { title: 'Hold route titles', body: 'Race approved routes in their set direction. Titles are separate from land and change hands only with a clear margin.' },
-  { title: 'Run with people', body: 'Follow runners, join clubs you choose and message people who allow it. You decide who sees each post.' },
-  { title: 'Your health, on your phone', body: 'Optionally connect Apple Health or Health Connect for a private dashboard. Health data never leaves this phone.' }
-];
-
+/** S01 Welcome — territory, speed, social and health introduction; Get started and Log in stay pinned on screen. */
 export default function Welcome() {
   const p = usePalette();
+  const { height, isTablet } = useLayout();
+  const compact = height < 740;
   return (
-    <Screen>
-      <View style={{ gap: spacing.sm, marginTop: spacing.xl }}>
-        <Txt variant="display" accessibilityRole="header">Loopfield</Txt>
-        <Txt color="textMuted">Running territory and route titles for adults in supported cities. Pilot rules are proposed and may change after field testing.</Txt>
+    <Screen
+      maxWidth={560}
+      gap={compact ? spacing.md : spacing.xl}
+      footer={
+        <>
+          <Button label="Get started" size="lg" arrow onPress={() => router.push('/sign-up')} />
+          <Button label="I have an account" variant="ghost" size="lg" onPress={() => router.push('/sign-in')} />
+        </>
+      }>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs }}>
+        <LoopMark size={30} ring={p.primaryFill} dot={p.orange} />
+        <Wordmark size={22} />
       </View>
-      <View style={{ gap: spacing.md, marginVertical: spacing.xl }}>
-        {PILLARS.map((x) => (
-          <Card key={x.title}>
-            <Txt variant="heading">{x.title}</Txt>
-            <Txt color="textMuted">{x.body}</Txt>
-          </Card>
-        ))}
+      <HexBoard variant="claim" height={compact ? 170 : isTablet ? 280 : 230} />
+      <View style={{ gap: spacing.md }}>
+        <Txt variant="display" style={compact ? { fontSize: 34, lineHeight: 36 } : undefined}>{'RUN A LOOP.\nCLAIM THE GROUND.'}</Txt>
+        <Txt color="textMuted">Loopfield turns the loops you run into territory on a shared map. Hold your ground, race route titles and run with your clubs.</Txt>
       </View>
-      <View style={{ gap: spacing.md, paddingBottom: spacing.xl, borderTopColor: p.border }}>
-        <Button label="Get started" onPress={() => router.push('/sign-up')} />
-        <Button label="Log in" variant="secondary" onPress={() => router.push('/sign-in')} />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+        <Badge label="Claim land with loops" tone="violet" icon="hexagon" />
+        <Badge label="Hold route titles" tone="title" icon="trophy" />
+        <Badge label="Run with clubs" tone="success" icon="clubs" />
+        <Badge label="Health stays on your phone" tone="info" icon="lock" />
       </View>
+      <Txt variant="caption">For adults in supported pilot cities. Competition rules are proposed and may change after field testing.</Txt>
     </Screen>
   );
 }

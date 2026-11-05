@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { safePushPreview } from '@loopfield/core';
@@ -6,7 +7,9 @@ import { rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { fmtRelative } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { Badge, Button, EmptyState, ErrorState, LoadingState, Row, Screen } from '@/components/ui';
+import { Button, EmptyState, ErrorState, IconButton, ListGroup, LoadingState, Row, Screen } from '@/components/ui';
+import type { IconName } from '@/components/icons';
+import { usePalette } from '@/theme/tokens';
 import { routeForNotification } from '@/notifications/push';
 import { useSession } from '@/state/session';
 
@@ -24,7 +27,10 @@ interface NotificationRow {
 }
 
 /** S13 Notifications — social, membership and competitive updates with safe previews, read state and settings. */
+const CATEGORY_ICON: Record<string, IconName> = { social: 'heart', message: 'chat', club: 'clubs', competitive: 'hexagon', system: 'info' };
+
 export default function Notifications() {
+  const p = usePalette();
   const { userId } = useSession();
   const qc = useQueryClient();
   const list = useQuery({
@@ -58,15 +64,28 @@ export default function Notifications() {
 
   return (
     <Screen onRefresh={() => void list.refetch()} refreshing={list.isRefetching}>
-      <Stack.Screen options={{ title: 'Notifications', headerRight: () => <Button variant="ghost" label="Settings" onPress={() => router.push('/settings/notifications')} /> }} />
-      {list.data?.some((n) => !n.read_at) ? <Button variant="ghost" label="Mark all as read" onPress={() => markAll.mutate()} /> : null}
+      <Stack.Screen options={{ title: 'Notifications', headerRight: () => <IconButton icon="settings" label="Notification settings" onPress={() => router.push('/settings/notifications')} /> }} />
+      {list.data?.some((n) => !n.read_at) ? <View style={{ alignSelf: 'flex-end' }}><Button variant="secondary" size="sm" icon="check" label="Mark all as read" onPress={() => markAll.mutate()} /></View> : null}
       {list.isLoading ? <LoadingState /> : list.error ? <ErrorState error={list.error} onRetry={() => void list.refetch()} /> : list.data?.length ? (
-        list.data.map((n) => {
-          const preview = safePushPreview(n.kind, n.actor?.display_name ?? null);
-          return <Row key={n.id} title={preview.title} subtitle={`${preview.body} · ${fmtRelative(n.created_at)}`} right={!n.read_at ? <Badge label="New" tone="info" /> : undefined} onPress={() => open(n)} accessibilityLabel={`${n.read_at ? '' : 'Unread. '}${preview.title}. ${preview.body}`} />;
-        })
+        <ListGroup>
+          {list.data.map((n) => {
+            const preview = safePushPreview(n.kind, n.actor?.display_name ?? null);
+            return (
+              <Row
+                key={n.id}
+                icon={CATEGORY_ICON[n.category] ?? 'bell'}
+                title={preview.title}
+                subtitle={`${preview.body} · ${fmtRelative(n.created_at)}`}
+                highlight={!n.read_at}
+                right={!n.read_at ? <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: p.orange }} /> : undefined}
+                onPress={() => open(n)}
+                accessibilityLabel={`${n.read_at ? '' : 'Unread. '}${preview.title}. ${preview.body}`}
+              />
+            );
+          })}
+        </ListGroup>
       ) : (
-        <EmptyState title="No notifications yet" body="Follow requests, comments, club updates and your daily territory digest appear here." />
+        <EmptyState icon="bell" title="No notifications yet" body="Follow requests, comments, club updates and your daily territory digest appear here." />
       )}
     </Screen>
   );

@@ -39,3 +39,16 @@ export function fmtRelative(iso: string | null | undefined): string {
   if (diff < 7 * 86_400) return `${Math.floor(diff / 86_400)} d ago`;
   return fmtDate(iso);
 }
+
+/** "8 Sep" style label for a calendar day given as YYYY-MM-DD (parsed as a local date, never shifted by time zone). */
+export function fmtDay(isoDay: string, opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' }): string {
+  const [y, m, d] = isoDay.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return isoDay;
+  return new Intl.DateTimeFormat(undefined, opts).format(new Date(y, m - 1, d));
+}
+
+/** Splits a formatted distance ("12.40 km") into its number and unit for large numeral layouts. */
+export function splitValue(formatted: string): { value: string; unit: string } {
+  const i = formatted.lastIndexOf(' ');
+  return i > 0 ? { value: formatted.slice(0, i), unit: formatted.slice(i + 1) } : { value: formatted, unit: '' };
+}

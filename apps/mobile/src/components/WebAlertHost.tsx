@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Linking, Modal, Platform, Pressable, View, type AlertButton } from 'react-native';
 import { Button, Txt } from '@/components/ui';
-import { radius, spacing, usePalette } from '@/theme/tokens';
+import { radius, spacing, useTheme } from '@/theme/tokens';
 
 /**
  * React Native's Alert does nothing in a browser, so confirmations (sign out, delete, leave a club…) would
@@ -31,7 +31,8 @@ export function installWebShims(): void {
 }
 
 export function WebAlertHost() {
-  const p = usePalette();
+  const t = useTheme();
+  const p = t.palette;
   const [current, setCurrent] = useState<PendingAlert | null>(null);
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -54,13 +55,13 @@ export function WebAlertHost() {
       <Pressable
         accessibilityLabel="Dismiss"
         onPress={() => (cancel ? choose(cancel) : undefined)}
-        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: spacing.lg }}>
+        style={{ flex: 1, backgroundColor: p.overlay, alignItems: 'center', justifyContent: 'center', padding: spacing.lg }}>
         <Pressable
           accessibilityRole="alert"
           accessibilityLiveRegion="assertive"
           onPress={() => {}}
-          style={{ width: '100%', maxWidth: 360, backgroundColor: p.surface, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md, borderWidth: 1, borderColor: p.border }}>
-          <Txt variant="heading">{current.title}</Txt>
+          style={[{ width: '100%', maxWidth: 380, backgroundColor: p.surface, borderRadius: radius.xl, padding: spacing.xxl, gap: spacing.md }, t.elevation.floating]}>
+          <Txt variant="headline">{current.title}</Txt>
           {current.message ? <Txt color="textMuted">{current.message}</Txt> : null}
           <View style={{ flexDirection: stacked ? 'column' : 'row', gap: spacing.sm }}>
             {current.buttons.map((b, i) => (

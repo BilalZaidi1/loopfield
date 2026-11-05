@@ -2,7 +2,7 @@ import { router, Stack } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { fmtRelative } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { Badge, Banner, Button, EmptyState, ErrorState, LoadingState, Row, Screen, Txt } from '@/components/ui';
+import { Avatar, Badge, Banner, EmptyState, ErrorState, IconButton, ListGroup, LoadingState, Row, Screen, Txt } from '@/components/ui';
 import { useSession } from '@/state/session';
 
 interface ConversationRow {
@@ -42,24 +42,26 @@ export default function Inbox() {
   });
   return (
     <Screen onRefresh={() => void convs.refetch()} refreshing={convs.isRefetching}>
-      <Stack.Screen options={{ title: 'Messages' }} />
+      <Stack.Screen options={{ title: 'Messages', headerRight: () => <IconButton icon="edit" label="New message" onPress={() => router.push({ pathname: '/connections', params: { tab: 'following' } })} /> }} />
       {settings?.messages_from === 'nobody' ? <Banner tone="info" text="You do not accept new messages. Change this in Privacy settings." /> : null}
-      <Button variant="secondary" label="New message" onPress={() => router.push({ pathname: '/connections', params: { tab: 'following' } })} />
       <Txt variant="caption">Start a conversation from a runner’s profile. By default only mutual followers can message each other.</Txt>
       {convs.isLoading ? <LoadingState /> : convs.error ? <ErrorState error={convs.error} onRetry={() => void convs.refetch()} /> : convs.data?.length ? (
-        convs.data.map((c) => {
+        <ListGroup>
+        {convs.data.map((c) => {
           const other = c.member_a === userId ? c.b : c.a;
           return (
             <Row
               key={c.id}
+              leading={<Avatar name={other?.display_name ?? 'A runner'} size={48} ring={c.unread ? true : undefined} />}
               title={other?.display_name ?? 'A runner'}
-              subtitle={`${c.frozen ? 'Conversation closed · ' : ''}${fmtRelative(c.lastAt)}`}
-              right={c.unread ? <Badge label={`${c.unread} new`} tone="info" /> : undefined}
+              subtitle={`${c.frozen ? 'Conversation closed · ' : other?.handle ? `@${other.handle} · ` : ''}${fmtRelative(c.lastAt)}`}
+              right={c.unread ? <Badge label={`${c.unread} new`} tone="violet" /> : undefined}
               onPress={() => router.push({ pathname: '/inbox/[channel]', params: { channel: c.channel_id, name: other?.display_name ?? '', conversation: c.id } })}
             />
           );
-        })
-      ) : <EmptyState title="No conversations yet" body="Messages you send and receive appear here." />}
+        })}
+        </ListGroup>
+      ) : <EmptyState icon="chat" title="No conversations yet" body="Messages you send and receive appear here." action={{ label: 'Find people you follow', onPress: () => router.push({ pathname: '/connections', params: { tab: 'following' } }) }} />}
     </Screen>
   );
 }

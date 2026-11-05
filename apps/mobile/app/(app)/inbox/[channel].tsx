@@ -5,7 +5,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError, rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { supabase } from '@/lib/supabase';
-import { Banner, Button, ErrorState, LoadingState, TextField, Txt } from '@/components/ui';
+import { Banner, ErrorState, IconButton, LoadingState, PressableScale, TextField, Txt } from '@/components/ui';
+import { Icon } from '@/components/icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { reportMessage, useConversation, type UiMessage } from '@/chat/client';
 import { setViewingChannel } from '@/notifications/push';
 import { useSession } from '@/state/session';
@@ -16,6 +18,7 @@ const REPORT_CATEGORIES = ['harassment', 'spam', 'hate', 'sexual', 'violence', '
 /** S12 Conversation — text and permitted content links, send status, mute, block, report and deletion. */
 export default function Conversation() {
   const p = usePalette();
+  const insets = useSafeAreaInsets();
   const qc = useQueryClient();
   const { channel, name, conversation } = useLocalSearchParams<{ channel: string; name?: string; conversation?: string }>();
   const { userId } = useSession();
@@ -96,8 +99,8 @@ export default function Conversation() {
   const frozen = chat.frozen || conv.data?.frozen;
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: p.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-      <Stack.Screen options={{ title: name || 'Conversation', headerRight: () => <Button variant="ghost" label="More" onPress={more} /> }} />
-      {chat.status === 'connecting' ? <LoadingState label="Connecting…" /> : chat.status === 'error' ? <ErrorState error={chat.error} onRetry={() => void chat.retry()} title="Messages could not be loaded" /> : (
+      <Stack.Screen options={{ title: name || 'Conversation', headerRight: () => <IconButton icon="more" label="Conversation options" onPress={more} /> }} />
+      {chat.status === 'connecting' ? <LoadingState label="Connecting…" variant="spinner" /> : chat.status === 'error' ? <ErrorState error={chat.error} onRetry={() => void chat.retry()} title="Messages could not be loaded" /> : (
         <FlatList
           inverted
           data={[...chat.messages].reverse()}
@@ -106,10 +109,10 @@ export default function Conversation() {
           onEndReached={() => void chat.loadOlder()}
           renderItem={({ item: m }) => (
             <Pressable onLongPress={() => messageMenu(m)} onPress={() => messageMenu(m)} accessibilityRole="button" accessibilityLabel={`${m.mine ? 'You' : name || 'They'}: ${m.deleted ? 'message deleted' : m.text}. ${m.state === 'failed' ? 'Not sent.' : m.state === 'sending' ? 'Sending.' : ''}`} style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
-              <View style={{ backgroundColor: m.mine ? p.primary : p.surface, borderRadius: radius.lg, padding: spacing.md, borderWidth: m.mine ? 0 : 1, borderColor: p.border }}>
-                <Txt style={{ color: m.mine ? p.primaryText : p.text, fontStyle: m.deleted ? 'italic' : 'normal' }}>{m.deleted ? 'Message deleted' : m.text}</Txt>
+              <View style={{ backgroundColor: m.deleted ? p.surfaceAlt : m.mine ? p.primaryFill : p.surface, borderRadius: radius.lg, borderBottomRightRadius: m.mine ? 6 : radius.lg, borderBottomLeftRadius: m.mine ? radius.lg : 6, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, opacity: m.state === 'failed' ? 0.6 : 1 }}>
+                <Txt style={{ color: m.deleted ? p.textMuted : m.mine ? p.primaryText : p.text }}>{m.deleted ? 'Message deleted' : m.text}</Txt>
               </View>
-              <Txt variant="caption" style={{ textAlign: m.mine ? 'right' : 'left' }}>
+              <Txt variant="caption" style={{ textAlign: m.mine ? 'right' : 'left', marginTop: 2, color: m.state === 'failed' ? p.danger : p.textMuted }}>
                 {m.createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 {m.mine ? (m.state === 'sending' ? ' · Sending' : m.state === 'failed' ? ' · Not sent' : ' · Sent') : ''}
               </Txt>
@@ -117,11 +120,18 @@ export default function Conversation() {
           )}
         />
       )}
-      <View style={{ padding: spacing.md, gap: spacing.sm, borderTopWidth: 1, borderTopColor: p.border, backgroundColor: p.surface }}>
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: Math.max(insets.bottom, spacing.md), gap: spacing.xs, backgroundColor: p.bg }}>
         {frozen ? <Banner tone="info" text="This conversation is closed. Messages can no longer be sent." /> : (
           <>
-            <TextField label="Message" value={text} onChangeText={setText} multiline maxLength={2000} hint="Previews in notifications never include your message text." />
-            <Button label="Send" onPress={() => void send()} disabled={!text.trim() || chat.status !== 'ready'} />
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm }}>
+              <View style={{ flex: 1 }}>
+                <TextField label="Message" labelHidden placeholder="Message" value={text} onChangeText={setText} multiline maxLength={2000} />
+              </View>
+              <PressableScale onPress={() => void send()} disabled={!text.trim() || chat.status !== 'ready'} accessibilityRole="button" accessibilityLabel="Send message" accessibilityState={{ disabled: !text.trim() || chat.status !== 'ready' }} style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: p.primaryFill, alignItems: 'center', justifyContent: 'center', opacity: !text.trim() || chat.status !== 'ready' ? 0.4 : 1 }}>
+                <Icon name="send" color="#FFFFFF" size={22} />
+              </PressableScale>
+            </View>
+            <Txt variant="caption">Previews in notifications never include your message text.</Txt>
           </>
         )}
       </View>

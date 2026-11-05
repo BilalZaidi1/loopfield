@@ -85,9 +85,10 @@ export function useRoutesInView(bounds: Bounds | null) {
   return { ...q, tooLarge };
 }
 
-export function routesToFeatures(routes: RouteInView[], titleColor: string, mineColor: string): GeoJSON.FeatureCollection {
+/** Route lines for the map; `mine` marks routes whose title you hold (drawn in your colour). */
+export function routesToFeatures(routes: RouteInView[]): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
-    features: routes.map((r) => ({ type: 'Feature', id: r.course_id, geometry: r.path_geojson, properties: { id: r.course_id, status: r.status, color: r.i_am_champion ? mineColor : titleColor } }))
+    features: routes.map((r) => ({ type: 'Feature', id: r.course_id, geometry: r.path_geojson, properties: { id: r.course_id, status: r.status, mine: r.i_am_champion } }))
   };
 }

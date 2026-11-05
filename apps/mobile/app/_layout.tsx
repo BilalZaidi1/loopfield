@@ -1,7 +1,7 @@
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AppState, View } from 'react-native';
-import { Stack } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
@@ -13,12 +13,15 @@ import { initAnalytics } from '@/lib/analytics';
 import { initSentry, Sentry } from '@/lib/sentry';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
-import { Banner, Button, ErrorState, LoadingState, Txt } from '@/components/ui';
+import { Banner, Button, ErrorState, setCustomFontsActive, Txt } from '@/components/ui';
+import { BrandSplash } from '@/components/Brand';
 import { installWebShims, WebAlertHost } from '@/components/WebAlertHost';
 import { SessionProvider, useSession } from '@/state/session';
 import { CompetitionProvider } from '@/state/competition';
 import { useBackgroundServices } from '@/state/services';
-import { spacing, usePalette } from '@/theme/tokens';
+import { spacing, usePalette, useTheme } from '@/theme/tokens';
+import { ThemeProvider } from '@/theme/ThemeProvider';
+import { useAppFonts } from '@/theme/fonts';
 
 assertNoSecrets();
 installWebShims();
@@ -52,39 +55,46 @@ function UpdateGate() {
   return null;
 }
 
-function Gate() {
-  const p = usePalette();
+function Gate({ fontsReady }: { fontsReady: boolean }) {
+  const t = useTheme();
+  const p = t.palette;
   const { session, profile, loading, userId, refresh, signOut } = useSession();
+  const [splashDone, setSplashDone] = useState(false);
+  const onSplashDone = useCallback(() => setSplashDone(true), []);
   useBackgroundServices(profile?.onboarding_completed_at ? userId : null);
-  useEffect(() => {
-    if (!loading) void SplashScreen.hideAsync().catch(() => {});
-  }, [loading]);
-  if (loading) return <LoadingState label="Opening…" />;
-  if (session && !profile) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', padding: spacing.xl, backgroundColor: p.bg, gap: spacing.md }}>
-        <ErrorState title="Your profile could not be loaded" error={new Error('Check your connection and try again.')} onRetry={() => void refresh()} />
-        <Button variant="secondary" label="Sign out" onPress={() => void signOut()} />
-      </View>
-    );
-  }
   const onboarded = Boolean(profile?.onboarding_completed_at);
+  let content: ReactNode = null;
+  if (!loading && fontsReady) {
+    content =
+      session && !profile ? (
+        <View style={{ flex: 1, justifyContent: 'center', padding: spacing.xl, backgroundColor: p.bg, gap: spacing.md }}>
+          <ErrorState title="Your profile could not be loaded" error={new Error('Check your connection and try again.')} onRetry={() => void refresh()} />
+          <Button variant="ghost" label="Sign out" onPress={() => void signOut()} />
+        </View>
+      ) : (
+        <>
+          {session ? <UpdateGate /> : null}
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: p.bg } }}>
+            <Stack.Protected guard={!session}>
+              <Stack.Screen name="(auth)" />
+            </Stack.Protected>
+            <Stack.Protected guard={Boolean(session) && !onboarded}>
+              <Stack.Screen name="(onboarding)" />
+            </Stack.Protected>
+            <Stack.Protected guard={Boolean(session) && onboarded}>
+              <Stack.Screen name="(app)" />
+            </Stack.Protected>
+            <Stack.Screen name="auth/callback" />
+            <Stack.Screen name="auth/reset-password" />
+          </Stack>
+        </>
+      );
+  }
   return (
     <View style={{ flex: 1, backgroundColor: p.bg }}>
-      {session ? <UpdateGate /> : null}
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: p.bg } }}>
-        <Stack.Protected guard={!session}>
-          <Stack.Screen name="(auth)" />
-        </Stack.Protected>
-        <Stack.Protected guard={Boolean(session) && !onboarded}>
-          <Stack.Screen name="(onboarding)" />
-        </Stack.Protected>
-        <Stack.Protected guard={Boolean(session) && onboarded}>
-          <Stack.Screen name="(app)" />
-        </Stack.Protected>
-        <Stack.Screen name="auth/callback" />
-        <Stack.Screen name="auth/reset-password" />
-      </Stack>
+      <StatusBar style={!splashDone || t.scheme === 'dark' ? 'light' : 'dark'} />
+      {content}
+      {splashDone ? null : <BrandSplash ready={!loading && fontsReady} fontsReady={fontsReady} onDone={onSplashDone} />}
     </View>
   );
 }
@@ -93,6 +103,7 @@ function ConfigMissing({ missing }: { missing: string[] }) {
   const p = usePalette();
   return (
     <View style={{ flex: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.md, backgroundColor: p.bg }}>
+      <StatusBar style="auto" />
       <Txt variant="title">Configuration needed</Txt>
       <Txt>This build cannot connect to its backend because these client settings are missing:</Txt>
       {missing.map((m) => (
@@ -103,27 +114,43 @@ function ConfigMissing({ missing }: { missing: string[] }) {
   );
 }
 
+/** Navigation chrome (screen backgrounds during transitions, native pieces) in the app theme. */
+function NavigationTheme({ children }: { children: ReactNode }) {
+  const t = useTheme();
+  const p = t.palette;
+  const value = useMemo(() => {
+    const base = t.scheme === 'dark' ? DarkTheme : DefaultTheme;
+    return { ...base, dark: t.scheme === 'dark', colors: { ...base.colors, primary: p.primary, background: p.bg, card: p.surface, text: p.text, border: p.border, notification: p.orange } };
+  }, [t.scheme, p]);
+  return <NavigationThemeProvider value={value}>{children}</NavigationThemeProvider>;
+}
+
 function RootLayout() {
   const missing = missingRequiredConfig();
+  const fonts = useAppFonts();
+  setCustomFontsActive(fonts.active);
   useEffect(() => {
     if (missing.length) void SplashScreen.hideAsync().catch(() => {});
   }, [missing.length]);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <StatusBar style="auto" />
-        <WebAlertHost />
-        {missing.length ? (
-          <ConfigMissing missing={missing} />
-        ) : (
-          <QueryClientProvider client={queryClient}>
-            <SessionProvider>
-              <CompetitionProvider>
-                <Gate />
-              </CompetitionProvider>
-            </SessionProvider>
-          </QueryClientProvider>
-        )}
+        <ThemeProvider>
+          <NavigationTheme>
+            <WebAlertHost />
+            {missing.length ? (
+              <ConfigMissing missing={missing} />
+            ) : (
+              <QueryClientProvider client={queryClient}>
+                <SessionProvider>
+                  <CompetitionProvider>
+                    <Gate fontsReady={fonts.ready} />
+                  </CompetitionProvider>
+                </SessionProvider>
+              </QueryClientProvider>
+            )}
+          </NavigationTheme>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

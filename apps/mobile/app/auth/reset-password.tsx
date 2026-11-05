@@ -21,22 +21,21 @@ export default function ResetPassword() {
     setDone(true);
   };
   return (
-    <Screen>
-      <View style={{ gap: spacing.md, marginTop: spacing.lg }}>
+    <Screen
+      maxWidth={520}
+      footer={done ? <Button label="Continue" size="lg" arrow onPress={() => router.replace('/')} /> : <Button label="Save password" size="lg" arrow onPress={save} loading={busy} disabled={password.length < 10 || busy} />}>
+      <View style={{ gap: spacing.xs, marginTop: spacing.xxl }}>
         <Txt variant="title">Choose a new password</Txt>
-        {done ? (
-          <>
-            <Banner tone="success" text="Password updated." />
-            <Button label="Continue" onPress={() => router.replace('/')} />
-          </>
-        ) : (
-          <>
-            <TextField label="New password" value={password} onChangeText={setPassword} secure autoCapitalize="none" autoComplete="new-password" hint="At least 10 characters." />
-            {error ? <Banner tone="danger" text={error} /> : null}
-            <Button label="Save password" onPress={save} loading={busy} disabled={password.length < 10 || busy} />
-          </>
-        )}
+        <Txt color="textMuted">Use at least 10 characters. You will stay signed in on this device.</Txt>
       </View>
+      {done ? (
+        <Banner tone="success" text="Password updated." />
+      ) : (
+        <>
+          <TextField label="New password" value={password} onChangeText={setPassword} secure autoCapitalize="none" autoComplete="new-password" hint="At least 10 characters." />
+          {error ? <Banner tone="danger" text={error} /> : null}
+        </>
+      )}
     </Screen>
   );
 }

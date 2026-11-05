@@ -1,18 +1,20 @@
 import { useMemo } from 'react';
-import { Stack } from 'expo-router';
+import { View } from 'react-native';
+import { router, Stack } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { cellArea } from 'h3-js';
-import { fmtArea, fmtDate } from '@/lib/format';
+import { fmtArea, fmtDate, splitValue } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { Card, EmptyState, ErrorState, LoadingState, Screen, StatTile, Txt } from '@/components/ui';
+import { Card, EmptyState, ErrorState, LoadingState, Screen, Txt } from '@/components/ui';
+import { Icon } from '@/components/icons';
 import { MapCanvas } from '@/features/map/MapCanvas';
 import { useSession, useUnits } from '@/state/session';
 import { bigintCellToH3, boundsOf, cellCenter, plainCellsToFeatures } from '@/territory/h3';
-import { usePalette } from '@/theme/tokens';
+import { spacing, useTheme } from '@/theme/tokens';
 
 /** S18 Private exploration — personal explored map and progress, independent of land losses. */
 export default function Exploration() {
-  const p = usePalette();
+  const t = useTheme();
   const units = useUnits();
   const { userId } = useSession();
   const q = useQuery({
@@ -28,7 +30,7 @@ export default function Exploration() {
       return { cells: rows.map((r) => ({ ...r, h3: bigintCellToH3(r.cell) })), total: count.count ?? rows.length };
     }
   });
-  const fc = useMemo(() => plainCellsToFeatures((q.data?.cells ?? []).map((c) => c.h3), p.info), [q.data, p.info]);
+  const fc = useMemo(() => plainCellsToFeatures((q.data?.cells ?? []).map((c) => c.h3), t.territory.exploration), [q.data, t.territory.exploration]);
   const area = useMemo(() => (q.data?.cells ?? []).reduce((t, c) => t + cellArea(c.h3, 'm2'), 0), [q.data]);
   const fit = useMemo(() => boundsOf((q.data?.cells ?? []).slice(0, 500).map((c) => cellCenter(c.h3)).filter((x): x is [number, number] => Boolean(x))), [q.data]);
   const firstVisit = q.data?.cells.reduce<string | null>((m, c) => (!m || c.first_visited_at < m ? c.first_visited_at : m), null);
@@ -36,16 +38,24 @@ export default function Exploration() {
     <Screen>
       <Stack.Screen options={{ title: 'My exploration' }} />
       <Txt color="textMuted">Every place you have run, including private runs. Only you can see this, and it never shrinks when you lose land.</Txt>
-      {q.isLoading ? <LoadingState /> : q.error ? <ErrorState error={q.error} onRetry={() => void q.refetch()} /> : !q.data?.total ? (
-        <EmptyState title="Nothing explored yet" body="Explored ground appears after your runs are uploaded and processed." />
+      {q.isLoading ? <LoadingState variant="cards" /> : q.error ? <ErrorState error={q.error} onRetry={() => void q.refetch()} /> : !q.data?.total ? (
+        <EmptyState icon="compass" title="Nothing explored yet" body="Explored ground appears after your runs are uploaded and processed." action={{ label: 'Start a run', onPress: () => router.push('/record') }} />
       ) : (
         <>
-          <MapCanvas height={340} fit={fit} layers={{ overlayCells: fc }} accessibilityLabel={`Map of ${q.data.total} explored cells.`} />
-          <Card>
-            <StatTile label="Explored cells" value={String(q.data.total)} />
-            <StatTile label="Explored area" value={fmtArea(area, units)} note={q.data.total > q.data.cells.length ? `Area shown for the ${q.data.cells.length} most recent cells` : undefined} />
-            {firstVisit ? <Txt variant="caption">Exploring since {fmtDate(firstVisit)}</Txt> : null}
+          <Card tone="blue">
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Icon name="compass" color="#FFFFFF" size={22} />
+              <Txt variant="heading" style={{ flex: 1 }}>Ground you have covered</Txt>
+              <Icon name="lock" color="#FFFFFF" size={18} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
+              <Txt variant="hero" style={{ fontSize: 64, lineHeight: 66 }}>{splitValue(fmtArea(area, units)).value}</Txt>
+              <Txt variant="headline" color="textMuted" style={{ marginBottom: 8 }}>{splitValue(fmtArea(area, units)).unit}</Txt>
+            </View>
+            <Txt color="textMuted">{`${q.data.total} cells explored${firstVisit ? ` since ${fmtDate(firstVisit)}` : ''}`}</Txt>
+            {q.data.total > q.data.cells.length ? <Txt variant="caption">{`Area shown for the ${q.data.cells.length} most recent cells.`}</Txt> : null}
           </Card>
+          <MapCanvas height={360} fit={fit} layers={{ overlayCells: fc }} accessibilityLabel={`Map of ${q.data.total} explored cells.`} />
         </>
       )}
     </Screen>

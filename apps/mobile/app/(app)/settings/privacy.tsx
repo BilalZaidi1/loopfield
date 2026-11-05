@@ -8,7 +8,7 @@ import { friendlyError, rpc } from '@/lib/api';
 import { setAnalyticsConsent } from '@/lib/analytics';
 import type { TablesUpdate } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
-import { Banner, Button, Card, Row, Screen, Section, Segmented, TextField, Toggle, Txt } from '@/components/ui';
+import { Banner, Button, Card, ChipGroup, ListGroup, Row, Screen, Section, Segmented, TextField, Toggle, Txt } from '@/components/ui';
 import { useSession } from '@/state/session';
 
 interface ProtectedArea {
@@ -68,7 +68,8 @@ export default function Privacy() {
   return (
     <Screen>
       <Stack.Screen options={{ title: 'Privacy' }} />
-      <Section title="Full private mode">
+      <Section title="Full private mode" icon="lock">
+        <ListGroup>
         <Toggle
           label="Full private mode"
           description="Hides you from Discover and turns off territory and route titles (your land and titles are withdrawn). Recording and your private history keep working."
@@ -79,33 +80,42 @@ export default function Privacy() {
               : run.mutate(() => rpc('set_full_private_mode', { p_enabled: false }))
           }
         />
+        </ListGroup>
       </Section>
-      <Section title="Competition">
+      <Section title="Competition" icon="trophy">
+        <ListGroup>
         <Toggle label="Take part in territory" description="Eligible loops in competitive runs can claim land. Turning this off withdraws your land." value={settings.territory_competition_enabled} disabled={fullPrivate} onChange={(v) => run.mutate(() => rpc('set_consent', { p_kind: 'territory_competition', p_granted: v, p_version: COMPETITION_CONSENT_VERSION }))} />
         <Toggle label="Take part in route titles" description="Timed attempts on approved routes can earn titles. Turning this off withdraws your titles." value={settings.speed_competition_enabled} disabled={fullPrivate} onChange={(v) => run.mutate(() => rpc('set_consent', { p_kind: 'speed_competition', p_granted: v, p_version: COMPETITION_CONSENT_VERSION }))} />
+        </ListGroup>
       </Section>
-      <Section title="Profile and posts">
-        <Segmented label="Profile visibility" value={profile.visibility} onChange={(v) => updateProfile({ visibility: v, discoverable: v === 'public' ? profile.discoverable : false })} options={[{ value: 'private', label: 'Private' }, { value: 'public', label: 'Public' }]} />
-        {profile.visibility === 'public' ? <Toggle label="Show me in Discover" value={profile.discoverable} disabled={fullPrivate} onChange={(v) => updateProfile({ discoverable: v })} /> : null}
-        <Segmented label="Default audience for new posts" value={settings.default_post_audience} onChange={(v) => updateSettings({ default_post_audience: v })} options={[{ value: 'only_me', label: 'Only me' }, { value: 'followers', label: 'Followers' }, { value: 'public', label: 'Public' }]} />
+      <Section title="Profile and posts" icon="user">
+        <ChipGroup label="Profile visibility" value={profile.visibility} onChange={(v) => updateProfile({ visibility: v, discoverable: v === 'public' ? profile.discoverable : false })} options={[{ value: 'private', label: 'Private', icon: 'lock' }, { value: 'public', label: 'Public', icon: 'globe' }]} />
+        {profile.visibility === 'public' ? <ListGroup><Toggle label="Show me in Discover" value={profile.discoverable} disabled={fullPrivate} onChange={(v) => updateProfile({ discoverable: v })} /></ListGroup> : null}
+        <ChipGroup label="Default audience for new posts" value={settings.default_post_audience} onChange={(v) => updateSettings({ default_post_audience: v })} options={[{ value: 'only_me', label: 'Only me', icon: 'lock' }, { value: 'followers', label: 'Followers', icon: 'clubs' }, { value: 'public', label: 'Public', icon: 'globe' }]} />
       </Section>
-      <Section title="Messages">
-        <Segmented label="Who can message you" value={settings.messages_from} onChange={(v) => updateSettings({ messages_from: v })} options={[{ value: 'mutual', label: 'Mutual followers' }, { value: 'followers', label: 'My followers' }, { value: 'nobody', label: 'Nobody' }]} />
+      <Section title="Messages" icon="chat">
+        <ChipGroup label="Who can message you" value={settings.messages_from} onChange={(v) => updateSettings({ messages_from: v })} options={[{ value: 'mutual', label: 'Mutual followers' }, { value: 'followers', label: 'My followers' }, { value: 'nobody', label: 'Nobody' }]} />
         <Txt variant="caption">Online status and read receipts are never shown, and notification previews never include message text.</Txt>
       </Section>
-      <Section title="Protected areas">
+      <Section title="Protected areas" icon="shield">
         <Txt variant="caption">Competitive results that touch a protected area (for example around your home) are withheld, so your routine is not revealed on the map. Your private history still records the run.</Txt>
-        {areas.data?.map((a) => <Row key={a.id} title={a.label ?? 'Protected area'} subtitle={`${a.radius_m} m radius`} right={<Button variant="ghost" label="Remove" onPress={() => void removeArea(a.id)} />} />)}
+        {areas.data?.length ? (
+          <ListGroup>
+            {areas.data.map((a) => <Row key={a.id} icon="shield" title={a.label ?? 'Protected area'} subtitle={`${a.radius_m} m radius`} right={<Button variant="ghost" size="sm" label="Remove" onPress={() => void removeArea(a.id)} />} />)}
+          </ListGroup>
+        ) : null}
         <Card>
           <TextField label="Label" value={label} onChangeText={setLabel} maxLength={40} />
           <Segmented label="Radius" value={radius} onChange={setRadius} options={[{ value: '200', label: '200 m' }, { value: '500', label: '500 m' }, { value: '1000', label: '1 km' }]} />
-          <Button variant="secondary" label="Protect the area where I am now" onPress={() => void addArea()} />
+          <Button variant="secondary" icon="pin" label="Protect the area where I am now" onPress={() => void addArea()} />
         </Card>
       </Section>
-      <Section title="Analytics">
+      <Section title="Analytics" icon="progress">
+        <ListGroup>
         <Toggle label="Share anonymous usage analytics" description="Never includes GPS, health readings, messages or anything you write." value={settings.analytics_enabled} onChange={(v) => run.mutate(async () => { await rpc('set_consent', { p_kind: 'analytics', p_granted: v, p_version: 'v1' }); await setAnalyticsConsent(v); })} />
+        </ListGroup>
       </Section>
-      <Section title="Health data">
+      <Section title="Health data" icon="heart">
         <Banner text="Imported health data and health summaries stay on this phone. They are never uploaded to our servers, shared with other runners, sent to analytics or crash reporting, or used for competition." />
       </Section>
     </Screen>

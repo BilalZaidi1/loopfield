@@ -4,7 +4,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError, rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
-import { Badge, Banner, Button, EmptyState, ErrorState, LoadingState, Row, Screen, Section, TextField, Txt } from '@/components/ui';
+import { Avatar, Badge, Banner, Button, Card, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, TextField, Txt } from '@/components/ui';
 import { useClub } from '@/features/clubs/api';
 import { useSession } from '@/state/session';
 import { spacing } from '@/theme/tokens';
@@ -78,20 +78,26 @@ export default function Members() {
     <Screen>
       <Stack.Screen options={{ title: 'Members' }} />
       {members.isLoading ? <LoadingState /> : members.error ? <ErrorState error={members.error} onRetry={() => void members.refetch()} /> : members.data?.length ? (
-        <Section title={`${members.data.length} members`}>
-          {members.data.map((m) => (
-            <Row key={m.user_id} title={m.display_name} subtitle={`@${m.handle}`} right={m.role !== 'member' ? <Badge label={m.role === 'owner' ? 'Owner' : 'Organizer'} tone="info" /> : undefined} onPress={() => manage(m)} />
-          ))}
+        <Section title={`${members.data.length} members`} icon="clubs">
+          <ListGroup>
+            {members.data.map((m) => (
+              <Row key={m.user_id} leading={<Avatar name={m.display_name} size={40} />} title={m.display_name} subtitle={`@${m.handle}`} right={m.role !== 'member' ? <Badge label={m.role === 'owner' ? 'Owner' : 'Organizer'} tone="violet" /> : undefined} onPress={() => manage(m)} />
+            ))}
+          </ListGroup>
         </Section>
       ) : (
-        <EmptyState title="No members to show" body="Only members can see the member list." />
+        <EmptyState icon="clubs" title="No members to show" body="Only members can see the member list." />
       )}
       {organizer ? (
-        <Section title="Invite">
-          <TextField label="Invite by handle" value={handle} onChangeText={setHandle} autoCapitalize="none" placeholder="@handle" />
-          <Button variant="secondary" label="Send invitation" onPress={inviteByHandle} disabled={handle.trim().length < 3} />
-          <TextField label="Invite by email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-          <Button variant="secondary" label="Email an invitation" onPress={inviteByEmail} disabled={!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())} />
+        <Section title="Invite runners" icon="plus">
+          <Card>
+            <TextField label="Invite by handle" value={handle} onChangeText={setHandle} autoCapitalize="none" placeholder="@handle" />
+            <Button variant="secondary" icon="send" label="Send invitation" onPress={inviteByHandle} disabled={handle.trim().length < 3} />
+          </Card>
+          <Card>
+            <TextField label="Invite by email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+            <Button variant="secondary" icon="mail" label="Email an invitation" onPress={inviteByEmail} disabled={!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())} />
+          </Card>
           <Txt variant="caption">Invited people decide whether to join. Email invitations expire.</Txt>
         </Section>
       ) : null}

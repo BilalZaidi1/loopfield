@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { friendlyError, rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
-import { Banner, Button, Card, Screen, Segmented, TextField, Txt } from '@/components/ui';
+import { Banner, Button, Card, ChipGroup, Screen, TextField, Txt } from '@/components/ui';
+import { Icon } from '@/components/icons';
 
 const CATEGORIES = [
   { value: 'harassment', label: 'Harassment' },
@@ -45,19 +46,21 @@ export default function Report() {
     <Screen>
       <Stack.Screen options={{ title: 'Report' }} />
       {done ? (
-        <Card>
-          <Txt variant="heading">Report received</Txt>
+        <Card tone="green">
+          <Icon name="check" color="#121318" size={32} strokeWidth={2.6} />
+          <Txt variant="headline">Report received</Txt>
           <Txt color="textMuted">A moderator will review it. The person you reported is not told who reported them. If you feel unsafe, you can also block them.</Txt>
-          <Button label="Done" onPress={() => router.back()} />
+          <Button label="Done" arrow onPress={() => router.back()} />
         </Card>
       ) : (
         <>
-          <Txt>You are reporting a {TYPE_LABEL[type] ?? 'item'}.</Txt>
-          <Segmented label="What is the problem?" value={category} onChange={setCategory} options={CATEGORIES.map((c) => ({ value: c.value, label: c.label }))} />
+          <Txt variant="headline">{`Report a ${TYPE_LABEL[type] ?? 'item'}`}</Txt>
+          <Txt color="textMuted">Moderators review every report. The person you report is not told who reported them.</Txt>
+          <ChipGroup label="What is the problem?" value={category} onChange={setCategory} options={CATEGORIES.map((c) => ({ value: c.value, label: c.label }))} />
           <TextField label="Explanation (optional)" value={details} onChangeText={setDetails} multiline maxLength={1000} hint="Do not include anyone’s private details." />
           {category === 'self_harm' ? <Banner tone="info" text="If someone may be in immediate danger, contact local emergency services now." /> : null}
           {error ? <Banner tone="danger" text={error} /> : null}
-          <Button label="Submit report" onPress={() => void submit()} loading={busy} disabled={!type || !id} />
+          <Button label="Submit report" size="lg" arrow icon="flag" onPress={() => void submit()} loading={busy} disabled={!type || !id} />
         </>
       )}
     </Screen>

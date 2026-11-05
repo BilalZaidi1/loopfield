@@ -7,6 +7,7 @@ import { track } from '@/lib/analytics';
 import { fmtDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { Badge, Banner, Button, Card, Screen, Section, TextField, Txt } from '@/components/ui';
+import { usePalette } from '@/theme/tokens';
 import { clearHealthData, PLATFORM_LABEL } from '@/health/sync';
 import { useSession } from '@/state/session';
 
@@ -20,6 +21,7 @@ interface ExportRow {
 
 /** S49 Account and data controls — export, account/activity deletion, health cache clearing, confirmations and progress. */
 export default function AccountData() {
+  const p = usePalette();
   const { userId, signOut } = useSession();
   const [confirmText, setConfirmText] = useState('');
   const exports = useQuery({
@@ -64,9 +66,9 @@ export default function AccountData() {
   return (
     <Screen>
       <Stack.Screen options={{ title: 'Account and data' }} />
-      <Section title="Export your data">
+      <Section title="Export your data" icon="download">
         <Txt color="textMuted">A machine-readable copy of your profile, settings, activities, posts, comments, club memberships, results and consents. Imported health data is not included because it never leaves this phone.</Txt>
-        <Button variant="secondary" label="Request export" onPress={() => requestExport.mutate()} loading={requestExport.isPending} disabled={exports.data?.some((e) => e.status === 'queued' || e.status === 'running')} />
+        <Button variant="secondary" icon="download" label="Request export" onPress={() => requestExport.mutate()} loading={requestExport.isPending} disabled={exports.data?.some((e) => e.status === 'queued' || e.status === 'running')} />
         {exports.data?.map((e) => (
           <Card key={e.id}>
             <Badge label={e.status === 'ready' ? 'Ready' : e.status === 'failed' ? 'Failed' : e.status === 'expired' ? 'Expired' : 'Preparing…'} tone={e.status === 'ready' ? 'success' : e.status === 'failed' ? 'danger' : 'info'} />
@@ -75,17 +77,19 @@ export default function AccountData() {
           </Card>
         ))}
       </Section>
-      <Section title="Health data on this phone">
+      <Section title="Health data on this phone" icon="heart">
         <Button variant="secondary" label={`Clear imported ${PLATFORM_LABEL} data`} onPress={() => Alert.alert('Clear imported health data?', 'Deletes every cached reading and summary on this phone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: () => void clearHealthData() }])} />
       </Section>
-      <Section title="Delete activities">
+      <Section title="Delete activities" icon="record">
         <Txt color="textMuted">Delete individual runs from their detail page. Any land or titles they earned are withdrawn and recalculated.</Txt>
       </Section>
-      <Section title="Delete account">
+      <Section title="Delete account" icon="trash">
+        <Card style={{ borderWidth: 1.5, borderColor: p.danger }}>
         {deletion.data && deletion.data.status !== 'completed' ? <Banner tone="warning" text={`Deletion in progress since ${fmtDate(deletion.data.requested_at)}.`} /> : null}
         <Txt color="textMuted">Deletes your profile, runs, posts, comments, messages, memberships and results, withdraws your land and titles (recalculating them for others), and removes stored files. Some records may be kept where the law requires, as described in the Privacy Notice.</Txt>
         <TextField label='Type "DELETE" to confirm' value={confirmText} onChangeText={setConfirmText} autoCapitalize="characters" />
-        <Button variant="danger" label="Delete my account" onPress={() => Alert.alert('Delete your account permanently?', 'This cannot be undone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteAccount.mutate() }])} disabled={confirmText.trim() !== 'DELETE'} loading={deleteAccount.isPending} />
+        <Button variant="danger" icon="trash" label="Delete my account" onPress={() => Alert.alert('Delete your account permanently?', 'This cannot be undone.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => deleteAccount.mutate() }])} disabled={confirmText.trim() !== 'DELETE'} loading={deleteAccount.isPending} />
+        </Card>
       </Section>
     </Screen>
   );

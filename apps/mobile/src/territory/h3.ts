@@ -1,4 +1,4 @@
-import { cellToBoundary, cellToLatLng, isValidCell } from 'h3-js';
+import { cellToBoundary, cellToLatLng, getResolution, isValidCell, polygonToCells } from 'h3-js';
 import { controllerColor } from '@/theme/tokens';
 
 /**
@@ -40,15 +40,46 @@ export function cellCenter(cell: string): [number, number] | null {
   return [lng, lat];
 }
 
-export function cellsToFeatures(cells: ViewportCell[], palette: { landMine: string; unavailable: string }): GeoJSON.FeatureCollection {
+export function cellsToFeatures(cells: ViewportCell[], colors: { mine: string; unavailable: string; rivalHues: readonly string[] }): GeoJSON.FeatureCollection {
   const features: GeoJSON.Feature[] = [];
   for (const c of cells) {
     const geometry = cellPolygon(c.cell);
     if (!geometry) continue;
-    const color = c.status === 'excluded' ? palette.unavailable : c.is_me ? palette.landMine : controllerColor(c.controller_key ?? 'none');
+    const color = c.status === 'excluded' ? colors.unavailable : c.is_me ? colors.mine : controllerColor(c.controller_key ?? 'none', colors.rivalHues);
     features.push({ type: 'Feature', id: c.cell, geometry, properties: { cell: c.cell, status: c.status, mine: c.is_me, color, handle: c.controller_handle ?? '' } });
   }
   return { type: 'FeatureCollection', features };
+}
+
+/**
+ * Outline of the ownership grid over the visible area (drawing only: an outline says nothing about who
+ * may claim a cell). Skipped when the view would need more than `max` cells.
+ */
+export function gridFeatures(b: Bounds, resolution: number, max = 2500): GeoJSON.FeatureCollection | null {
+  const ring: [number, number][] = [[b.minLat, b.minLng], [b.minLat, b.maxLng], [b.maxLat, b.maxLng], [b.maxLat, b.minLng], [b.minLat, b.minLng]];
+  let cells: string[];
+  try {
+    cells = polygonToCells([ring], resolution);
+  } catch {
+    return null;
+  }
+  if (!cells.length || cells.length > max) return null;
+  const features: GeoJSON.Feature[] = cells.map((cell) => {
+    const r = cellToBoundary(cell, true) as [number, number][];
+    return { type: 'Feature', id: cell, geometry: { type: 'LineString', coordinates: [...r, r[0]!] }, properties: {} };
+  });
+  return { type: 'FeatureCollection', features };
+}
+
+/** Grid resolution of published cells (falls back to the given default when none are in view). */
+export function resolutionOf(cells: { cell: string }[], fallback: number): number {
+  const first = cells.find((c) => isValidCell(c.cell));
+  return first ? getResolution(first.cell) : fallback;
+}
+
+/** About 2.5 km × 2 km around a point: the area summarised when no map can be shown. */
+export function boundsAround([lng, lat]: [number, number], dLng = 0.012, dLat = 0.009): Bounds {
+  return { minLng: lng - dLng, minLat: lat - dLat, maxLng: lng + dLng, maxLat: lat + dLat };
 }
 
 /** H3 indices stored as bigint are fetched as text (never JSON numbers, which lose precision). */
@@ -82,9 +113,9 @@ export function boundsOf(coords: [number, number][]): Bounds | null {
 }
 
 /** Summary used by the accessible list alternative to the map. */
-export function summarizeCells(cells: ViewportCell[]): { mine: number; others: number; unavailable: number; topControllers: { name: string; cells: number; mine: boolean }[] } {
+export function summarizeCells(cells: ViewportCell[]): { mine: number; others: number; unavailable: number; topControllers: { key: string; name: string; handle: string | null; cells: number; mine: boolean }[] } {
   let mine = 0, others = 0, unavailable = 0;
-  const by = new Map<string, { name: string; cells: number; mine: boolean }>();
+  const by = new Map<string, { key: string; name: string; handle: string | null; cells: number; mine: boolean }>();
   for (const c of cells) {
     if (c.status === 'excluded') {
       unavailable++;
@@ -93,7 +124,7 @@ export function summarizeCells(cells: ViewportCell[]): { mine: number; others: n
     if (c.is_me) mine++;
     else others++;
     const key = c.controller_key ?? 'none';
-    const e = by.get(key) ?? { name: c.is_me ? 'You' : c.controller_name ?? 'A runner', cells: 0, mine: c.is_me };
+    const e = by.get(key) ?? { key, name: c.is_me ? 'You' : c.controller_name ?? 'A runner', handle: c.is_me ? null : c.controller_handle, cells: 0, mine: c.is_me };
     e.cells++;
     by.set(key, e);
   }

@@ -1,3 +1,4 @@
+import { View } from 'react-native';
 import { useState } from 'react';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,6 +8,7 @@ import { track } from '@/lib/analytics';
 import { fmtDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { Badge, Banner, Button, Card, EmptyState, ErrorState, LoadingState, Screen, Section, TextField, Txt } from '@/components/ui';
+import { spacing } from '@/theme/tokens';
 
 interface Appeal {
   id: string;
@@ -55,26 +57,28 @@ export default function Appeals() {
       <Stack.Screen options={{ title: 'Reviews and appeals' }} />
       {params.type && params.id && !existing ? (
         <Card accessibilityLabel="New request">
-          <Txt variant="heading">Request a review: {TYPE_LABEL[params.type] ?? params.type}</Txt>
+          <Txt variant="headline">{`Request a review: ${TYPE_LABEL[params.type] ?? params.type}`}</Txt>
           <Txt color="textMuted">Explain what you think is wrong. Requests are possible within {RETENTION_RULES.appealWindowDays.value} days of the decision. A reviewer who did not make the original decision checks the evidence; results can change for everyone affected.</Txt>
           <TextField label="Explanation" value={reason} onChangeText={setReason} multiline maxLength={1000} />
           {submit.error ? <Banner tone="danger" text={friendlyError(submit.error)} /> : null}
           {submit.isSuccess ? <Banner tone="success" text="Request submitted. You will be notified of the decision." /> : null}
-          <Button label="Submit request" onPress={() => submit.mutate()} loading={submit.isPending} disabled={reason.trim().length < 10 || submit.isSuccess} hint="At least 10 characters." />
+          <Button label="Submit request" arrow onPress={() => submit.mutate()} loading={submit.isPending} disabled={reason.trim().length < 10 || submit.isSuccess} hint="At least 10 characters." />
         </Card>
       ) : null}
-      <Section title="Your requests">
+      <Section title="Your requests" icon="flag">
         {list.isLoading ? <LoadingState /> : list.error ? <ErrorState error={list.error} onRetry={() => void list.refetch()} /> : list.data?.length ? (
           list.data.map((a) => (
             <Card key={a.id}>
-              <Txt variant="label">{TYPE_LABEL[a.object_type] ?? a.object_type}</Txt>
-              <Badge label={STATUS[a.status].label} tone={STATUS[a.status].tone} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <Txt variant="heading" style={{ flex: 1 }}>{TYPE_LABEL[a.object_type] ?? a.object_type}</Txt>
+                <Badge label={STATUS[a.status].label} tone={STATUS[a.status].tone} />
+              </View>
               <Txt variant="caption">Submitted {fmtDate(a.created_at)}{a.decided_at ? ` · decided ${fmtDate(a.decided_at)}` : ''}</Txt>
               <Txt>{a.reason}</Txt>
               {a.response ? <Txt color="textMuted">Response: {a.response}</Txt> : null}
             </Card>
           ))
-        ) : <EmptyState title="No requests yet" body="You can ask for a review from a land or route result, a removed post, or a route proposal decision." />}
+        ) : <EmptyState icon="flag" title="No requests yet" body="You can ask for a review from a land or route result, a removed post, or a route proposal decision." />}
       </Section>
     </Screen>
   );

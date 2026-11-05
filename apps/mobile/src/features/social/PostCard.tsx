@@ -4,8 +4,9 @@ import { router } from 'expo-router';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rpc, friendlyError } from '@/lib/api';
 import { track } from '@/lib/analytics';
-import { fmtArea, fmtDistance, fmtDuration, fmtPace, fmtRelative } from '@/lib/format';
-import { Avatar, Badge, Card, Txt } from '@/components/ui';
+import { fmtArea, fmtDistance, fmtDuration, fmtPace, fmtRelative, splitValue } from '@/lib/format';
+import { Avatar, Badge, Card, IconButton, Txt } from '@/components/ui';
+import { Icon } from '@/components/icons';
 import { useUnits } from '@/state/session';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 import { useSignedUrl } from './media';
@@ -61,7 +62,8 @@ function MediaImage({ m }: { m: PostJson['media'][number] }) {
   const url = useSignedUrl('post-media', m.status === 'ready' ? m.path : null);
   if (m.status !== 'ready') {
     return (
-      <View style={{ height: 120, borderRadius: radius.md, backgroundColor: p.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ height: 140, borderRadius: radius.md, backgroundColor: p.surfaceAlt, alignItems: 'center', justifyContent: 'center', gap: spacing.sm }}>
+        <Icon name="image" color={p.textSubtle} size={26} />
         <Txt variant="caption">{m.status === 'rejected' ? 'Photo could not be processed' : 'Processing photo…'}</Txt>
       </View>
     );
@@ -79,20 +81,29 @@ function MediaImage({ m }: { m: PostJson['media'][number] }) {
 }
 
 export function SharedSummary({ s }: { s: NonNullable<PostJson['shared_summary']> }) {
+  const p = usePalette();
   const units = useUnits();
-  const parts = [
-    s.distance_m != null ? fmtDistance(s.distance_m, units) : null,
-    s.elapsed_ms != null ? fmtDuration(s.elapsed_ms) : null,
-    s.avg_pace_s_per_km != null ? fmtPace(s.avg_pace_s_per_km, units) : null,
-    s.activity_date ?? null
-  ].filter(Boolean);
+  const dist = s.distance_m != null ? splitValue(fmtDistance(s.distance_m, units)) : null;
+  const meta = [s.elapsed_ms != null ? fmtDuration(s.elapsed_ms) : null, s.avg_pace_s_per_km != null ? fmtPace(s.avg_pace_s_per_km, units) : null, s.activity_date ?? null].filter(Boolean);
   return (
-    <View style={{ gap: spacing.xs }}>
-      {parts.length ? <Txt variant="label">{parts.join(' · ')}</Txt> : null}
-      <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
-        {s.achievement === 'land_claimed' ? <Badge tone="success" label={`Claimed land${s.area_m2 ? ` · ${fmtArea(s.area_m2, units)}` : ''}`} /> : null}
-        {s.achievement_title === 'route_title' ? <Badge tone="title" label="Took a route title" /> : null}
-      </View>
+    <View style={{ gap: spacing.sm }}>
+      {dist || meta.length ? (
+        <View style={{ borderRadius: radius.md, backgroundColor: p.blueSoft, padding: spacing.lg, gap: 2 }} accessible accessibilityLabel={[dist ? `${dist.value} ${dist.unit}` : null, ...meta].filter(Boolean).join(', ')}>
+          {dist ? (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
+              <Txt variant="metric" style={{ color: p.blueText }}>{dist.value}</Txt>
+              <Txt variant="heading" style={{ color: p.blueText, marginBottom: 4 }}>{dist.unit}</Txt>
+            </View>
+          ) : null}
+          {meta.length ? <Txt variant="label" color="textMuted">{meta.join('   ')}</Txt> : null}
+        </View>
+      ) : null}
+      {s.achievement === 'land_claimed' || s.achievement_title === 'route_title' ? (
+        <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+          {s.achievement === 'land_claimed' ? <Badge tone="violet" icon="hexagon" label={`Claimed land${s.area_m2 ? ` · ${fmtArea(s.area_m2, units)}` : ''}`} /> : null}
+          {s.achievement_title === 'route_title' ? <Badge tone="title" icon="trophy" label="Took a route title" /> : null}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -165,44 +176,50 @@ export function PostCard({ post, onOpen = true }: { post: PostJson; onOpen?: boo
   const { react, menu } = usePostActions(post);
   return (
     <Card onPress={onOpen ? () => router.push({ pathname: '/post/[id]', params: { id: post.id } }) : undefined} accessibilityLabel={`Post by ${post.author.display_name}`}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
         <Pressable onPress={() => router.push({ pathname: '/profile/[id]', params: { id: post.author.id } })} accessibilityRole="link" accessibilityLabel={`Open ${post.author.display_name}'s profile`}>
-          <Avatar name={post.author.display_name} uri={avatar.data} size={36} />
+          <Avatar name={post.author.display_name} uri={avatar.data} size={42} />
         </Pressable>
-        <View style={{ flex: 1 }}>
-          <Txt variant="label">{post.author.display_name}</Txt>
-          <Txt variant="caption">
-            @{post.author.handle} · {fmtRelative(post.published_at)} · {post.club ? post.club.name : AUDIENCE_LABEL[post.audience]}
-            {post.edited_at ? ' · edited' : ''}
+        <View style={{ flex: 1, gap: 1 }}>
+          <Txt variant="bodyStrong" numberOfLines={1}>{post.author.display_name}</Txt>
+          <Txt variant="caption" numberOfLines={1}>
+            {`@${post.author.handle} · ${fmtRelative(post.published_at)} · ${post.club ? post.club.name : AUDIENCE_LABEL[post.audience]}${post.edited_at ? ' · edited' : ''}`}
           </Txt>
         </View>
-        <Pressable onPress={() => menu()} hitSlop={12} accessibilityRole="button" accessibilityLabel="Post options" style={{ padding: spacing.sm }}>
-          <Txt variant="heading">⋯</Txt>
-        </Pressable>
+        <IconButton icon="more" label="Post options" onPress={() => menu()} color={p.textMuted} />
       </View>
-      {post.is_announcement ? <Badge tone="info" label="Announcement" /> : null}
-      {post.status === 'processing' ? <Badge tone="muted" label="Publishing after photos are processed" /> : null}
+      {post.is_announcement || post.status === 'processing' ? (
+        <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+          {post.is_announcement ? <Badge tone="info" icon="bell" label="Announcement" /> : null}
+          {post.status === 'processing' ? <Badge tone="muted" label="Publishing after photos are processed" /> : null}
+        </View>
+      ) : null}
       {post.body ? <BodyText text={post.body} /> : null}
       {post.shared_summary ? <SharedSummary s={post.shared_summary} /> : null}
       {post.route ? (
-        <Pressable onPress={() => router.push({ pathname: '/routes/[id]', params: { id: post.route!.id } })} accessibilityRole="link">
-          <Txt style={{ color: p.title, fontWeight: '600' }}>Route: {post.route.name}</Txt>
+        <Pressable onPress={() => router.push({ pathname: '/routes/[id]', params: { id: post.route!.id } })} accessibilityRole="link" accessibilityLabel={`Route: ${post.route.name}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, opacity: pressed ? 0.6 : 1 })}>
+          <Icon name="route" color={p.orangeText} size={20} />
+          <Txt variant="label" style={{ color: p.orangeText, flex: 1 }} numberOfLines={1}>{post.route.name}</Txt>
+          <Icon name="chevron-right" color={p.textSubtle} size={18} />
         </Pressable>
       ) : null}
       {post.media.map((m) => <MediaImage key={m.id} m={m} />)}
-      <View style={{ flexDirection: 'row', gap: spacing.lg, alignItems: 'center' }}>
+      <View style={{ flexDirection: 'row', gap: spacing.xl, alignItems: 'center' }}>
         <Pressable
           onPress={() => react.mutate()}
           disabled={react.isPending}
           accessibilityRole="button"
           accessibilityState={{ selected: post.i_reacted }}
           accessibilityLabel={`${post.i_reacted ? 'Remove cheer' : 'Cheer'}. ${post.reaction_count} cheers`}
-          style={{ minHeight: 44, justifyContent: 'center' }}>
-          <Txt variant="label" style={{ color: post.i_reacted ? p.primary : p.textMuted }}>{post.i_reacted ? '★' : '☆'} {post.reaction_count}</Txt>
+          hitSlop={6}
+          style={({ pressed }) => ({ minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2, opacity: pressed ? 0.6 : 1 })}>
+          <Icon name={post.i_reacted ? 'heart-filled' : 'heart'} color={post.i_reacted ? p.danger : p.textMuted} size={22} />
+          <Txt variant="label" tabular style={{ color: post.i_reacted ? p.danger : p.textMuted }}>{String(post.reaction_count)}</Txt>
         </Pressable>
-        <Txt variant="label" color="textMuted" accessibilityLabel={`${post.comment_count} comments`}>
-          💬 {post.comment_count}{post.comments_enabled ? '' : ' · comments off'}
-        </Txt>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2 }} accessible accessibilityLabel={`${post.comment_count} comments${post.comments_enabled ? '' : ', comments off'}`}>
+          <Icon name="chat" color={p.textMuted} size={21} />
+          <Txt variant="label" color="textMuted" tabular>{`${post.comment_count}${post.comments_enabled ? '' : ' · comments off'}`}</Txt>
+        </View>
       </View>
     </Card>
   );

@@ -4,9 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@/lib/api';
 import { useSession } from '@/state/session';
 import { useSignedUrl } from '@/features/social/media';
-import { spacing, TOUCH, usePalette } from '@/theme/tokens';
-import { Icon, type IconName } from './icons';
-import { Avatar, Txt } from './ui';
+import { spacing, TOUCH } from '@/theme/tokens';
+import { Avatar, IconButton, Txt } from './ui';
 
 export interface BadgeCounts {
   notifications: number;
@@ -19,38 +18,31 @@ export function useBadgeCounts() {
   return useQuery({ queryKey: ['badge_counts', userId], enabled: Boolean(userId), refetchInterval: 60_000, queryFn: () => rpc<BadgeCounts>('badge_counts') });
 }
 
-function IconButton({ name, label, count, onPress }: { name: IconName; label: string; count?: number; onPress: () => void }) {
-  const p = usePalette();
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={count ? `${label}, ${count} unread` : label} style={{ width: TOUCH, height: TOUCH, alignItems: 'center', justifyContent: 'center' }}>
-      <Icon name={name} color={p.text} />
-      {count ? (
-        <View style={{ position: 'absolute', top: 6, right: 4, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: p.danger, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
-          <Txt variant="caption" style={{ color: '#FFFFFF', fontSize: 11, lineHeight: 14 }}>{count > 99 ? '99+' : String(count)}</Txt>
-        </View>
-      ) : null}
-    </Pressable>
-  );
-}
-
-/** Tab header with avatar menu (profile, settings), inbox and notifications entry points. */
-export function TopBar({ title, showSocial = true }: { title: string; showSocial?: boolean }) {
+/**
+ * Header for the five main tabs: large title on the left; discover, messages, notifications and your
+ * profile on the right (the profile menu holds settings).
+ */
+export function TopBar({ title, subtitle, showSocial = true }: { title: string; subtitle?: string; showSocial?: boolean }) {
   const { profile } = useSession();
   const avatar = useSignedUrl('avatars', profile?.avatar_path);
   const badges = useBadgeCounts();
+  const unread = (badges.data?.notifications ?? 0) + (badges.data?.follow_requests ?? 0);
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm }}>
-      <Pressable onPress={() => router.push('/me')} accessibilityRole="button" accessibilityLabel="Your profile and settings" style={{ minHeight: TOUCH, justifyContent: 'center' }}>
-        <Avatar name={profile?.display_name ?? 'You'} uri={avatar.data} size={36} />
-      </Pressable>
-      <Txt variant="title" style={{ flex: 1, marginLeft: spacing.sm }}>{title}</Txt>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, minHeight: 56 }}>
+      <View style={{ flex: 1, gap: 2 }}>
+        {subtitle ? <Txt variant="label" color="textMuted" numberOfLines={1}>{subtitle}</Txt> : null}
+        <Txt variant="title" numberOfLines={1}>{title}</Txt>
+      </View>
       {showSocial ? (
         <>
-          <IconButton name="search" label="Discover runners and communities" onPress={() => router.push('/discover')} />
-          <IconButton name="chat" label="Messages" onPress={() => router.push('/inbox')} />
-          <IconButton name="bell" label="Notifications" count={(badges.data?.notifications ?? 0) + (badges.data?.follow_requests ?? 0)} onPress={() => router.push('/notifications')} />
+          <IconButton icon="search" label="Discover runners and clubs" onPress={() => router.push('/discover')} />
+          <IconButton icon="chat" label="Messages" onPress={() => router.push('/inbox')} />
+          <IconButton icon="bell" label="Notifications" count={unread} onPress={() => router.push('/notifications')} />
         </>
       ) : null}
+      <Pressable onPress={() => router.push('/me')} accessibilityRole="button" accessibilityLabel="Your profile and settings" hitSlop={4} style={({ pressed }) => ({ minHeight: TOUCH, minWidth: TOUCH, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
+        <Avatar name={profile?.display_name ?? 'You'} uri={avatar.data} size={36} ring />
+      </Pressable>
     </View>
   );
 }

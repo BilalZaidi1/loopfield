@@ -4,9 +4,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { useQuery } from '@tanstack/react-query';
 import { friendlyError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { Avatar, Banner, Button, Segmented, TextField, Toggle, Txt } from '@/components/ui';
+import { Avatar, Banner, Button, Chip, Segmented, TextField, Toggle, Txt } from '@/components/ui';
+import { Icon } from '@/components/icons';
 import { useSession, type Profile } from '@/state/session';
-import { spacing } from '@/theme/tokens';
+import { radius, spacing, usePalette } from '@/theme/tokens';
 import { prepareImage, uploadToBucket, useSignedUrl } from '@/features/social/media';
 
 export interface District {
@@ -36,6 +37,7 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
   extraValid?: boolean;
   beforeSave?: () => Promise<void>;
 }) {
+  const p = usePalette();
   const { userId, refresh } = useSession();
   const districts = useDistricts();
   const [handle, setHandle] = useState(profile.handle.startsWith('runner_') ? '' : profile.handle);
@@ -92,31 +94,62 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
   };
 
   return (
-    <View style={{ gap: spacing.md }}>
-      <Pressable onPress={pickAvatar} accessibilityRole="button" accessibilityLabel="Choose a profile photo" style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-        <Avatar name={name || 'You'} uri={avatarUrl.data} size={64} />
-        <Txt variant="label" color="primary">{avatarPath ? 'Change photo' : 'Add photo (optional)'}</Txt>
+    <View style={{ gap: spacing.xl }}>
+      <Pressable onPress={pickAvatar} accessibilityRole="button" accessibilityLabel={avatarPath ? 'Change profile photo' : 'Add a profile photo (optional)'} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: spacing.lg, opacity: pressed ? 0.7 : 1 })}>
+        <View>
+          <Avatar name={name || 'You'} uri={avatarUrl.data} size={84} />
+          <View style={{ position: 'absolute', right: -2, bottom: -2, width: 32, height: 32, borderRadius: 16, backgroundColor: p.primaryFill, borderWidth: 3, borderColor: p.bg, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="camera" color="#FFFFFF" size={16} />
+          </View>
+        </View>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Txt variant="heading">{avatarPath ? 'Change photo' : 'Add a photo'}</Txt>
+          <Txt variant="caption">Optional. Shown on your profile, posts and rankings.</Txt>
+        </View>
       </Pressable>
-      <TextField label="Display name" value={name} onChangeText={setName} maxLength={40} error={name && !nameOk ? 'Use 1–40 characters.' : undefined} />
-      <TextField label="Handle" value={handle} onChangeText={setHandle} autoCapitalize="none" maxLength={24} hint="3–24 letters, numbers or underscores. Others can @mention you with it." error={handle && !handleOk ? 'Use 3–24 letters, numbers or underscores.' : undefined} />
-      <TextField label="Bio (optional)" value={bio} onChangeText={setBio} multiline maxLength={280} />
-      <Txt variant="label">City or district</Txt>
-      {districts.isLoading ? <Txt variant="caption">Loading supported areas…</Txt> : null}
-      {districts.error ? <Banner tone="warning" text="Supported areas could not be loaded. You can set this later." /> : null}
-      {districts.data?.length ? (
-        <Segmented label="City or district" value={district ?? 'none'} onChange={(v) => setDistrict(v === 'none' ? null : v)} options={[{ value: 'none', label: 'Not set' }, ...districts.data.map((d) => ({ value: d.id, label: d.name }))]} />
-      ) : null}
-      <Segmented label="Units" value={units} onChange={setUnits} options={[{ value: 'metric', label: 'Kilometres' }, { value: 'imperial', label: 'Miles' }]} />
-      <Segmented
-        label="Profile visibility"
-        value={visibility}
-        onChange={setVisibility}
-        options={[{ value: 'private', label: 'Private' }, { value: 'public', label: 'Public' }]}
-      />
-      <Txt variant="caption">{visibility === 'private' ? 'Private: people must ask to follow you; your posts reach approved followers only.' : 'Public: anyone signed in can see your profile and public posts.'}</Txt>
+      <View style={{ gap: spacing.lg }}>
+        <TextField label="Display name" value={name} onChangeText={setName} maxLength={40} error={name && !nameOk ? 'Use 1–40 characters.' : undefined} />
+        <TextField label="Handle" value={handle} onChangeText={setHandle} autoCapitalize="none" maxLength={24} hint="3–24 letters, numbers or underscores. Others can @mention you with it." error={handle && !handleOk ? 'Use 3–24 letters, numbers or underscores.' : undefined} />
+        <TextField label="Bio (optional)" value={bio} onChangeText={setBio} multiline maxLength={280} />
+      </View>
+      <View style={{ gap: spacing.sm }}>
+        <Txt variant="label">City or district</Txt>
+        {districts.isLoading ? <Txt variant="caption">Loading supported areas…</Txt> : null}
+        {districts.error ? <Banner tone="warning" text="Supported areas could not be loaded. You can set this later." /> : null}
+        {districts.data?.length ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }} accessibilityRole="radiogroup" accessibilityLabel="City or district">
+            <Chip label="Not set" selected={district === null} onPress={() => setDistrict(null)} />
+            {districts.data.map((d) => (
+              <Chip key={d.id} label={d.name} selected={district === d.id} onPress={() => setDistrict(d.id)} />
+            ))}
+          </View>
+        ) : null}
+      </View>
+      <View style={{ gap: spacing.sm }}>
+        <Txt variant="label">Units</Txt>
+        <Segmented label="Units" value={units} onChange={setUnits} options={[{ value: 'metric', label: 'Kilometres' }, { value: 'imperial', label: 'Miles' }]} />
+      </View>
+      <View style={{ gap: spacing.sm }}>
+        <Txt variant="label">Who can see your profile</Txt>
+        <View style={{ flexDirection: 'row', gap: spacing.md }} accessibilityRole="radiogroup" accessibilityLabel="Profile visibility">
+          {([
+            { value: 'private', icon: 'lock', title: 'Private', body: 'People ask to follow you; posts reach approved followers.' },
+            { value: 'public', icon: 'globe', title: 'Public', body: 'Anyone signed in sees your profile and public posts.' }
+          ] as const).map((o) => {
+            const selected = visibility === o.value;
+            return (
+              <Pressable key={o.value} onPress={() => setVisibility(o.value)} accessibilityRole="radio" accessibilityState={{ checked: selected }} accessibilityLabel={`${o.title}. ${o.body}`} style={({ pressed }) => ({ flex: 1, gap: spacing.sm, padding: spacing.lg, borderRadius: radius.lg, borderWidth: 2, borderColor: selected ? p.primary : p.border, backgroundColor: selected ? p.primarySoft : p.surface, opacity: pressed ? 0.8 : 1 })}>
+                <Icon name={o.icon} color={selected ? p.primary : p.textMuted} size={22} />
+                <Txt variant="heading">{o.title}</Txt>
+                <Txt variant="caption">{o.body}</Txt>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
       {visibility === 'public' ? <Toggle label="Show me in Discover" description="Lets runners in your city find you. Off by default." value={discoverable} onChange={setDiscoverable} /> : null}
       {error ? <Banner tone="danger" text={error} /> : null}
-      <Button label={submitLabel} onPress={save} loading={busy} disabled={!handleOk || !nameOk || !extraValid || busy} />
+      <Button label={submitLabel} size="lg" arrow onPress={save} loading={busy} disabled={!handleOk || !nameOk || !extraValid || busy} hint={!extraValid ? 'Confirm the age and terms questions above first.' : undefined} />
     </View>
   );
 }

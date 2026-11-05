@@ -1,7 +1,7 @@
 import { latLngToCell } from 'h3-js';
 import { bigintCellToH3, boundsArea, cellsToFeatures, MAX_VIEWPORT_DEG2, roundBounds, summarizeCells, type ViewportCell } from '@/territory/h3';
 
-const palette = { landMine: '#00AA00', unavailable: '#777777' };
+const palette = { mine: '#00AA00', unavailable: '#777777', rivalHues: ['#123456', '#654321'] };
 const cell = (lat: number, lng: number) => latLngToCell(lat, lng, 11);
 
 describe('territory rendering helpers (display only, never ownership)', () => {
@@ -19,7 +19,7 @@ describe('territory rendering helpers (display only, never ownership)', () => {
     const ring = (fc.features[0]!.geometry as GeoJSON.Polygon).coordinates[0]!;
     expect(ring[0]).toEqual(ring[ring.length - 1]);
     expect(ring[0]![0]).toBeGreaterThan(60); // longitude first
-    expect(fc.features[0]!.properties!.color).toBe(palette.landMine);
+    expect(fc.features[0]!.properties!.color).toBe(palette.mine);
     expect(fc.features[3]!.properties!.color).toBe(palette.unavailable);
   });
 
@@ -28,7 +28,7 @@ describe('territory rendering helpers (display only, never ownership)', () => {
     expect(s.mine).toBe(1);
     expect(s.others).toBe(3);
     expect(s.unavailable).toBe(1);
-    expect(s.topControllers[0]).toEqual({ name: 'Other', cells: 2, mine: false });
+    expect(s.topControllers[0]).toEqual({ key: 'abc', name: 'Other', handle: 'other', cells: 2, mine: false });
   });
 
   it('converts bigint-as-text exploration cells without precision loss', () => {

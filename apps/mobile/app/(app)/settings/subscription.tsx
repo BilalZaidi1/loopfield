@@ -43,7 +43,7 @@ export default function Subscription() {
     <Screen>
       <Stack.Screen options={{ title: 'Subscription' }} />
       {!cfg.data?.paywallEnabled ? <Banner tone="success" text="Free pilot: every feature is included. Paid plans are not on sale." /> : null}
-      <Card accessibilityLabel="Your plan">
+      <Card tone={ent?.is_active ? 'violet' : 'surface'} accessibilityLabel="Your plan">
         <Txt variant="heading">Your plan</Txt>
         <Badge label={stateLabel} tone={ent?.is_active ? 'success' : 'muted'} />
         {ent?.expires_at ? <Txt variant="caption">{ent.will_renew ? 'Renews' : 'Ends'} {fmtDate(ent.expires_at)}{ent.grace_expires_at ? ` · grace period until ${fmtDate(ent.grace_expires_at)}` : ''}</Txt> : null}
@@ -51,18 +51,18 @@ export default function Subscription() {
         <Txt variant="caption">Status is confirmed by our server with the app store; this screen never grants access by itself.</Txt>
       </Card>
       {cfg.data?.paywallEnabled ? (
-        !purchasesConfigured() ? <EmptyState title="Purchases are not configured in this build" /> : offering.isLoading ? <LoadingState /> : offering.data ? (
-          <Section title="Plans">
+        !purchasesConfigured() ? <EmptyState icon="star" title="Purchases are not configured in this build" /> : offering.isLoading ? <LoadingState /> : offering.data ? (
+          <Section title="Plans" icon="star">
             {offering.data.availablePackages.map((p) => (
               <Card key={p.identifier}>
                 <Txt variant="heading">{p.product.title}</Txt>
                 <Txt>{p.product.priceString}{p.packageType === 'MONTHLY' ? ' per month' : p.packageType === 'ANNUAL' ? ' per year' : ''}</Txt>
                 {p.product.description ? <Txt variant="caption">{p.product.description}</Txt> : null}
-                <Button label="Subscribe" onPress={() => void buy(p.identifier)} loading={busy === p.identifier} disabled={Boolean(ent?.is_active)} />
+                <Button label="Subscribe" arrow onPress={() => void buy(p.identifier)} loading={busy === p.identifier} disabled={Boolean(ent?.is_active)} />
               </Card>
             ))}
           </Section>
-        ) : <EmptyState title="No plans available right now" />
+        ) : <EmptyState icon="star" title="No plans available right now" />
       ) : null}
       {purchasesConfigured() ? (
         <>

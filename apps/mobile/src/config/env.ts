@@ -10,7 +10,9 @@ export const env = {
   supabaseUrl: v(process.env.EXPO_PUBLIC_SUPABASE_URL),
   supabaseAnonKey: v(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY),
   mapboxToken: v(process.env.EXPO_PUBLIC_MAPBOX_TOKEN),
-  mapboxStyleUrl: v(process.env.EXPO_PUBLIC_MAPBOX_STYLE_URL) ?? 'mapbox://styles/mapbox/outdoors-v12',
+  // Light and dark base maps follow the app theme; a custom style URL set for either replaces the default.
+  mapboxStyleUrl: v(process.env.EXPO_PUBLIC_MAPBOX_STYLE_URL) ?? 'mapbox://styles/mapbox/light-v11',
+  mapboxStyleUrlDark: v(process.env.EXPO_PUBLIC_MAPBOX_STYLE_URL_DARK) ?? v(process.env.EXPO_PUBLIC_MAPBOX_STYLE_URL) ?? 'mapbox://styles/mapbox/dark-v11',
   posthogKey: v(process.env.EXPO_PUBLIC_POSTHOG_KEY),
   posthogHost: v(process.env.EXPO_PUBLIC_POSTHOG_HOST) ?? 'https://eu.i.posthog.com',
   sentryDsn: v(process.env.EXPO_PUBLIC_SENTRY_DSN),
