@@ -104,16 +104,16 @@ All health data stays on the device (`src/health/*`, SQLite cache excluded from 
 
 ## Screens and panels (Appendix D)
 
-Every screen has loading, empty, error/retry states through the shared components in `src/components/ui.tsx` (`LoadingState`, `EmptyState`, `ErrorState`, `Banner`) and real data only. Paths are relative to `apps/mobile/app/`.
+Every screen has loading (skeletons), empty, error/retry and offline states through the shared components in `src/components/ui.tsx` (`LoadingState`, `Skeleton`, `EmptyState`, `ErrorState`, `Banner`, `OfflineBanner`) and real data only. Paths are relative to `apps/mobile/app/`.
 
 | # | Screen or panel | Route file | Notes |
 |---|---|---|---|
-| 01 | Welcome | `(auth)/welcome.tsx` | Get started / Log in |
+| 01 | Welcome | `(auth)/welcome.tsx` | Get started / Log in pinned on screen; illustrated explainer |
 | 02 | Create account | `(auth)/sign-up.tsx` | 18+ confirmation, terms, verification email |
-| 03 | Log in and recovery | `(auth)/sign-in.tsx`, `auth/reset-password.tsx`, `auth/callback.tsx` | PKCE deep link |
+| 03 | Log in and recovery | `(auth)/sign-in.tsx`, `auth/reset-password.tsx`, `auth/callback.tsx` | PKCE deep link; Apple/Google buttons only for providers enabled in Supabase (`src/features/auth/`) |
 | 04 | Profile setup | `(onboarding)/profile-setup.tsx` | `src/features/profile/ProfileForm.tsx` |
 | 05 | Permissions setup | `(onboarding)/permissions.tsx` | location, background, notifications; health later |
-| 06 | Home feed | `(app)/(tabs)/home.tsx` | Following / Discover, composer, inbox, notifications (`src/components/TopBar.tsx`) |
+| 06 | Home feed | `(app)/(tabs)/home.tsx` | Dashboard first (this week, your ground, season leaders, people you follow), then Following / Discover, composer, inbox, notifications (`src/components/TopBar.tsx`) |
 | 07 | Discover runners and communities | `(app)/discover.tsx` | opted-in profiles, public clubs |
 | 08 | Post composer | `(app)/compose.tsx` | photos with alt text, attachments, audience preview |
 | 09 | Post detail and comments | `(app)/post/[id].tsx` | |
@@ -121,7 +121,7 @@ Every screen has loading, empty, error/retry states through the shared component
 | 11 | Inbox | `(app)/inbox/index.tsx` | |
 | 12 | Conversation | `(app)/inbox/[channel].tsx` | send status, mute, block, report, delete |
 | 13 | Notifications | `(app)/notifications.tsx` | |
-| 14 | Territory map | `(app)/(tabs)/map.tsx` | list alternative, season, Start Run |
+| 14 | Territory map | `(app)/(tabs)/map.tsx` | full-bleed map, floating controls, bottom sheet with text summary (list alternative), cell and route panels, map key, season, Start Run |
 | 15 | Territory detail | `(app)/territory/[cell].tsx` | |
 | 16 | Speed routes | `(app)/routes/index.tsx` | |
 | 17 | Speed route detail | `(app)/routes/[id].tsx` | time needed incl. margin |
@@ -158,7 +158,7 @@ Every screen has loading, empty, error/retry states through the shared component
 | 48 | Appeal and request status | `(app)/appeals.tsx` | |
 | 49 | Account and data controls | `(app)/settings/account.tsx` | export, deletion, health cache clearing |
 
-Additional screens outside Appendix D: subscription (`settings/subscription.tsx`, P2), club creation, and operator tools (`ops/index.tsx`, `ops/moderation*.tsx`, `ops/routes.tsx`, `ops/integrity*.tsx`, `ops/system.tsx`; PRD §16).
+Additional screens outside Appendix D: first-run tour (`(app)/tour.tsx`, replayable from Help and Settings), subscription (`settings/subscription.tsx`, P2), club creation, and operator tools (`ops/index.tsx`, `ops/moderation*.tsx`, `ops/routes.tsx`, `ops/integrity*.tsx`, `ops/system.tsx`; PRD §16).
 
 Every database call made by these screens is checked against the schema by `scripts/check-client-queries.mjs` (32 select strings, 110 of 111 RPC calls; the remaining one spreads a typed form object).
 

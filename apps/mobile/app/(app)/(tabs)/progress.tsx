@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { Badge, Button, Card, EmptyState, ErrorState, ListGroup, LoadingState, Medal, ProgressRing, Row, Screen, Section, Segmented, Txt } from '@/components/ui';
+import { Badge, BigNumber, Button, Card, EmptyState, ErrorState, ListGroup, LoadingState, Medal, ProgressRing, Row, Screen, Section, Segmented, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { BarChart } from '@/components/charts';
 import { TopBar } from '@/components/TopBar';
@@ -51,10 +51,7 @@ export default function Progress() {
                   <Icon name="progress" color="#FFFFFF" size={22} />
                   <Txt variant="heading" style={{ flex: 1 }}>{range === '28' ? 'Last 4 weeks' : range === '90' ? 'Last 3 months' : 'Last 12 months'}</Txt>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
-                  <Txt variant="hero">{dist.value}</Txt>
-                  <Txt variant="headline" color="textMuted" style={{ marginBottom: 10 }}>{dist.unit}</Txt>
-                </View>
+                <BigNumber value={dist.value} unit={dist.unit} />
                 <Txt color="textMuted">{`${totals.runs} ${totals.runs === 1 ? 'run' : 'runs'} · ${fmtDuration(totals.ms)} moving`}</Txt>
                 <BarChart
                   title={`Weekly distance (${units === 'metric' ? 'km' : 'mi'})`}

@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { fmtDistance, fmtDuration, fmtPace, splitValue } from '@/lib/format';
 import { onCue, type Cue } from '@/lib/cues';
 import { log } from '@/lib/log';
-import { Badge, Banner, Button, Card, EmptyState, PressableScale, Screen, StatTile, Txt } from '@/components/ui';
+import { Badge, Banner, BigNumber, Button, Card, EmptyState, PressableScale, Screen, StatTile, Txt } from '@/components/ui';
 import { Icon, type IconName } from '@/components/icons';
 import { tick } from '@/theme/motion';
 import { MapCanvas } from '@/features/map/MapCanvas';
@@ -115,11 +115,8 @@ export default function ActiveRun() {
       {live.gpsQuality !== 'good' && s.state === 'recording' ? (
         <Banner tone="warning" text={live.gpsQuality === 'weak' ? 'GPS signal is weak. Loop and route results may not count.' : `No GPS fix${live.gpsStaleSeconds ? ` for ${Math.round(live.gpsStaleSeconds)} s` : ''}. This gap will be shown, not filled in.`} />
       ) : null}
-      <View accessible accessibilityLabel={`Distance ${dist.value} ${dist.unit}`}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm }}>
-          <Txt variant="hero" style={{ fontSize: 96, lineHeight: 96, opacity: paused ? 0.55 : 1 }} numberOfLines={1}>{dist.value}</Txt>
-          <Txt variant="headline" color="textMuted" style={{ marginBottom: 14 }}>{dist.unit}</Txt>
-        </View>
+      <View>
+        <BigNumber value={dist.value} unit={dist.unit} size={96} dim={paused} />
         <Txt color="textMuted">{units === 'metric' ? 'Kilometres' : 'Miles'}</Txt>
       </View>
       <View style={{ flexDirection: 'row', gap: spacing.md }}>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import Svg, { G, Line, Rect } from 'react-native-svg';
 import { radius, spacing, useTheme } from '@/theme/tokens';
 import { useReducedMotion } from '@/theme/motion';
 import { Icon } from './icons';
@@ -104,44 +104,6 @@ export function BarChart({ data, unit, title, height = 150, format = (v: number)
         </Pressable>
       ) : null}
       {showTable ? <DataTable rows={data.map((d) => [d.label, d.value === null ? 'No data' : `${format(d.value)} ${unit}`])} /> : null}
-    </View>
-  );
-}
-
-export function LineChart({ points, unit, title, height = 140 }: { points: { t: number; value: number }[]; unit: string; title: string; height?: number }) {
-  const t = useTheme();
-  const p = t.palette;
-  if (points.length < 2) return <Txt variant="caption">Not enough readings to draw a trend.</Txt>;
-  const width = 300;
-  const minT = points[0]!.t;
-  const maxT = points[points.length - 1]!.t;
-  const vals = points.map((q) => q.value);
-  const lo = Math.min(...vals);
-  const hi = Math.max(...vals);
-  const x = (v: number) => ((v - minT) / Math.max(1, maxT - minT)) * (width - 12) + 6;
-  const y = (v: number) => height - 10 - ((v - lo) / Math.max(1e-9, hi - lo)) * (height - 24);
-  // Break the line at gaps larger than 3x the median spacing: gaps stay gaps.
-  const spacings = points.slice(1).map((q, i) => q.t - points[i]!.t).sort((a, b) => a - b);
-  const median = spacings[Math.floor(spacings.length / 2)] ?? 0;
-  let d = '';
-  points.forEach((q, i) => {
-    const gap = i > 0 && q.t - points[i - 1]!.t > median * 3;
-    d += `${i === 0 || gap ? 'M' : 'L'}${x(q.t).toFixed(1)},${y(q.value).toFixed(1)} `;
-  });
-  const last = points[points.length - 1]!;
-  return (
-    <View accessible accessibilityRole="image" accessibilityLabel={`${title}. ${points.length} readings from ${lo.toFixed(0)} to ${hi.toFixed(0)} ${unit}. Gaps are shown as breaks.`}>
-      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
-        <Defs>
-          <LinearGradient id="lc" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={p.primaryFill} stopOpacity={0.22} />
-            <Stop offset="1" stopColor={p.primaryFill} stopOpacity={0} />
-          </LinearGradient>
-        </Defs>
-        <Path d={`${d} L${x(last.t).toFixed(1)},${height} L${x(points[0]!.t).toFixed(1)},${height} Z`} fill="url(#lc)" />
-        <Path d={d} stroke={p.primary} strokeWidth={2.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        <Circle cx={x(last.t)} cy={y(last.value)} r={4.5} fill={p.primaryFill} stroke={p.surface} strokeWidth={2} />
-      </Svg>
     </View>
   );
 }

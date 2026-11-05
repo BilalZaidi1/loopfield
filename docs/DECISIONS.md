@@ -39,3 +39,15 @@ Choices made where the PRD (v1.2) or the build brief left room, recorded so they
 ## Data retention (server)
 
 Raw competitive evidence: through the season plus 30 days after settlement, longer only while an integrity case is open. Notifications: 180 days. Webhook receipts: 30 days. Moderation evidence: 90 days after resolution. Data exports: download link valid 5 minutes, file expires after 72 hours. Account deletion runs as checkpointed steps (results, courses, social, chat, billing, storage, auth).
+
+## Frontend redesign (6 Nov)
+
+- **One design system, both themes designed.** Semantic tokens in `src/theme/tokens.ts` (light and dark palettes, colour blocks, territory and map colours). Module colours keep one meaning: violet = you and your land, blue = runs, orange = competition, green = health and goals. Text on blocks is chosen for 4.5:1 contrast (white on violet/blue, ink on orange/green).
+- **Theme choice is per device.** System / Light / Dark in Settings, saved in AsyncStorage (`loopfield.theme`); the splash stays up until it is read, so the wrong theme never flashes. Native pieces follow via `Appearance.setColorScheme`.
+- **Fonts without a native change.** Figtree (OFL) weights are bundled as JS assets and loaded at start-up with expo-font; no config plugin, so the build fingerprint and the installed pilot build are unchanged and the redesign ships as an update. If fonts fail to load, text falls back to system weights.
+- **Map styling only.** Theme base maps (Mapbox `light-v11` / `dark-v11`, overridable with `EXPO_PUBLIC_MAPBOX_STYLE_URL[_DARK]`), new layer styling, a faint H3 grid drawn from the visible bounds (visual only; it never implies eligibility), cell and route panels from data already fetched. Ownership, scoring, speed and validation code is untouched.
+- **Without a drawable map** (browser, Expo Go) the map screen summarises published cells around the last known or default start point instead of showing zeros.
+- **Social sign-in is discovered, not assumed.** Buttons appear only for providers the Supabase project reports as enabled (`/auth/v1/settings`); OAuth uses PKCE through the existing `/auth/callback`. Age and terms consent stay in profile setup, so an OAuth account goes through the same gate.
+- **First-run tour** (`(app)/tour.tsx`) shows once per account per device after onboarding and can be replayed from Help or Settings.
+- **Reduce Motion** turns off the splash animation, press squeezes, the GO pulse, chart growth and the run-saved burst.
+

@@ -8,6 +8,8 @@ import { thisWeekByDay, weekKey, type ActivityRow } from '@/features/results/use
 import { ThemeProvider, THEME_STORAGE_KEY } from '@/theme/ThemeProvider';
 import { familyForWeight, fonts, themes, usePalette, useThemeMode } from '@/theme/tokens';
 
+// jest.mock factories are hoisted above imports, so they load their stand-ins with require.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('@/state/session', () => ({ useSession: () => ({ userId: null }), useUnits: () => 'metric' }));
 

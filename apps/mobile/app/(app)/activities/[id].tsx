@@ -6,7 +6,7 @@ import { decodePolyline, heartRateSummary } from '@loopfield/core';
 import { friendlyError, rpc } from '@/lib/api';
 import { fmtDate, fmtDistance, fmtDuration, fmtPace, splitValue } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { Banner, Button, Card, Chip, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, StatLine, TextField, Txt } from '@/components/ui';
+import { Banner, BigNumber, Button, Card, Chip, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, StatLine, TextField, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { DataTable } from '@/components/charts';
 import { MapCanvas } from '@/features/map/MapCanvas';
@@ -65,10 +65,7 @@ export default function ActivityDetailScreen() {
       {path.length > 1 ? (
         <MapCanvas height={260} layers={{ path, closing: claimRing }} accessibilityLabel="Private map of this run. Only you can see it." />
       ) : <Banner text={a.raw_evidence_purged_at ? 'The detailed route was removed under the retention policy; totals remain.' : 'The route map appears after the server processes this run.'} />}
-      <View accessible accessibilityLabel={`Distance ${dist.value} ${dist.unit}`} style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
-        <Txt variant="hero">{dist.value}</Txt>
-        <Txt variant="headline" color="textMuted" style={{ marginBottom: 10 }}>{dist.unit}</Txt>
-      </View>
+      <BigNumber value={dist.value} unit={dist.unit} label="Distance" />
       <Card padded={false} style={{ paddingHorizontal: spacing.xl, paddingVertical: spacing.xs }}>
         <StatLine icon="stopwatch" label="Moving time" value={fmtDuration(a.moving_ms)} />
         <StatLine icon="clock" label="Elapsed" value={fmtDuration(a.elapsed_ms)} />

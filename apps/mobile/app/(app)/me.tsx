@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { formatDuration } from '@loopfield/core';
 import { rpc } from '@/lib/api';
 import { fmtArea, splitValue } from '@/lib/format';
-import { Avatar, Button, Card, EmptyState, IconButton, ListGroup, LoadingState, Medal, Row, Screen, Section, Txt } from '@/components/ui';
+import { Avatar, BigNumber, Button, Card, EmptyState, IconButton, ListGroup, LoadingState, Medal, Row, Screen, Section, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { ClubMonogram, clubTone } from '@/features/clubs/ClubBits';
 import { useLayout } from '@/theme/layout';
@@ -88,10 +88,7 @@ export default function MyProfile() {
         </View>
         {land.data && area ? (
           <>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
-              <Txt variant="hero" style={{ fontSize: 60, lineHeight: 62 }}>{area.value}</Txt>
-              <Txt variant="headline" color="textMuted" style={{ marginBottom: 8 }}>{area.unit}</Txt>
-            </View>
+            <BigNumber value={area.value} unit={area.unit} size={60} />
             <Txt color="textMuted">{`${land.data.published_cells} published cells${land.data.provisional_cells ? ` · ${land.data.provisional_cells} provisional` : ''}`}</Txt>
           </>
         ) : <Txt>{season ? 'No land this season yet. Close an eligible loop to claim some.' : 'No active season.'}</Txt>}

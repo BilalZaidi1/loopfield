@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { cellArea } from 'h3-js';
 import { fmtArea, fmtDate, splitValue } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { Card, EmptyState, ErrorState, LoadingState, Screen, Txt } from '@/components/ui';
+import { BigNumber, Card, EmptyState, ErrorState, LoadingState, Screen, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { MapCanvas } from '@/features/map/MapCanvas';
 import { useSession, useUnits } from '@/state/session';
@@ -48,10 +48,7 @@ export default function Exploration() {
               <Txt variant="heading" style={{ flex: 1 }}>Ground you have covered</Txt>
               <Icon name="lock" color="#FFFFFF" size={18} />
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
-              <Txt variant="hero" style={{ fontSize: 64, lineHeight: 66 }}>{splitValue(fmtArea(area, units)).value}</Txt>
-              <Txt variant="headline" color="textMuted" style={{ marginBottom: 8 }}>{splitValue(fmtArea(area, units)).unit}</Txt>
-            </View>
+            <BigNumber value={splitValue(fmtArea(area, units)).value} unit={splitValue(fmtArea(area, units)).unit} size={64} />
             <Txt color="textMuted">{`${q.data.total} cells explored${firstVisit ? ` since ${fmtDate(firstVisit)}` : ''}`}</Txt>
             {q.data.total > q.data.cells.length ? <Txt variant="caption">{`Area shown for the ${q.data.cells.length} most recent cells.`}</Txt> : null}
           </Card>

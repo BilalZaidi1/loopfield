@@ -458,12 +458,6 @@ export function StatLine({ icon, label, value }: { icon: IconName; label: string
   );
 }
 
-export function Divider({ style }: { style?: StyleProp<ViewStyle> }) {
-  const { palette: p } = useTheme();
-  const block = useBlock();
-  return <View style={[{ height: StyleSheet.hairlineWidth, backgroundColor: block ? block.chip : p.border }, style]} />;
-}
-
 /* ------------------------------------------------------------------------------------------------
  * Feedback and states
  * ---------------------------------------------------------------------------------------------- */
@@ -558,22 +552,6 @@ export function ErrorState({ error, onRetry, title = 'Could not load this' }: { 
       {onRetry ? <Button label="Try again" icon="refresh" onPress={onRetry} variant="secondary" /> : null}
     </View>
   );
-}
-
-/** Renders loading / error / empty states for a query result consistently across screens. */
-export function QueryView<T>({ query, empty, emptyState, children, loadingLabel, skeleton }: {
-  query: { data: T | undefined; isLoading: boolean; error: unknown; refetch: () => unknown };
-  empty?: (data: T) => boolean;
-  emptyState?: ReactNode;
-  children: (data: T) => ReactNode;
-  loadingLabel?: string;
-  skeleton?: 'rows' | 'cards' | 'spinner';
-}) {
-  if (query.isLoading) return <LoadingState label={loadingLabel} variant={skeleton} />;
-  if (query.error) return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
-  if (query.data === undefined) return null;
-  if (empty?.(query.data)) return <>{emptyState ?? <EmptyState title="Nothing here yet" />}</>;
-  return <>{children(query.data)}</>;
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -764,15 +742,15 @@ export function StatTile({ label, value, unit, note, icon }: { label: string; va
   );
 }
 
-/** Big heavy-italic number with its unit and label. */
-export function Metric({ value, unit, label, size = 'hero', align = 'left' }: { value: string; unit?: string; label?: string; size?: 'hero' | 'metric'; align?: 'left' | 'center' }) {
+/** The signature big heavy-italic number with its unit (and optional label), used for every hero figure. */
+export function BigNumber({ value, unit, label, size = 76, dim, align = 'left' }: { value: string; unit?: string; label?: string; size?: number; dim?: boolean; align?: 'left' | 'center' }) {
   return (
     <View accessible accessibilityLabel={`${label ? `${label}: ` : ''}${value}${unit ? ` ${unit}` : ''}`} style={{ alignItems: align === 'center' ? 'center' : 'flex-start' }}>
+      {label ? <Txt variant="label" color="textMuted">{label}</Txt> : null}
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
-        <Txt variant={size} numberOfLines={1}>{value}</Txt>
-        {unit ? <Txt variant={size === 'hero' ? 'headline' : 'heading'} color="textMuted" style={{ marginBottom: size === 'hero' ? 10 : 4 }}>{unit}</Txt> : null}
+        <Txt variant="hero" numberOfLines={1} style={{ fontSize: size, lineHeight: Math.round(size * 1.03), opacity: dim ? 0.55 : 1 }}>{value}</Txt>
+        {unit ? <Txt variant="headline" color="textMuted" style={{ marginBottom: Math.round(size * 0.13) }}>{unit}</Txt> : null}
       </View>
-      {label ? <Txt variant="body" color="textMuted">{label}</Txt> : null}
     </View>
   );
 }

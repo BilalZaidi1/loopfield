@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { fmtArea, fmtDistance, fmtDuration, splitValue } from '@/lib/format';
-import { ArrowLink, Avatar, Badge, Button, Card, EmptyState, ErrorState, LoadingState, OfflineBanner, ProgressBar, Row, Section, Segmented, Skeleton, Txt } from '@/components/ui';
+import { ArrowLink, Avatar, Badge, BigNumber, Button, Card, EmptyState, ErrorState, LoadingState, OfflineBanner, ProgressBar, Row, Section, Segmented, Skeleton, Txt } from '@/components/ui';
 import { BarChart } from '@/components/charts';
 import { Icon } from '@/components/icons';
 import { TopBar } from '@/components/TopBar';
@@ -160,10 +160,7 @@ function WeekCard({ acts }: { acts: ReturnType<typeof useActivities> }) {
       ) : (
         <>
           <View>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
-              <Txt variant="hero" numberOfLines={1}>{dist.value}</Txt>
-              <Txt variant="headline" color="textMuted" style={{ marginBottom: 10 }}>{dist.unit}</Txt>
-            </View>
+            <BigNumber value={dist.value} unit={dist.unit} />
             <Txt color="textMuted">
               {totals.runs === 0 ? 'No runs yet this week' : `${totals.runs} ${totals.runs === 1 ? 'run' : 'runs'} · ${fmtDuration(totals.moving)}`}
               {totals.last > 0 || totals.distance > 0 ? `   ${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)} ${unit} vs last week` : ''}
@@ -236,10 +233,7 @@ function GroundCard() {
         <>
           <View>
             <Txt variant="label" color="textMuted">Your ground</Txt>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
-              <Txt variant="hero" style={{ fontSize: 56, lineHeight: 60 }} numberOfLines={1}>{splitValue(fmtArea(s?.published_area_m2 ?? 0, units)).value}</Txt>
-              <Txt variant="headline" color="textMuted" style={{ marginBottom: 8 }}>{splitValue(fmtArea(s?.published_area_m2 ?? 0, units)).unit}</Txt>
-            </View>
+            <BigNumber value={splitValue(fmtArea(s?.published_area_m2 ?? 0, units)).value} unit={splitValue(fmtArea(s?.published_area_m2 ?? 0, units)).unit} size={56} />
             <Txt color="textMuted">
               {`${s?.published_cells ?? 0} cells`}
               {me ? ` · #${me.rank} in the competition` : ' · not ranked yet'}

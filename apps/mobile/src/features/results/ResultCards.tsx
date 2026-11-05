@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { formatDuration, REASON_TEXT, type ReasonCode } from '@loopfield/core';
 import { fmtArea, fmtDate, splitValue } from '@/lib/format';
-import { Badge, Button, Card, Skeleton, Txt } from '@/components/ui';
+import { Badge, BigNumber, Button, Card, Skeleton, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { useUnits } from '@/state/session';
 import { useNow } from '@/lib/useNow';
@@ -100,10 +100,7 @@ export function LandCard({ claim, territoryRequested }: { claim: ClaimJson | nul
       </View>
       {eligible ? (
         <>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
-            <Txt variant="hero" style={{ fontSize: 64, lineHeight: 66 }}>{area.value}</Txt>
-            <Txt variant="headline" color="textMuted" style={{ marginBottom: 8 }}>{area.unit}</Txt>
-          </View>
+          <BigNumber value={area.value} unit={area.unit} size={64} />
           <Txt color="textMuted">{`${claim.eligible_cell_count ?? 0} cells. The newest eligible completed loop takes overlapping cells, so another runner can take them back.`}</Txt>
           {pendingPublication ? <Badge icon="clock" label={`On the public map after ${fmtDate(claim.publish_after, { dateStyle: 'medium', timeStyle: 'short' })}`} /> : null}
           {partial ? <Txt variant="caption">Only cells fully inside your loop after the edge uncertainty band, and outside unavailable areas, count, so part of the enclosed area was not claimed.</Txt> : null}

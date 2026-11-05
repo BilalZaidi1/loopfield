@@ -3,8 +3,7 @@ import { Platform } from 'react-native';
 
 export { useReducedMotion } from 'react-native-reanimated';
 
-/** Motion answers a person's action; nothing loops on its own except the ready-to-run pulse. */
-export const durations = { fast: 140, base: 220, slow: 420 } as const;
+/** Motion answers a person's action; nothing loops on its own except the ready-to-run pulse and loading skeletons. */
 export const springs = {
   press: { damping: 18, stiffness: 340, mass: 0.6 },
   sheet: { damping: 24, stiffness: 240, mass: 0.9 },

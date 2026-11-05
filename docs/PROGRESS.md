@@ -2,6 +2,15 @@
 
 Working file kept current so work survives context limits. Newest first.
 
+## 6 Nov 2026: frontend redesign
+
+* New design system (`docs/DESIGN.md`): semantic light and dark tokens, module colours, Figtree type scale loaded as JS assets, motion that respects Reduce Motion, new icon set, rebuilt component library, one stack header with a real "Back" label, a tab bar with a raised Record button and a sidebar on wide screens, animated splash.
+* Theme: System / Light / Dark in Settings, saved per device; native pieces follow the choice.
+* Map: full-bleed game board with theme base maps, glowing own land, rival hues, dashed unavailable areas, a faint cell grid, route casings, pulsing location, floating controls, a bottom sheet with the text summary and panels for tapped cells and routes, and a map key. Ownership, scoring, speed and validation code unchanged.
+* Every screen redesigned (auth, onboarding, Home dashboard, Map, Record, live run, summary, history, progress, health, clubs, social, profile, settings, help, reports, operator tools) plus a first-run tour; social sign-in buttons appear only for providers enabled in Supabase.
+* Review fixes folded in: welcome actions pinned on screen, "Resend verification" only after an unverified sign-in, show-password toggle, Back label, real map summary without a drawable map, readable chart dates (and a time-zone fix for week keys), health type toggles hidden where health cannot connect, speed routes listed without a map, browser-specific goals copy.
+* No backend contract or schema change; no new native module (local fingerprint unchanged), so the redesign ships as an update to the existing pilot build and to Expo Go.
+
 ## Status snapshot (5 Nov 2026)
 
 | Area | State | Evidence |

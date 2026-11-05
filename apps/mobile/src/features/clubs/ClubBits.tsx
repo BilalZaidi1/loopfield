@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import { router } from 'expo-router';
 import { Badge, Card, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
-import { radius, spacing, useTheme, type BlockTone } from '@/theme/tokens';
+import { spacing, useTheme, type BlockTone } from '@/theme/tokens';
 import type { MyClub } from './api';
 
 const TONES: BlockTone[] = ['violet', 'blue', 'green', 'orange'];
@@ -45,4 +45,3 @@ export function ClubCard({ club, width }: { club: MyClub; width?: number }) {
   );
 }
 
-export const clubRadius = radius.lg;

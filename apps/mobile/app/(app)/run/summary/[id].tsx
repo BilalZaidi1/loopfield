@@ -4,7 +4,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { friendlyError } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { fmtDistance, fmtDuration, fmtPace, splitValue } from '@/lib/format';
-import { Badge, Banner, Button, Card, EmptyState, Screen, StatLine, Txt } from '@/components/ui';
+import { Badge, Banner, BigNumber, Button, Card, EmptyState, Screen, StatLine, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { Celebration } from '@/features/run/Celebration';
 import { LandCard, TitleCards } from '@/features/results/ResultCards';
@@ -52,14 +52,11 @@ export default function RunSummary() {
         <Celebration />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="record" color="#0A74E0" size={22} />
+            <Icon name="record" color={p.blue} size={22} />
           </View>
           <Txt variant="headline" style={{ flex: 1 }}>{local.mode === 'private' ? 'Private run saved' : 'Run saved'}</Txt>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
-          <Txt variant="hero" style={{ fontSize: 88, lineHeight: 88 }} numberOfLines={1}>{dist.value}</Txt>
-          <Txt variant="headline" color="textMuted" style={{ marginBottom: 12 }}>{dist.unit}</Txt>
-        </View>
+        <BigNumber value={dist.value} unit={dist.unit} size={88} />
         <Txt color="textMuted">{units === 'metric' ? 'Kilometres' : 'Miles'}</Txt>
       </Card>
       <Card padded={false} style={{ paddingHorizontal: spacing.xl, paddingVertical: spacing.xs }}>

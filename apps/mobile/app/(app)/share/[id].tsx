@@ -4,7 +4,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { friendlyError } from '@/lib/api';
 import { fmtArea, fmtDate, fmtDistance, fmtDuration, fmtPace, splitValue } from '@/lib/format';
-import { Badge, Banner, Button, Card, Chip, ListGroup, LoadingState, Screen, Section, TextField, Toggle, Txt } from '@/components/ui';
+import { Badge, Banner, BigNumber, Button, Card, Chip, ListGroup, LoadingState, Screen, Section, TextField, Toggle, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { spacing } from '@/theme/tokens';
 import { AUDIENCE_LABEL } from '@/features/social/PostCard';
@@ -60,10 +60,7 @@ export default function SharePreview() {
         </View>
         {body ? <Txt>{body}</Txt> : null}
         {fields.distance ? (
-          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.xs }}>
-            <Txt variant="hero" style={{ fontSize: 64, lineHeight: 66 }}>{dist.value}</Txt>
-            <Txt variant="headline" color="textMuted" style={{ marginBottom: 8 }}>{dist.unit}</Txt>
-          </View>
+          <BigNumber value={dist.value} unit={dist.unit} size={64} />
         ) : null}
         <Txt color="textMuted">{meta.length ? meta.join('   ') : fields.distance ? '' : 'No run fields selected'}</Txt>
         {(claimEligible && fields.land) || (titleHeld && fields.title) ? (

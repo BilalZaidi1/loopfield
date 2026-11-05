@@ -1,5 +1,5 @@
 import { latLngToCell } from 'h3-js';
-import { bigintCellToH3, boundsArea, cellsToFeatures, MAX_VIEWPORT_DEG2, roundBounds, summarizeCells, type ViewportCell } from '@/territory/h3';
+import { bigintCellToH3, boundsArea, boundsAround, cellsToFeatures, gridFeatures, MAX_VIEWPORT_DEG2, resolutionOf, roundBounds, summarizeCells, type ViewportCell } from '@/territory/h3';
 
 const palette = { mine: '#00AA00', unavailable: '#777777', rivalHues: ['#123456', '#654321'] };
 const cell = (lat: number, lng: number) => latLngToCell(lat, lng, 11);
@@ -45,7 +45,6 @@ describe('territory rendering helpers (display only, never ownership)', () => {
 });
 
 describe('map drawing helpers', () => {
-  const { gridFeatures, boundsAround, resolutionOf } = require('@/territory/h3') as typeof import('@/territory/h3');
   it('outlines the visible grid for small views and skips views that would need too many cells', () => {
     const small = gridFeatures(boundsAround([67.05, 24.89], 0.002, 0.002), 11);
     expect(small?.features.length).toBeGreaterThan(5);
@@ -58,7 +57,6 @@ describe('map drawing helpers', () => {
     expect(b.maxLat - b.minLat).toBeCloseTo(0.018);
   });
   it('reads the grid resolution from published cells', () => {
-    const { latLngToCell } = require('h3-js') as typeof import('h3-js');
     expect(resolutionOf([{ cell: latLngToCell(24.89, 67.05, 10) }], 11)).toBe(10);
     expect(resolutionOf([], 11)).toBe(11);
   });
