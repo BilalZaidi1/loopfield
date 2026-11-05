@@ -11,4 +11,4 @@ serve('account', async (req, rt) => {
   const [row] = await rt.sql`select storage_path from public.data_exports where id = ${body.exportId} and user_id = ${userId} and status = 'ready' and expires_at > now()`;
   if (!row) throw new HttpError(404, 'export_not_ready');
   return json({ url: await rt.blobs.signedUrl(BUCKETS.exports, row.storage_path, 300), expiresInSeconds: 300 });
-});
+}, { browser: true });

@@ -2,7 +2,7 @@ import postgres from 'postgres';
 import { describe, expect, it } from 'vitest';
 import { pgArray, serverSecret, type Sql } from '../../../supabase/functions/_shared/clients.ts';
 import { ConfigError, requireKeys, readEnv } from '../../../supabase/functions/_shared/env.ts';
-import { HttpError, toResponse } from '../../../supabase/functions/_shared/http.ts';
+import { allowedWebOrigin, HttpError, toResponse, withCors } from '../../../supabase/functions/_shared/http.ts';
 import { runBatch } from '../../../supabase/functions/_shared/jobs/registry.ts';
 import { DB_URL, makeCtx } from './helpers.ts';
 
@@ -88,5 +88,36 @@ describe('hosted configuration', () => {
       await sql`drop schema if exists vault cascade`;
       await (sql as unknown as { end(): Promise<void> }).end();
     }
+  });
+});
+
+describe('browser access to user-facing functions', () => {
+  it('allows only the web app, its preview deployments, local development and configured extra origins', () => {
+    expect(allowedWebOrigin('https://loopfield.expo.app')).toBe('https://loopfield.expo.app');
+    expect(allowedWebOrigin('https://loopfield--ab12cd.expo.app')).toBe('https://loopfield--ab12cd.expo.app');
+    expect(allowedWebOrigin('https://bilalzaidi95-loopfield.expo.app')).toBe('https://bilalzaidi95-loopfield.expo.app');
+    expect(allowedWebOrigin('https://bilalzaidi95-loopfield--ab12cd.expo.app')).toBe('https://bilalzaidi95-loopfield--ab12cd.expo.app');
+    expect(allowedWebOrigin('http://localhost:8081')).toBe('http://localhost:8081');
+    expect(allowedWebOrigin('https://staging.example', ['https://staging.example'])).toBe('https://staging.example');
+    for (const lookalike of ['https://loopfield.expo.app.evil.example', 'http://loopfield.expo.app', 'https://evil-loopfield--x.expo.app', 'https://loopfield--x.expo.app.evil.example', 'https://other.expo.app', 'https://someone-loopfield.expo.app', 'null']) {
+      expect(allowedWebOrigin(lookalike)).toBeNull();
+    }
+    expect(allowedWebOrigin(null)).toBeNull();
+  });
+
+  it('answers preflight requests and adds CORS headers only for allowed origins', async () => {
+    const handler = async () => new Response('{"ok":true}', { status: 401, headers: { 'content-type': 'application/json' } });
+    const pre = await withCors(new Request('http://fn/x', { method: 'OPTIONS', headers: { origin: 'https://loopfield.expo.app' } }), [], handler);
+    expect(pre.status).toBe(204);
+    expect(pre.headers.get('access-control-allow-origin')).toBe('https://loopfield.expo.app');
+    expect(pre.headers.get('access-control-allow-headers')).toContain('authorization');
+    const allowed = await withCors(new Request('http://fn/x', { method: 'POST', headers: { origin: 'https://loopfield.expo.app' } }), [], handler);
+    expect(allowed.status).toBe(401);
+    expect(allowed.headers.get('access-control-allow-origin')).toBe('https://loopfield.expo.app');
+    expect(await allowed.json()).toEqual({ ok: true });
+    const other = await withCors(new Request('http://fn/x', { method: 'POST', headers: { origin: 'https://other.example' } }), [], handler);
+    expect(other.headers.get('access-control-allow-origin')).toBeNull();
+    const native = await withCors(new Request('http://fn/x', { method: 'POST' }), [], handler);
+    expect(native.headers.get('access-control-allow-origin')).toBeNull();
   });
 });

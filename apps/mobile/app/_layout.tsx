@@ -14,12 +14,14 @@ import { initSentry, Sentry } from '@/lib/sentry';
 import { queryClient } from '@/lib/query';
 import { supabase } from '@/lib/supabase';
 import { Banner, Button, ErrorState, LoadingState, Txt } from '@/components/ui';
+import { installWebShims, WebAlertHost } from '@/components/WebAlertHost';
 import { SessionProvider, useSession } from '@/state/session';
 import { CompetitionProvider } from '@/state/competition';
 import { useBackgroundServices } from '@/state/services';
 import { spacing, usePalette } from '@/theme/tokens';
 
 assertNoSecrets();
+installWebShims();
 initSentry();
 initAnalytics();
 void SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -110,6 +112,7 @@ function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style="auto" />
+        <WebAlertHost />
         {missing.length ? (
           <ConfigMissing missing={missing} />
         ) : (

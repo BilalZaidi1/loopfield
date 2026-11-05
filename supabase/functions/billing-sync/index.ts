@@ -10,4 +10,4 @@ serve('billing-sync', async (req, rt) => {
   if (!rt.env.REVENUECAT_SECRET_API_KEY) return json({ queued: false, reason: 'reconciliation_not_configured' }, 202);
   await rt.sql`select internal.enqueue_job('billing', 'reconcile_entitlement', ${rt.sql.json({ user_id: userId })}::jsonb, ${'rc:' + userId})`;
   return json({ queued: true }, 202);
-});
+}, { browser: true });

@@ -1,6 +1,6 @@
 # Verification status
 
-Last full run: 5 November 2026, Linux cloud workspace (Node 22.23, PostgreSQL 16.15 + PostGIS 3.4 + pgTAP, Deno 2.9.6, Supabase CLI 3.0.0), commit containing this file. Reproduce with `npm run verify` (CI runs the same script in `.github/workflows/ci.yml`; that workflow has not run yet because the repository is not on GitHub).
+Last full run: 5 November 2026, Linux cloud workspace (Node 22.23, PostgreSQL 16.15 + PostGIS 3.4 + pgTAP, Deno 2.9.6, Supabase CLI 3.0.0), commit containing this file. Reproduce with `npm run verify` (CI runs the same script in `.github/workflows/ci.yml` on pushes to `main` and on pull requests; it has not run yet, because the work is on the `verification-and-docs` branch without a pull request).
 
 **This is not a production-readiness statement.** Compiling, unit tests and integration tests against a local database say nothing yet about real devices, field GPS behaviour, store review or hosted-service configuration. Those are listed under "Not verified".
 
@@ -13,15 +13,16 @@ Last full run: 5 November 2026, Linux cloud workspace (Node 22.23, PostgreSQL 16
 | Type checks | `npm run typecheck`, `tsc -p scripts` | core, worker, mobile (typed Supabase client), scripts: 0 errors |
 | Migrations + pgTAP | `npm run test:db` | 14 migrations; 114 assertions in 5 suites (RLS/grants 22, territory 26, speed 12, social 30, lifecycle/jobs/ops 24) |
 | Hosted deployment path | `npm run test:cli-push` | `supabase db push` (CLI 3.0.0) applied all 14 migrations to a fresh database; the same 114 assertions pass on the result |
-| Integration tests (jobs, webhooks, uploads, concurrency) | `npm run test:worker` | 21 tests, 3 files, against PostgreSQL |
+| Integration tests (jobs, webhooks, uploads, concurrency) | `npm run test:worker` | 25 tests, 3 files, against PostgreSQL; includes the browser origin allowlist (lookalike domains rejected) |
 | Generated database types current | `scripts/gen-types.sh --check` | up to date (postgres-meta 0.100.0, the generator behind `supabase gen types`) |
 | App queries match the schema | `npm run check:queries` | 32 select strings and 110 of 111 RPC calls: no unknown table, column, relationship, function or argument, no missing required argument |
 | Edge functions type check | `deno check` on all 10 entrypoints | 0 errors |
-| Edge functions under the Deno runtime | `npm run test:edge` | 24 HTTP checks: method guard, missing or bad signatures (Stream HMAC, Svix for Resend, Standard Webhooks for the auth hook incl. stale timestamp), RevenueCat Authorization and duplicate delivery, jobs secret, session rejection on all five user endpoints, `not_configured` when Resend is unset |
-| Mobile lint | `npm run lint -w @loopfield/mobile` | 0 errors, 18 style warnings |
-| Mobile unit tests | `npm run test -w @loopfield/mobile` | 21 tests, 7 suites |
+| Edge functions under the Deno runtime | `npm run test:edge` | 45 HTTP checks. CORS: the five user-facing functions answer browser preflights only for the web app's origins (Expo Hosting, local web development) and still reject requests without a session; webhooks get no CORS. Also: method guard, missing or bad signatures (Stream HMAC, Svix for Resend, Standard Webhooks for the auth hook incl. stale timestamp), RevenueCat Authorization and duplicate delivery, jobs secret, session rejection on all five user endpoints, `not_configured` when Resend is unset |
+| Mobile lint | `npm run lint -w @loopfield/mobile` | 0 errors, 16 style warnings |
+| Mobile unit tests | `npm run test -w @loopfield/mobile` | 36 tests, 9 suites. 6 cover the browser version: no local recordings and recording refused, no health readings, goals kept in browser storage, alerts shown as an in-app dialog, settings links explained. 9 of them load the app as Expo Go runs it and as a build runs it: in Expo Go no Mapbox, HealthKit or Health Connect module is loaded and the screens say why, recording uses foreground updates with the screen kept on, and a reload is marked as an interruption; in a build, background updates are used and a refusal falls back to foreground recording |
+| Expo Go runtime | `EXPO_GO_UPDATE=1 npx expo-updates runtimeversion:resolve` | `exposdk:58.0.0`. Without the switch the pilot configuration is unchanged: the Android fingerprint computed here is identical before and after the change |
 | Secret scan | part of `verify.sh` | no credential shapes in tracked files; no secret-like `EXPO_PUBLIC_*` names |
-| JavaScript bundles | `npx expo export --platform android --platform ios` | both Hermes bundles build (14 MB each). The only secret-looking strings in them are the prefixes the client's own guard rejects (`sb_secret_`, `whsec_`) |
+| JavaScript bundles | `npx expo export --platform android --platform ios` (and `--platform web`) | both Hermes bundles build (14 MB each); the web export builds and its welcome screen renders in headless Chromium without page errors. The only secret-looking strings in them are the prefixes the client's own guard rejects (`sb_secret_`, `whsec_`) |
 | Android cloud build | Expo Build, profile `pilot`, from GitHub `BilalZaidi1/loopfield` (5 Nov) | the native Android app compiles: build `3905eb83…` produced an installable APK in 29 minutes (commit `7b04897`). Not yet installed on a phone |
 | Native project generation | `npx expo prebuild --clean --no-install` (run 4 Nov) | succeeds; AndroidManifest has `allowBackup=false`, health permissions, background location and the permissions-rationale intent; iOS has location/remote-notification/fetch background modes and the HealthKit entitlement |
 | Expo doctor | `npx expo-doctor` (4 Nov) | 18/20; both failures were network checks to `exp.host`, unreachable from the workspace |

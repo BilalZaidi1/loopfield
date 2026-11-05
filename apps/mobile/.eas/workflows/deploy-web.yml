@@ -1,0 +1,23 @@
+# Builds the browser version of the app (React Native for Web) and deploys it to Expo Hosting, for reviewing
+# screens and flows in a desktop or phone browser. It uses the same backend and public values as the pilot
+# builds. Maps, run recording, health data and push are phone-app features; the browser version says so where
+# they would appear. The site is public to anyone with its link; sign-up creates real accounts on loopfield-dev.
+# The env block is the `pilot` build profile's env; scripts/check-pilot-env.mjs checks it.
+name: Deploy web preview
+
+jobs:
+  deploy_web:
+    name: Deploy web app (Expo Hosting)
+    type: deploy
+    environment: preview
+    env:
+      APP_ENV: "preview"
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      EXPO_PUBLIC_SUPABASE_URL: "https://xcykufhsjyhedkqginay.supabase.co"
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_O-myEhgfv34CkndeMh8FmA_REmzspyj"
+      EXPO_PUBLIC_POSTHOG_KEY: "phc_C9jxLXfUuDokoD3w9dxtgGEGjhmxrwZpEa7YBDyE8QAZ"
+      EXPO_PUBLIC_POSTHOG_HOST: "https://eu.i.posthog.com"
+      EXPO_PUBLIC_DEFAULT_COMPETITION_ID: "00000000-0000-4000-8000-000000000031"
+      EXPO_PUBLIC_DEFAULT_MAP_CENTER: "67.05,24.89"
+    params:
+      prod: true

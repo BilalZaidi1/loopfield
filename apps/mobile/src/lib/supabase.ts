@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { env } from '@/config/env';
 import type { Database } from './database.types';
 
@@ -43,7 +43,8 @@ export function supabase(): SupabaseClient<Database> {
   if (!client) {
     if (!env.supabaseUrl || !env.supabaseAnonKey) throw new Error('Supabase is not configured (EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY).');
     client = createClient<Database>(env.supabaseUrl, env.supabaseAnonKey, {
-      auth: { storage: secureSessionStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false, flowType: 'pkce' }
+      // Phones keep the session in the keychain/keystore; the browser version uses the browser's own storage.
+      auth: { storage: Platform.OS === 'web' ? undefined : secureSessionStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false, flowType: 'pkce' }
     });
     // Refresh tokens only while the app is in the foreground (Supabase React Native guidance).
     AppState.addEventListener('change', (state) => {

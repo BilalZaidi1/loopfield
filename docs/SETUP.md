@@ -52,12 +52,13 @@ npm run worker                                                           # or re
 
 ### Mobile app
 
-The app uses native modules (Mapbox, HealthKit, Health Connect, RevenueCat, background location), so it runs in a **development build**, not Expo Go.
+The full app uses native modules (Mapbox, HealthKit, Health Connect, background location), so it runs best in a **development build** (section 5). It also opens in **Expo Go** for quick testing (section 6), with those features switched off.
 
 ```bash
 cp apps/mobile/.env.example apps/mobile/.env     # public client identifiers only
 cd apps/mobile
 npx expo start --dev-client                      # after installing a development build (section 5)
+npx expo start --go --tunnel                     # or: open in Expo Go from this computer (section 6)
 ```
 
 `.env.example` already points at the `loopfield-dev` Supabase project and the EU PostHog project; their keys are public client identifiers. Without `EXPO_PUBLIC_SUPABASE_URL`/`_ANON_KEY` the app shows a configuration screen instead of starting. Optional integrations (Mapbox token, Sentry DSN, RevenueCat keys) are off until set, and the app says so where they would appear.
@@ -130,3 +131,26 @@ Platform notes:
 * **Background location**: iOS "Always" permission and Android `ACCESS_BACKGROUND_LOCATION` with a foreground service; both stores review the justification (texts are in `app.config.ts`).
 
 Local native builds also work (`npx expo prebuild` then `npx expo run:ios|android`). The generated `ios/` and `android/` folders are not committed.
+
+## 6. Testing in Expo Go (no build, no Apple account)
+
+Expo Go from the App Store or Play Store (version for SDK 58) can open the app's JavaScript directly. This is the quickest way onto an iPhone, because iPhone builds need the paid Apple Developer Program.
+
+**Without a computer (published preview).** The Expo workflow `.eas/workflows/publish-expo-go-update.yml` publishes the current code to the `expo-go` channel with runtime version `exposdk:58.0.0` (`EXPO_GO_UPDATE=1` in `app.config.ts`). No Loopfield build has that runtime version, so installed builds never receive these updates. Run the workflow from the Expo dashboard (*Workflows*) or the Expo connector after pushing; it needs the project's GitHub base directory set to `apps/mobile`. Then:
+
+1. Install Expo Go and sign in with the Expo account that owns the project (on iOS, Expo Go opens only your own projects).
+2. Open `exp://u.expo.dev/2734ce29-57cb-4a7e-b82a-58ecbe115a1e?runtime-version=exposdk%3A58.0.0&channel-name=expo-go` on the phone (paste it into Safari), or scan the QR code from `https://qr.expo.dev/eas-update?projectId=2734ce29-57cb-4a7e-b82a-58ecbe115a1e&runtimeVersion=exposdk%3A58.0.0&channel=expo-go` with the camera.
+3. To load newer code later, publish again and reopen the project in Expo Go.
+
+**From a computer (live reload).** Clone the repository, `npm install` at the root (Node 22.13+), `cp apps/mobile/.env.example apps/mobile/.env`, then `cd apps/mobile && npx expo start --go --tunnel` and scan the QR code. `--go` is needed because `expo-dev-client` is installed, which otherwise makes the CLI target development builds; `--tunnel` works when the phone and computer are on different networks.
+
+What differs in Expo Go (the app explains each one where it appears; nothing is simulated):
+
+| Feature | In Expo Go |
+|---|---|
+| Maps (Mapbox) | Not included: map areas show "Maps are not included in Expo Go"; lists and summaries still work |
+| Apple Health / Health Connect | Not included: Health shows "Not in Expo Go" |
+| Run recording | Works only while the app is on screen. The screen stays on during a run; time spent outside the app is kept as a gap, and a reload marks the run as interrupted. No "Always" location prompt is shown |
+| Push notifications | Depend on Expo Go's own push support (removed on Android since SDK 53); in-app notifications work |
+| Email links (password reset) | Open the `loopfield://` scheme, which Expo Go does not handle |
+| Everything else (sign-up, onboarding, competition, clubs, social, messages, settings, export) | Same as a build, against the `loopfield-dev` backend |

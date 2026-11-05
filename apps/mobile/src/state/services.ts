@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
@@ -51,6 +51,7 @@ export function useBackgroundServices(userId: string | null): void {
       await drain();
       await health();
       await registerPushToken(userId).catch((e) => log.warn(`push registration failed: ${String(e)}`));
+      if (Platform.OS === 'web') return; // no push taps to route in the browser version
       const last = await Notifications.getLastNotificationResponseAsync();
       if (!cancelled && last) router.push(await routeForPushTap(last.notification.request.content.data as Record<string, unknown>));
     })();

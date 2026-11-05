@@ -7,15 +7,18 @@ import { clearHealthCache, getConnection, persistChanges, pruneOld, saveConnecti
 import { healthKitAvailable, requestHealthKit, syncHealthKit } from './healthkit';
 import { healthConnectStatus, requestHealthConnect, revokeHealthConnect, syncHealthConnect } from './healthconnect';
 
+const isWeb = Platform.OS === 'web';
 export const HEALTH_PLATFORM: ConnectionState['platform'] = Platform.OS === 'ios' ? 'healthkit' : 'health_connect';
-export const PLATFORM_LABEL = Platform.OS === 'ios' ? 'Apple Health' : 'Health Connect';
+export const PLATFORM_LABEL = Platform.OS === 'ios' ? 'Apple Health' : isWeb ? 'Apple Health / Health Connect' : 'Health Connect';
 export const STALE_AFTER_MS = 24 * 3_600_000;
 
-/** Why health data cannot be connected here: the device, or Expo Go, which has no health modules. */
-export const UNAVAILABLE_BADGE = isExpoGo ? 'Not in Expo Go' : 'Not supported on this device';
-export const UNAVAILABLE_TEXT = isExpoGo
-  ? `${PLATFORM_LABEL} is not included in Expo Go, so it cannot be connected here. The installed Loopfield app can connect it. Recording, competition and social features work without it.`
-  : `${PLATFORM_LABEL} is not available on this device. Recording, competition and social features work without it.`;
+/** Why health data cannot be connected here: the device, Expo Go (no health modules), or the browser version. */
+export const UNAVAILABLE_BADGE = isWeb ? 'Phone app only' : isExpoGo ? 'Not in Expo Go' : 'Not supported on this device';
+export const UNAVAILABLE_TEXT = isWeb
+  ? 'Apple Health and Health Connect connect only in the Loopfield phone app, so the browser version cannot show health data. Competition and social features work without them.'
+  : isExpoGo
+    ? `${PLATFORM_LABEL} is not included in Expo Go, so it cannot be connected here. The installed Loopfield app can connect it. Recording, competition and social features work without it.`
+    : `${PLATFORM_LABEL} is not available on this device. Recording, competition and social features work without it.`;
 
 type Listener = () => void;
 const listeners = new Set<Listener>();

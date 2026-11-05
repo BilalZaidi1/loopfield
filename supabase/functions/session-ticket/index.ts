@@ -9,4 +9,4 @@ serve('session-ticket', async (req, rt) => {
   const { userId } = await requireUser(req, rt.env);
   const { body } = await readJson<TicketRequest>(req, 10_000);
   return json(await issueTicket(rt.sql, rt.env, userId, body));
-});
+}, { browser: true });

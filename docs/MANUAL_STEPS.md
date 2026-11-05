@@ -13,7 +13,8 @@ Everything below needs a person: an account owner's credentials, a dashboard wit
 | A5 | Resend: verify a sending domain (DNS), create an API key, add the delivery webhook | DNS ownership and key creation | All auth and club-invite email |
 | A6 | Stream: create the app, copy server credentials, run `npm run setup:stream -- --apply` | No Stream connector; the script has been type-checked but not run against Stream | Direct messages |
 | A7 | Sentry: an org owner or manager creates `loopfield-mobile` and `loopfield-backend` (member project creation is disabled in `futurama-labs`), then DSNs and an auth token go into the environment | Organization permission (`create_project` returned 403) | Error reporting, source maps, the staging error test |
-| A8 | Mapbox: public token restricted to the bundle IDs (no download token is needed any more) | Account token | Maps in device builds |
+| A8 | Mapbox: the public token is an Expo environment variable (`EXPO_PUBLIC_MAPBOX_TOKEN`, `preview`, plain text or sensitive; added 5 Nov). Restrict it to the bundle IDs in the Mapbox dashboard. No download token is needed any more. A build or update made before the variable existed has no token, so it shows no map until a new build or pilot update | Account token | Maps in device builds |
+| A8b | ~~Expo project → GitHub → base directory `apps/mobile`~~ | Done 5 Nov; Expo workflows (pilot and Expo Go updates) read `apps/mobile/.eas/workflows` | Over-the-air updates, Expo Go preview |
 | A9 | Push credentials (FCM for Android, APNs key for iOS) and, for iOS, the paid Apple Developer Program. The Expo project and GitHub link already exist and the Android `pilot` build works | Google/Apple developer accounts | Push notifications; any iPhone build |
 
 ## B. Before any external pilot

@@ -22,4 +22,4 @@ serve('chat', async (req, rt) => {
     return json(await reportMessage(rt.sql, chat, userId, body));
   }
   throw new HttpError(404, 'not_found');
-});
+}, { browser: true });

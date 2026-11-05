@@ -74,12 +74,20 @@ const cases = {
     { name: 'authorized run on an empty queue', body: '{}', headers: { 'x-jobs-secret': secrets.JOBS_RUNNER_SECRET }, status: 200, expect: { claimed: 0, failed: 0 } }
   ]
 };
+const webApp = 'https://loopfield.expo.app';
+const preflight = (origin) => ({ origin, 'access-control-request-method': 'POST', 'access-control-request-headers': 'authorization, apikey, content-type' });
 for (const path of userFunctions) {
   cases[path] = [
     { name: 'no session', body: '{}', status: 401, expect: { error: 'unauthenticated' } },
-    { name: 'unverifiable session', body: '{}', headers: { authorization: 'Bearer not-a-real-session' }, status: 401, expect: { error: 'unauthenticated' } }
+    { name: 'unverifiable session', body: '{}', headers: { authorization: 'Bearer not-a-real-session' }, status: 401, expect: { error: 'unauthenticated' } },
+    { name: 'browser preflight from the web app is allowed', method: 'OPTIONS', headers: preflight(webApp), status: 204, expectHeaders: { 'access-control-allow-origin': webApp } },
+    { name: 'browser preflight from a web preview deployment is allowed', method: 'OPTIONS', headers: preflight('https://loopfield--k3x9q2.expo.app'), status: 204, expectHeaders: { 'access-control-allow-origin': 'https://loopfield--k3x9q2.expo.app' } },
+    { name: 'browser preflight from another site gets no CORS grant', method: 'OPTIONS', headers: preflight('https://other.example'), status: 204, expectHeaders: { 'access-control-allow-origin': null } },
+    { name: 'web app request without a session is still rejected', body: '{}', headers: { origin: webApp }, status: 401, expect: { error: 'unauthenticated' }, expectHeaders: { 'access-control-allow-origin': webApp } }
   ];
 }
+// Webhooks are server-to-server: no CORS, and anything but POST is refused.
+cases['stream-webhook'].push({ name: 'no CORS for webhooks', method: 'OPTIONS', headers: preflight(webApp), status: 405, expectHeaders: { 'access-control-allow-origin': null } });
 
 async function waitFor(url, ms = 30000) {
   const end = Date.now() + ms;
@@ -109,12 +117,13 @@ for (const [path, list] of Object.entries(cases)) {
     await waitFor(`http://${addr}/`);
     for (const c of list) {
       const headers = { 'content-type': 'application/json', ...(typeof c.headers === 'function' ? c.headers() : c.headers ?? {}) };
-      const res = await fetch(`http://${addr}/${path}`, { method: c.method ?? 'POST', headers, body: c.method === 'GET' ? undefined : c.body });
+      const res = await fetch(`http://${addr}/${path}`, { method: c.method ?? 'POST', headers, body: c.method === 'GET' || c.method === 'OPTIONS' ? undefined : c.body });
       const text = await res.text();
       let body = {};
       try { body = JSON.parse(text); } catch { /* non-JSON */ }
       const okBody = !c.expect || Object.entries(c.expect).every(([k, v]) => body[k] === v);
-      const ok = res.status === c.status && okBody;
+      const okHeaders = !c.expectHeaders || Object.entries(c.expectHeaders).every(([k, v]) => res.headers.get(k) === v);
+      const ok = res.status === c.status && okBody && okHeaders;
       if (!ok) failures++;
       console.log(`${ok ? 'ok  ' : 'FAIL'} ${path}: ${c.name} -> ${res.status}${ok ? '' : ` ${text.slice(0, 200)}`}`);
       if (!ok) {

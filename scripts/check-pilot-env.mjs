@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // The over-the-air update workflows bundle the app with their own env block. The pilot update must match the
 // `pilot` build profile exactly, or updates would ship different configuration (or a different fingerprint)
-// than the build. The Expo Go preview uses the same values plus EXPO_GO_UPDATE=1 and nothing else.
+// than the build. The Expo Go preview uses the same values plus EXPO_GO_UPDATE=1 and nothing else; the web
+// deployment uses the same values.
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +17,8 @@ const differences = (expected, actual) => [...new Set([...Object.keys(expected),
 
 const failures = [
   ['publish-pilot-update.yml', profile],
-  ['publish-expo-go-update.yml', { ...profile, EXPO_GO_UPDATE: '1' }]
+  ['publish-expo-go-update.yml', { ...profile, EXPO_GO_UPDATE: '1' }],
+  ['deploy-web.yml', profile]
 ]
   .map(([file, expected]) => [file, differences(expected, workflowEnv(file))])
   .filter(([, keys]) => keys.length);

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Linking, View } from 'react-native';
+import { Alert, Linking, Platform, View } from 'react-native';
 import * as Location from 'expo-location';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -16,6 +16,9 @@ import { useSession, useUnits } from '@/state/session';
 import { spacing } from '@/theme/tokens';
 
 type Gps = { state: 'checking' | 'off' | 'weak' | 'good'; accuracy: number | null };
+
+/** Runs are recorded only in the phone app; the browser version shows this screen for reference. */
+const BROWSER = Platform.OS === 'web';
 
 function useGpsReadiness(enabled: boolean): Gps {
   const [gps, setGps] = useState<Gps>({ state: 'checking', accuracy: null });
@@ -60,7 +63,7 @@ export default function PreRun() {
   const [courseId, setCourseId] = useState<string | null>(params.course ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const gps = useGpsReadiness(!inProgress);
+  const gps = useGpsReadiness(!inProgress && !BROWSER);
 
   useFocusEffect(useCallback(() => setInProgress(activeSession()), []));
 
@@ -76,6 +79,7 @@ export default function PreRun() {
   const wantsTerritory = mode === 'territory' || mode === 'territory_speed';
   const wantsSpeed = mode === 'speed' || mode === 'territory_speed';
   const blockers: string[] = [];
+  if (BROWSER) blockers.push('Runs are recorded in the Loopfield phone app. The browser version shows everything else.');
   if (mode !== 'private') {
     if (settings?.full_private_mode) blockers.push('Full private mode is on. Competitive runs are unavailable.');
     if (!competition || !season) blockers.push('There is no active season for the selected competition.');
@@ -179,7 +183,7 @@ export default function PreRun() {
         <Card accessibilityLabel="GPS status">
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Txt variant="heading">GPS</Txt>
-            <Badge label={gps.state === 'good' ? 'Good' : gps.state === 'weak' ? 'Weak' : gps.state === 'off' ? 'Location off' : 'Checking…'} tone={gps.state === 'good' ? 'success' : gps.state === 'weak' ? 'warning' : 'muted'} />
+            <Badge label={BROWSER ? 'Phone app only' : gps.state === 'good' ? 'Good' : gps.state === 'weak' ? 'Weak' : gps.state === 'off' ? 'Location off' : 'Checking…'} tone={gps.state === 'good' ? 'success' : gps.state === 'weak' ? 'warning' : 'muted'} />
           </View>
           <Txt variant="caption">{gps.accuracy != null ? `Accuracy about ±${Math.round(gps.accuracy)} m. ` : ''}Open sky gives the best loop closure.</Txt>
         </Card>
@@ -188,7 +192,7 @@ export default function PreRun() {
         ))}
         {error ? <Banner tone="danger" text={error} /> : null}
         <Button label={mode === 'private' ? 'Start private run' : 'Start run'} onPress={() => void start()} loading={busy} disabled={busy || blockers.length > 0} />
-        {blockers.length && mode !== 'private' ? <Button variant="ghost" label="Record privately instead" onPress={() => void start('private')} /> : null}
+        {blockers.length && mode !== 'private' && !BROWSER ? <Button variant="ghost" label="Record privately instead" onPress={() => void start('private')} /> : null}
         <Button variant="ghost" label="How loops and titles work" onPress={() => router.push('/help')} />
       </View>
     </Screen>

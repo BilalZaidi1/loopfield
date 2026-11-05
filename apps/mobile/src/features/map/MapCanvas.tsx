@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { env } from '@/config/env';
 import { isExpoGo } from '@/lib/runtime';
 import { Txt } from '@/components/ui';
@@ -13,7 +13,10 @@ import { radius, spacing, usePalette } from '@/theme/tokens';
  */
 let Mapbox: typeof import('@rnmapbox/maps') | null = null;
 let mapboxError: string | null = null;
-if (isExpoGo) {
+if (Platform.OS === 'web') {
+  // The browser version does not bundle the Mapbox SDK (metro.config.js); maps are a phone-app feature.
+  mapboxError = 'Maps are not available in the browser version. The Loopfield phone app shows this map.';
+} else if (isExpoGo) {
   // Expo Go has no Mapbox code; loading it there fails at render time, so it is never loaded.
   mapboxError = 'Maps are not included in Expo Go, so this map cannot be drawn here. The installed Loopfield app shows it.';
 } else {

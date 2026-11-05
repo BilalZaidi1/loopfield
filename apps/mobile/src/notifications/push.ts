@@ -43,7 +43,8 @@ function projectId(): string | undefined {
 
 /** Register this device's Expo push token for the signed-in user (only after the user granted permission). */
 export async function registerPushToken(userId: string): Promise<'registered' | 'no_permission' | 'not_configured' | 'unsupported'> {
-  if (!Device.isDevice) return 'unsupported';
+  // The browser version shows notifications in the app only; push is a phone-app feature.
+  if (Platform.OS === 'web' || !Device.isDevice) return 'unsupported';
   if ((await notificationPermission()) !== 'granted') return 'no_permission';
   const pid = projectId();
   if (!pid) return 'not_configured';

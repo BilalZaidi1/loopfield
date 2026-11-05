@@ -18,4 +18,4 @@ serve('activity-upload', async (req, rt) => {
     return json(await finalizeActivity(rt.sql, rt.blobs, rt.env, userId, body));
   }
   throw new HttpError(404, 'not_found');
-});
+}, { browser: true });
