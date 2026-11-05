@@ -1,4 +1,4 @@
-import { StreamChat } from 'stream-chat';
+import { StreamChat, type EventHook } from 'stream-chat';
 import { requireKeys, type ServerEnv } from './env.ts';
 
 /**
@@ -96,9 +96,20 @@ export async function ensureStreamConfiguration(client: StreamChat, opts: { appl
   const appChanges: Record<string, unknown> = {};
   if (app.disable_auth_checks !== STREAM_APP_REQUIREMENTS.disable_auth_checks) appChanges.disable_auth_checks = false;
   if (app.disable_permissions_checks !== STREAM_APP_REQUIREMENTS.disable_permissions_checks) appChanges.disable_permissions_checks = false;
-  if (!sameSet((app.webhook_events as string[] | undefined) ?? [], STREAM_APP_REQUIREMENTS.webhook_events)) appChanges.webhook_events = [...STREAM_APP_REQUIREMENTS.webhook_events];
-  if (opts.webhookUrl && app.webhook_url !== opts.webhookUrl) appChanges.webhook_url = opts.webhookUrl;
-  if (!opts.webhookUrl && !app.webhook_url) warnings.push('No webhook URL configured: message notifications will not reach the backend.');
+  const events = [...STREAM_APP_REQUIREMENTS.webhook_events];
+  if (app.use_hook_v2 === true || Array.isArray(app.event_hooks)) {
+    // Newer Stream apps configure webhooks as event hooks; other hooks on the app are kept as they are.
+    const hooks = (app.event_hooks as EventHook[] | undefined) ?? [];
+    const ours = opts.webhookUrl ? hooks.find((h) => h.hook_type === 'webhook' && h.webhook_url === opts.webhookUrl) : undefined;
+    if (opts.webhookUrl && (!ours || ours.enabled !== true || !sameSet(ours.event_types ?? [], events))) {
+      appChanges.event_hooks = [...hooks.filter((h) => h !== ours), { ...(ours?.id ? { id: ours.id } : {}), hook_type: 'webhook', enabled: true, webhook_url: opts.webhookUrl, event_types: events }];
+    }
+    if (!opts.webhookUrl && !hooks.some((h) => h.hook_type === 'webhook' && h.enabled)) warnings.push('No webhook configured: message notifications will not reach the backend.');
+  } else {
+    if (!sameSet((app.webhook_events as string[] | undefined) ?? [], events)) appChanges.webhook_events = events;
+    if (opts.webhookUrl && app.webhook_url !== opts.webhookUrl) appChanges.webhook_url = opts.webhookUrl;
+    if (!opts.webhookUrl && !app.webhook_url) warnings.push('No webhook URL configured: message notifications will not reach the backend.');
+  }
   if (app.permission_version && app.permission_version !== 'v2') warnings.push(`App uses permission ${String(app.permission_version)}; grants require permissions v2.`);
 
   let remaining: string[] = [];
