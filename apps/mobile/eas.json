@@ -44,6 +44,7 @@
       "distribution": "internal",
       "environment": "preview",
       "channel": "pilot",
+      "autoIncrement": true,
       "env": {
         "APP_ENV": "preview",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
