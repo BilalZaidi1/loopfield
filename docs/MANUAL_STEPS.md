@@ -13,7 +13,7 @@ Everything below needs a person: an account owner's credentials, a dashboard wit
 | A5 | Resend: verify a sending domain (DNS), create an API key, add the delivery webhook | DNS ownership and key creation | All auth and club-invite email |
 | A6 | Stream: create the app, copy server credentials, run `npm run setup:stream -- --apply` | No Stream connector; the script has been type-checked but not run against Stream | Direct messages |
 | A7 | Sentry: an org owner or manager creates `loopfield-mobile` and `loopfield-backend` (member project creation is disabled in `futurama-labs`), then DSNs and an auth token go into the environment | Organization permission (`create_project` returned 403) | Error reporting, source maps, the staging error test |
-| A8 | Mapbox: public token restricted to the bundle IDs; secret download token as an EAS secret | Account tokens | Maps in device builds |
+| A8 | Mapbox: public token restricted to the bundle IDs (no download token is needed any more) | Account token | Maps in device builds |
 | A9 | `eas init`, EAS environment variables, push credentials (APNs key, FCM) | Expo account and Apple/Google developer accounts | Device builds and push |
 
 ## B. Before any external pilot

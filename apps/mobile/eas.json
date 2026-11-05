@@ -2,21 +2,39 @@
   "cli": { "version": ">= 18.0.0", "appVersionSource": "remote" },
   "build": {
     "base": {
-      "node": "22.11.0",
-      "env": { "SENTRY_ORG": "futurama-labs", "SENTRY_PROJECT_MOBILE": "loopfield-mobile" }
+      "node": "22.23.4",
+      "env": { "SENTRY_ORG": "futurama-labs", "SENTRY_PROJECT_MOBILE": "loopfield-mobile" },
+      "android": { "image": "latest" },
+      "ios": { "image": "latest" }
     },
     "development": {
       "extends": "base",
       "developmentClient": true,
       "distribution": "internal",
       "environment": "development",
-      "env": { "APP_ENV": "development" },
+      "env": { "APP_ENV": "development", "SENTRY_DISABLE_AUTO_UPLOAD": "true" },
       "android": { "buildType": "apk" },
       "ios": { "simulator": false }
     },
     "development-simulator": {
       "extends": "development",
       "ios": { "simulator": true }
+    },
+    "pilot": {
+      "extends": "base",
+      "distribution": "internal",
+      "environment": "preview",
+      "env": {
+        "APP_ENV": "preview",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://xcykufhsjyhedkqginay.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_O-myEhgfv34CkndeMh8FmA_REmzspyj",
+        "EXPO_PUBLIC_POSTHOG_KEY": "phc_C9jxLXfUuDokoD3w9dxtgGEGjhmxrwZpEa7YBDyE8QAZ",
+        "EXPO_PUBLIC_POSTHOG_HOST": "https://eu.i.posthog.com",
+        "EXPO_PUBLIC_DEFAULT_COMPETITION_ID": "00000000-0000-4000-8000-000000000031",
+        "EXPO_PUBLIC_DEFAULT_MAP_CENTER": "67.05,24.89"
+      },
+      "android": { "buildType": "apk", "withoutCredentials": true }
     },
     "preview": {
       "extends": "base",

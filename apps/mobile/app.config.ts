@@ -86,7 +86,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ['@kingstinct/react-native-healthkit', { NSHealthShareUsageDescription: 'Optional: read health data for your private on-device dashboard. It is never uploaded or shared.', NSHealthUpdateUsageDescription: 'Optional: save runs you record to Apple Health.', background: false }],
     'react-native-health-connect',
     ['expo-build-properties', { android: { minSdkVersion: 28, compileSdkVersion: 36, targetSdkVersion: 36 }, ios: { deploymentTarget: '16.4' } }],
-    ['@sentry/react-native/expo', { organization: process.env.SENTRY_ORG ?? 'futurama-labs', project: process.env.SENTRY_PROJECT_MOBILE ?? 'loopfield-mobile', url: process.env.SENTRY_URL ?? 'https://de.sentry.io/' }],
+    // Source maps upload only when the build has a Sentry auth token (an EAS secret); otherwise the build skips it.
+    ['@sentry/react-native/expo', { organization: process.env.SENTRY_ORG ?? 'futurama-labs', project: process.env.SENTRY_PROJECT_MOBILE ?? 'loopfield-mobile', url: process.env.SENTRY_URL ?? 'https://de.sentry.io/', disableAutoUpload: !process.env.SENTRY_AUTH_TOKEN }],
     'expo-web-browser',
     'expo-localization'
   ],

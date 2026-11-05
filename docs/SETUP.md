@@ -6,7 +6,7 @@ The working name **Loopfield** is a placeholder (naming and trademark clearance 
 
 | Tool | Version | Needed for |
 |---|---|---|
-| Node.js + npm | 22.12 or later 22.x (`.nvmrc`) | everything |
+| Node.js + npm | 22.13 or later 22.x (`.nvmrc`; React Native 0.88 and Expo SDK 58 need ^22.13) | everything |
 | PostgreSQL + PostGIS + pgTAP | PostgreSQL 16, PostGIS 3.4, pgTAP 1.3 | database and integration tests (`scripts/test-db.sh`) |
 | psql | 15 or later | tests, `scripts/setup-supabase.sh` (uses `\getenv`) |
 | Deno | 2.9 | edge-function type check and smoke test (optional locally, used in CI) |
@@ -98,7 +98,7 @@ The development project currently has migrations `…000100`–`…000600` and t
 | **Stream Chat** | Create an app (choose the data region); server key and secret → `STREAM_API_KEY`, `STREAM_API_SECRET`; then `STREAM_WEBHOOK_URL=https://<ref>.supabase.co/functions/v1/stream-webhook npm run setup:stream` (dry run), then add `-- --apply`. The script creates the `loopfield_dm` channel type (no read receipts, presence, typing, uploads, link previews or Stream push), restricts grants, keeps auth and permission checks on and subscribes only `message.new`, then reads the configuration back and fails on any difference. The app needs no Stream variable: the token endpoint returns the public key. |
 | **RevenueCat** | Only for sandbox testing of the P2 subscription (paywall off by default). Create the project and the `premium` entitlement; public SDK keys → `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `_ANDROID_KEY`; secret API key → `REVENUECAT_SECRET_API_KEY`; webhook to `/functions/v1/revenuecat-webhook` with an Authorization header value → `REVENUECAT_WEBHOOK_AUTH`. Products and store agreements are manual. |
 | **Sentry** | Create projects `loopfield-mobile` (React Native) and `loopfield-backend` (Node/Deno) in org `futurama-labs` (EU region, `https://de.sentry.io`). Mobile DSN → `EXPO_PUBLIC_SENTRY_DSN`; backend DSN → `SENTRY_DSN_BACKEND`; an org auth token with `project:releases` → `SENTRY_AUTH_TOKEN` as an EAS secret for source maps. Session Replay stays disabled in code. |
-| **Mapbox** | Public token (`pk.`) restricted to the app's bundle identifiers → `EXPO_PUBLIC_MAPBOX_TOKEN`; secret token with `DOWNLOADS:READ` → `RNMAPBOX_MAPS_DOWNLOAD_TOKEN` as an EAS secret (native SDK download). Telemetry is disabled in code; attribution and logo stay visible. |
+| **Mapbox** | Public token (`pk.`) restricted to the app's bundle identifiers → `EXPO_PUBLIC_MAPBOX_TOKEN`. The native SDK no longer needs a download token (`RNMAPBOX_MAPS_DOWNLOAD_TOKEN` is optional). Without a public token the app shows its list views instead of maps. Telemetry is disabled in code; attribution and logo stay visible. |
 | **PostHog** | Project "Default project", EU cloud (`https://eu.i.posthog.com`). The dashboard *Loopfield pilot metrics* and its five funnel/retention insights already exist; they fill once events arrive. In the client, analytics is opt-in (`defaultOptIn: false`), autocapture, lifecycle events and session replay are off, GeoIP enrichment is disabled, and every event passes the allowlist in `packages/core/src/analytics/events.ts`. |
 | **Expo push** | `EXPO_ACCESS_TOKEN` (with enhanced push security enabled for the project) lets the backend send pushes; APNs key and FCM credentials are uploaded through `eas credentials`. |
 
@@ -109,18 +109,22 @@ npm install -g eas-cli
 cd apps/mobile
 eas init                                   # creates the EAS project; put the ID in EAS_PROJECT_ID
 eas env:create --environment development --name EXPO_PUBLIC_SUPABASE_URL --value … --visibility plaintext
-eas env:create --environment development --name RNMAPBOX_MAPS_DOWNLOAD_TOKEN --value … --visibility secret
 eas env:create --environment development --name SENTRY_AUTH_TOKEN --value … --visibility secret
 eas build --profile development --platform ios        # internal distribution to registered devices
 eas build --profile development --platform android    # APK
 npx expo start --dev-client
 ```
 
-Repeat the `eas env:create` lines for each `EXPO_PUBLIC_*` value in `.env.example`. Profiles in `eas.json`: `development` (dev client, internal), `development-simulator`, `preview` (internal, `preview` channel), `production` (store builds; not to be submitted without authorization). Bundle identifiers are `dev.loopfield.app.development` / `.preview` / `dev.loopfield.app` unless `APP_BUNDLE_ID` is set.
+Repeat the `eas env:create` lines for each `EXPO_PUBLIC_*` value in `.env.example`. Profiles in `eas.json`:
+
+* `pilot`: a standalone Android APK for testers anywhere (internal link, no dev server). It carries the development project's public client values, skips Sentry source-map upload and uses `withoutCredentials`, so it is signed with the template debug key: fine for internal testing, never for the Play Store, and testers uninstall it before installing a store build.
+* `development` (dev client, internal), `development-simulator`, `preview` (internal, `preview` channel), `production` (store builds; not to be submitted without authorization).
+
+Builds can also start from GitHub (Expo dashboard *Build from GitHub*, or the Expo connector) once the repository is linked to the Expo project with base directory `apps/mobile`; every profile sets `image: latest` for that. Bundle identifiers are `dev.loopfield.app.development` / `.preview` / `dev.loopfield.app` unless `APP_BUNDLE_ID` is set.
 
 Platform notes:
 * **HealthKit** needs the HealthKit capability on the App ID (the config plugin adds the entitlement) and a physical iPhone.
 * **Health Connect** needs Android 9+ with the Health Connect app (built in from Android 14). Play Console requires the health permissions declaration before release.
 * **Background location**: iOS "Always" permission and Android `ACCESS_BACKGROUND_LOCATION` with a foreground service; both stores review the justification (texts are in `app.config.ts`).
 
-Local native builds also work (`npx expo prebuild` then `npx expo run:ios|android`), with `RNMAPBOX_MAPS_DOWNLOAD_TOKEN` exported in the shell. The generated `ios/` and `android/` folders are not committed.
+Local native builds also work (`npx expo prebuild` then `npx expo run:ios|android`). The generated `ios/` and `android/` folders are not committed.

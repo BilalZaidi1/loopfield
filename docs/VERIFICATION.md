@@ -31,6 +31,7 @@ Last full run: 5 November 2026, Linux cloud workspace (Node 22.23, PostgreSQL 16
 * **Missing integration configuration was reported as a 500.** `ConfigError` lacked its `name`, so "not configured" errors fell through to `internal_error`. Fixed; covered by the runtime test and the Deno smoke test.
 * **Protected-area insert** could be sent without a user ID before the session loaded (found when the Supabase client became typed). Guarded.
 * **Deprecated Supabase config key** `auth.email.enable_signup` replaced with `auth.email.enabled` (reported by CLI 3.0.0).
+* **Cloud builds would have used an unsupported Node version.** `eas.json` pinned Node 22.11, but React Native 0.88 and Expo SDK 58 require ^22.13; now 22.23.4, the version tested here.
 * **No test covered data export (FR09) or exploration history after a loss (FR19)**; added both. The export test also checks that the export row is invisible to other users under RLS.
 * Earlier in the build: two copies of React in the workspace (would have broken the Metro bundle), and five app-to-schema mismatches (notes length, moderation statuses and priority, export status, club join policy, follower messaging label), all fixed.
 
