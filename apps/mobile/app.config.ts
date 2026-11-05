@@ -30,7 +30,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: NAME,
   slug: 'loopfield',
-  owner: process.env.EXPO_OWNER,
+  owner: process.env.EXPO_OWNER ?? 'bilalzaidi95',
   scheme: SCHEME,
   version: '0.1.0',
   orientation: 'portrait',
