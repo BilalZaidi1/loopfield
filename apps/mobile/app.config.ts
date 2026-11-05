@@ -61,6 +61,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     package: (BUNDLE_ID + suffix).replace(/-/g, '_'),
     adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#0E1A14' },
     allowBackup: false,
+    // Firebase config for push (FCM) arrives as an EAS file variable; without it the app runs with in-app notifications only.
+    ...(process.env.GOOGLE_SERVICES_JSON ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON } : {}),
     permissions: [
       'android.permission.ACCESS_COARSE_LOCATION',
       'android.permission.ACCESS_FINE_LOCATION',

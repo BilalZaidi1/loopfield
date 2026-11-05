@@ -26,13 +26,16 @@ export default function SignUp() {
     setBusy(true);
     setError(null);
     try {
-      const { error: e } = await supabase().auth.signUp({
+      const { data, error: e } = await supabase().auth.signUp({
         email: email.trim(),
         password,
         options: { emailRedirectTo: Linking.createURL('auth/callback'), data: { adult_confirmed: true, legal_version: LEGAL_VERSION } }
       });
       if (e) throw e;
       track('signup_completed', { method: 'email' });
+      // Projects with email confirmation turned off return a session at once; the session guard then opens
+      // onboarding, so there is no email to wait for.
+      if (data.session) return;
       setSent(true);
     } catch (e) {
       setError(friendlyError(e));

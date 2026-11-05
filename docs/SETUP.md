@@ -82,7 +82,7 @@ scripts/setup-supabase.sh types                  # optional: types from the host
 The development project currently has migrations `…000100`–`…000600` and the seed applied; `migrate` applies `…000700`–`…001400`. That exact path was rehearsed locally with Supabase CLI 3.0.0 (`npm run test:cli-push`), followed by the full pgTAP suite.
 
 **Dashboard: Authentication**
-1. *URL configuration*: Site URL `loopfield://`; redirect URLs `loopfield://*` and `exp+loopfield://*` (add the production scheme or universal-link domain when one exists).
+1. *URL configuration*: Site URL `loopfield://`; redirect URLs `loopfield://**` and `exp+loopfield://**` (`**` because `*` stops at `/`; add the production scheme or universal-link domain when one exists).
 2. *Providers → Email*: enable email sign-in, confirm email, secure email change; minimum password length 10 with lower, upper and digits (mirrors `config.toml`).
 3. *Hooks → Send Email hook*: HTTPS, URL `https://<ref>.supabase.co/functions/v1/auth-email-hook`, **Generate secret**, then put that secret in `SEND_EMAIL_HOOK_SECRET` and run `scripts/setup-supabase.sh secrets` again. Do not configure custom SMTP: with the hook enabled, Supabase sends no email of its own, so every auth email goes out once, through Resend.
 

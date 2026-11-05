@@ -19,7 +19,7 @@ sql_paths = ["./seed.sql"]
 [auth]
 enabled = true
 site_url = "loopfield://"
-additional_redirect_urls = ["loopfield://*", "exp+loopfield://*"]
+additional_redirect_urls = ["loopfield://**", "exp+loopfield://**"]
 jwt_expiry = 3600
 enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
