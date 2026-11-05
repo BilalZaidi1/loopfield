@@ -6,8 +6,8 @@ Everything below needs a person: an account owner's credentials, a dashboard wit
 
 | # | Step | Why manual | Unblocks |
 |---|---|---|---|
-| A1 | `scripts/setup-supabase.sh link migrate` to apply migrations `…000700`–`…001400` | The connector's confirmation for statements containing `DELETE` (inside function bodies) was cancelled by the client; it was not retried or worked around. The CLI path was rehearsed locally with the same files. | Everything server-side beyond schema foundations |
-| A2 | Create `supabase/functions/.env` from the example and run `scripts/setup-supabase.sh secrets functions` | Server secrets are entered by the owner; functions are not deployed yet | Uploads, tickets, chat tokens, webhooks, auth email |
+| A1 | ~~Apply migrations `…000700`–`…001400`~~ | Done 5 Nov by the GitHub "Deploy backend" workflow | — |
+| A2 | Enter provider keys as Supabase function secrets: `STREAM_API_KEY`, `STREAM_API_SECRET` (and later Resend, Expo). Functions are deployed (5 Nov) | Keys come from your provider accounts | Direct messages; branded email |
 | A3 | ~~Vault entries for the job runner and ticket signing~~ | Done 5 Nov: generated inside the database through the connector | Background jobs through pg_cron |
 | A4 | Dashboard → Authentication: URL configuration, email provider settings, **Send Email hook** with a generated secret | Auth configuration is dashboard-only with the available tools | Sign-up, recovery and email-change mails through Resend |
 | A5 | Resend: verify a sending domain (DNS), create an API key, add the delivery webhook | DNS ownership and key creation | All auth and club-invite email |
