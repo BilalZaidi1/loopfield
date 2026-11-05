@@ -9,10 +9,17 @@ Working file kept current so work survives context limits. Newest first.
 | Rules engine `packages/core` | Done | 67 unit tests |
 | Database (14 migrations) | Done locally; dev project has `…000100`–`…000600` + seed | 114 pgTAP assertions; `supabase db push` rehearsal passes |
 | Edge functions (10) and worker | Done; not deployed | 21 integration tests; `deno check`; 24 Deno HTTP smoke checks |
-| Mobile app (49 screens + subscription, club creation, operator tools) | Done; no device run | typecheck, lint, 21 jest tests, Android/iOS bundles, prebuild |
+| Mobile app (49 screens + subscription, club creation, operator tools) | Done; Android APK built in the cloud; no device run yet | typecheck, lint, 21 jest tests, Android/iOS bundles, prebuild, Expo Android build |
 | Generated DB types + query checks | Done | `gen-types --check`, `check:queries` |
 | Connectors | Supabase dev project, PostHog dashboard done; Sentry blocked (403); Resend, Stream, RevenueCat, Mapbox, EAS need the owner | `docs/VERIFICATION.md` §Hosted resources |
 | Docs, CI, setup scripts | Done | `docs/*`, `.github/workflows/*`, `scripts/*` |
+
+## 5 Nov 2026 (afternoon)
+
+* Code pushed to GitHub `BilalZaidi1/loopfield` (`main` and `verification-and-docs`); Expo project `@bilalzaidi95/loopfield` linked to it.
+* Android `pilot` profile added (standalone internal APK, development backend values, no signing credentials). First cloud build failed (compileSdk 36 → needs 37); second build succeeded: build `3905eb83-c70c-4439-b343-02c7e6230053`.
+* Jest 30 / Testing Library 14 alignment after the build server's `expo doctor` check.
+* Still open before useful testing: database migrations `…000700`+, edge functions and secrets, Auth URL settings (`docs/MANUAL_STEPS.md` A1–A4).
 
 ## 5 Nov 2026
 
