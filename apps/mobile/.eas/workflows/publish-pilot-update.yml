@@ -24,3 +24,4 @@ jobs:
     params:
       channel: pilot
       platform: android
+      upload_sentry_sourcemaps: false # source maps go to Sentry only once a Sentry auth token exists
