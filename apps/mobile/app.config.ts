@@ -94,6 +94,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   experiments: { typedRoutes: false },
   extra: {
     appEnv: APP_ENV,
-    eas: { projectId: process.env.EAS_PROJECT_ID }
+    // Expo project @bilalzaidi95/loopfield. The ID is not a secret; EAS_PROJECT_ID overrides it for other projects.
+    eas: { projectId: process.env.EAS_PROJECT_ID ?? '2734ce29-57cb-4a7e-b82a-58ecbe115a1e' }
   }
 });
