@@ -1,13 +1,15 @@
 import { Platform } from 'react-native';
 import type { HealthChange, QuantitySample, QuantityType, SleepSegment, SleepStage, SourceKind, WorkoutRecord } from '@loopfield/core';
+import { isExpoGo, optionalNativeModule } from '@/lib/runtime';
 import { getCursor, setCursor, type HealthCardId } from './cache';
 
 /**
  * Android Health Connect adapter. Initial reads are bounded to the default history window
  * (30 days without the extra history permission, which this release does not request); later syncs
  * use change tokens so updates and deletions are applied (S50, S54, S55).
+ * Expo Go has no Health Connect module, so there the adapter reports Health Connect as unavailable.
  */
-const HC = Platform.OS === 'android' ? require('react-native-health-connect') : null;
+const HC = Platform.OS === 'android' && !isExpoGo ? optionalNativeModule('react-native-health-connect', () => require('react-native-health-connect')) : null;
 const OWN_PACKAGE_HINT = 'loopfield';
 const DEFAULT_HISTORY_DAYS = 30;
 
@@ -161,4 +163,12 @@ export async function exportRunToHealthConnect(run: { activityId: string; start:
 
 export function openHealthConnectSettings(): void {
   HC?.openHealthConnectSettings();
+}
+
+/** Revokes every Health Connect permission this app holds. False when Health Connect is not in this build. */
+export async function revokeHealthConnect(): Promise<boolean> {
+  if (!HC) return false;
+  await HC.initialize();
+  await HC.revokeAllPermissions();
+  return true;
 }

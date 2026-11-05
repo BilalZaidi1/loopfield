@@ -1,10 +1,13 @@
 import * as Crypto from 'expo-crypto';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Location from 'expo-location';
 import { summarizeActivity , durationBucket, distanceBucket } from '@loopfield/core';
 import { callFunction } from '@/lib/api';
 import { emitCue } from '@/lib/cues';
 import { track } from '@/lib/analytics';
-import { activeSession, addEvent, eventsFor, getSession, recordingDb, samplesFor, setSessionState, type RunMode } from './db';
+import { log } from '@/lib/log';
+import { isExpoGo } from '@/lib/runtime';
+import { activeSession, addEvent, appendSamples, eventsFor, getSession, recordingDb, samplesFor, setSessionState, type RunMode } from './db';
 import { LOCATION_TASK } from './task';
 
 export interface TicketResponse {
@@ -15,11 +18,15 @@ export interface TicketResponse {
 
 export type PermissionResult = 'granted' | 'foreground_only' | 'denied' | 'services_disabled';
 
-/** Location permission in context: foreground first, then background for screen-locked recording. */
+/**
+ * Location permission in context: foreground first, then background for screen-locked recording.
+ * Expo Go cannot record in the background at all, so there the "Always" prompt is not shown.
+ */
 export async function ensureLocationPermission(): Promise<PermissionResult> {
   if (!(await Location.hasServicesEnabledAsync())) return 'services_disabled';
   const fg = await Location.requestForegroundPermissionsAsync();
   if (fg.status !== 'granted') return 'denied';
+  if (isExpoGo) return 'foreground_only';
   const bg = await Location.requestBackgroundPermissionsAsync().catch(() => ({ status: 'denied' as const }));
   return bg.status === 'granted' ? 'granted' : 'foreground_only';
 }
@@ -43,20 +50,60 @@ export async function createSession(opts: { userId: string; mode: RunMode; compe
   return { sessionId: id, ticket };
 }
 
-async function startUpdates(): Promise<void> {
-  await Location.startLocationUpdatesAsync(LOCATION_TASK, {
-    accuracy: Location.Accuracy.BestForNavigation,
-    timeInterval: 1000,
-    distanceInterval: 0,
-    activityType: Location.ActivityType.Fitness,
-    pausesUpdatesAutomatically: false,
-    showsBackgroundLocationIndicator: true,
-    foregroundService: {
-      notificationTitle: 'Recording your run',
-      notificationBody: 'Location is recorded until you finish this run.',
-      killServiceOnDestroy: false
+let foregroundWatch: Location.LocationSubscription | null = null;
+const KEEP_AWAKE_TAG = 'loopfield-recording';
+
+/**
+ * True while the current run records only while the app is on screen: in Expo Go, or when the phone refused
+ * background location updates. Leaving the app stops location delivery; that time stays a gap (FR07).
+ */
+export function recordingInForegroundOnly(): boolean {
+  return foregroundWatch !== null;
+}
+
+async function startUpdates(sessionId: string): Promise<void> {
+  if (!isExpoGo) {
+    try {
+      await Location.startLocationUpdatesAsync(LOCATION_TASK, {
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeInterval: 1000,
+        distanceInterval: 0,
+        activityType: Location.ActivityType.Fitness,
+        pausesUpdatesAutomatically: false,
+        showsBackgroundLocationIndicator: true,
+        foregroundService: {
+          notificationTitle: 'Recording your run',
+          notificationBody: 'Location is recorded until you finish this run.',
+          killServiceOnDestroy: false
+        }
+      });
+      return;
+    } catch (e) {
+      log.warn(`background location updates unavailable; recording while the app is open: ${String(e)}`);
     }
+  }
+  await startForegroundUpdates(sessionId);
+}
+
+/** Foreground fallback: the same samples, delivered only while the app is open; the screen is kept on. */
+async function startForegroundUpdates(sessionId: string): Promise<void> {
+  stopForegroundUpdates();
+  foregroundWatch = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 }, (loc) => {
+    appendSamples(sessionId, [loc]);
   });
+  await activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
+}
+
+function stopForegroundUpdates(): void {
+  if (!foregroundWatch) return;
+  foregroundWatch.remove();
+  foregroundWatch = null;
+  void deactivateKeepAwake(KEEP_AWAKE_TAG).catch(() => {});
+}
+
+async function stopUpdates(): Promise<void> {
+  stopForegroundUpdates();
+  await Location.stopLocationUpdatesAsync(LOCATION_TASK).catch(() => {});
 }
 
 export async function startRun(sessionId: string, opts: { startCaptureNow: boolean; startSpeedNow: boolean }): Promise<void> {
@@ -64,7 +111,7 @@ export async function startRun(sessionId: string, opts: { startCaptureNow: boole
   if (!s || s.state !== 'ready') throw new Error('Session is not ready');
   setSessionState(sessionId, { state: 'recording', started_at: Date.now() });
   addEvent(sessionId, 'start');
-  await startUpdates();
+  await startUpdates(sessionId);
   emitCue('started', 'Run started');
   if (opts.startCaptureNow && (s.mode === 'territory' || s.mode === 'territory_speed')) startCapture(sessionId);
   if (opts.startSpeedNow && (s.mode === 'speed' || s.mode === 'territory_speed')) startSpeedAttempt(sessionId);
@@ -99,14 +146,14 @@ export function startSpeedAttempt(sessionId: string): void {
 export async function pauseRun(sessionId: string): Promise<void> {
   addEvent(sessionId, 'pause');
   setSessionState(sessionId, { state: 'paused' });
-  await Location.stopLocationUpdatesAsync(LOCATION_TASK).catch(() => {});
+  await stopUpdates();
   emitCue('paused', 'Paused');
 }
 
 export async function resumeRun(sessionId: string): Promise<void> {
   setSessionState(sessionId, { state: 'recording' });
   addEvent(sessionId, 'resume');
-  await startUpdates();
+  await startUpdates(sessionId);
   emitCue('resumed', 'Resumed');
 }
 
@@ -121,7 +168,7 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
   }
   addEvent(sessionId, 'finish');
   setSessionState(sessionId, { state: 'finished', ended_at: Date.now() });
-  await Location.stopLocationUpdatesAsync(LOCATION_TASK).catch(() => {});
+  await stopUpdates();
   const summary = summarizeActivity(samplesFor(sessionId), eventsFor(sessionId));
   recordingDb().runSync(
     'insert or replace into uploads (session_id, state, next_chunk, attempts, next_attempt_at, summary, updated_at) values (?, ?, 0, 0, 0, ?, ?)',
@@ -139,7 +186,7 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
 }
 
 export async function discardRun(sessionId: string): Promise<void> {
-  await Location.stopLocationUpdatesAsync(LOCATION_TASK).catch(() => {});
+  await stopUpdates();
   const d = recordingDb();
   d.withTransactionSync(() => {
     d.runSync('delete from samples where session_id = ?', [sessionId]);
@@ -157,8 +204,8 @@ export type RecoveryState = { kind: 'none' } | { kind: 'running'; sessionId: str
 export async function checkRecovery(): Promise<RecoveryState> {
   const s = activeSession();
   if (!s || s.state === 'ready') return { kind: 'none' };
-  if (s.state === 'paused') return { kind: 'running', sessionId: s.id };
-  const running = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK).catch(() => false);
+  if (s.state === 'paused' || recordingInForegroundOnly()) return { kind: 'running', sessionId: s.id };
+  const running = isExpoGo ? false : await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK).catch(() => false);
   if (running) return { kind: 'running', sessionId: s.id };
   const already = eventsFor(s.id).slice(-1)[0];
   if (already?.kind !== 'interrupted') addEvent(s.id, 'interrupted', null as never, s.last_fix_at ?? Date.now());

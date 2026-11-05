@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { env } from '@/config/env';
+import { isExpoGo } from '@/lib/runtime';
 import { Txt } from '@/components/ui';
 import { boundsOf, lineFeature, type Bounds } from '@/territory/h3';
 import { radius, spacing, usePalette } from '@/theme/tokens';
@@ -12,14 +13,19 @@ import { radius, spacing, usePalette } from '@/theme/tokens';
  */
 let Mapbox: typeof import('@rnmapbox/maps') | null = null;
 let mapboxError: string | null = null;
-try {
-  Mapbox = require('@rnmapbox/maps');
-  if (env.mapboxToken) {
-    void Mapbox!.default.setAccessToken(env.mapboxToken);
-    Mapbox!.default.setTelemetryEnabled(false);
+if (isExpoGo) {
+  // Expo Go has no Mapbox code; loading it there fails at render time, so it is never loaded.
+  mapboxError = 'Maps are not included in Expo Go, so this map cannot be drawn here. The installed Loopfield app shows it.';
+} else {
+  try {
+    Mapbox = require('@rnmapbox/maps');
+    if (env.mapboxToken) {
+      void Mapbox!.default.setAccessToken(env.mapboxToken);
+      Mapbox!.default.setTelemetryEnabled(false);
+    }
+  } catch {
+    mapboxError = 'The map module is not available in this build.';
   }
-} catch (e) {
-  mapboxError = 'The map module is not available in this build.';
 }
 
 export interface MapMarker {

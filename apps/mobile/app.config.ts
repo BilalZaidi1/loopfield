@@ -12,6 +12,11 @@ const NAME = process.env.APP_DISPLAY_NAME ?? (APP_ENV === 'production' ? 'Loopfi
 const BUNDLE_ID = process.env.APP_BUNDLE_ID ?? 'dev.loopfield.app';
 const SCHEME = process.env.APP_SCHEME ?? 'loopfield';
 const suffix = APP_ENV === 'production' ? '' : `.${APP_ENV}`;
+// EXPO_GO_UPDATE=1 (only in .eas/workflows/publish-expo-go-update.yml) publishes JavaScript that the Expo Go app
+// can open, for testing on a phone without a Loopfield build. Its runtime version is "exposdk:<SDK version>",
+// which no Loopfield build has, so installed builds never download it. Every other build and update keeps the
+// fingerprint policy, and this switch changes nothing else in the config.
+const EXPO_GO_UPDATE = process.env.EXPO_GO_UPDATE === '1';
 
 const HEALTH_CONNECT_READ = [
   'android.permission.health.READ_EXERCISE',
@@ -35,7 +40,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: '0.1.0',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
-  runtimeVersion: { policy: 'fingerprint' },
+  runtimeVersion: EXPO_GO_UPDATE ? { policy: 'sdkVersion' } : { policy: 'fingerprint' },
   // Over-the-air JavaScript updates (Expo Update). A build only takes updates published for its own channel and
   // native fingerprint; if none is available, or the download is slow, the bundled code runs.
   updates: { url: `https://u.expo.dev/${process.env.EAS_PROJECT_ID ?? '2734ce29-57cb-4a7e-b82a-58ecbe115a1e'}`, checkAutomatically: 'ON_LOAD', fallbackToCacheTimeout: 0 },

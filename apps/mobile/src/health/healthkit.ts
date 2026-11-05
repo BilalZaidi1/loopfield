@@ -1,13 +1,15 @@
 import { Platform } from 'react-native';
 import { toCanonical, type HealthChange, type QuantitySample, type QuantityType, type SleepSegment, type SleepStage, type SourceKind, type WorkoutRecord } from '@loopfield/core';
+import { isExpoGo, optionalNativeModule } from '@/lib/runtime';
 import { getCursor, setCursor, type HealthCardId } from './cache';
 
 /**
  * Apple Health adapter (iOS). Uses anchored queries so source updates and deletions are processed.
  * HealthKit does not reveal whether *read* access was denied: an empty result is reported as
  * "no readable data", never as "permission denied" (PRD §9, S28).
+ * Expo Go has no HealthKit module, so there the adapter reports Apple Health as unavailable.
  */
-const HK = Platform.OS === 'ios' ? require('@kingstinct/react-native-healthkit') : null;
+const HK = Platform.OS === 'ios' && !isExpoGo ? optionalNativeModule('@kingstinct/react-native-healthkit', () => require('@kingstinct/react-native-healthkit')) : null;
 
 const QUANTITY: Record<string, { id: string; type: QuantityType; unit: string; method?: string }> = {
   heart_rate: { id: 'HKQuantityTypeIdentifierHeartRate', type: 'heart_rate', unit: 'count/min' },

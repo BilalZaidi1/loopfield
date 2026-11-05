@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { TERRITORY_RULES } from '@loopfield/core';
 import { ApiError, friendlyError, rpc } from '@/lib/api';
 import { fmtDistance } from '@/lib/format';
+import { isExpoGo } from '@/lib/runtime';
 import { Badge, Banner, Button, Card, OfflineBanner, Screen, Segmented, Toggle, Txt } from '@/components/ui';
 import { TopBar } from '@/components/TopBar';
 import { activeSession, type RunMode } from '@/recording/db';
@@ -97,10 +98,15 @@ export default function PreRun() {
       }
       if (perm === 'foreground_only') {
         const proceed = await new Promise<boolean>((resolve) =>
-          Alert.alert('Recording may stop when locked', 'Without "Always" location access, the phone can stop recording when the screen locks. Missing time is shown as a gap, never filled in.', [
-            { text: 'Open settings', onPress: () => { void Linking.openSettings(); resolve(false); } },
-            { text: 'Record anyway', onPress: () => resolve(true) }
-          ])
+          isExpoGo
+            ? Alert.alert('Keep Loopfield open', 'Expo Go records only while the app is on screen, so the screen stays on during the run. Time spent outside the app is kept as a gap, never filled in.', [
+                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                { text: 'Record', onPress: () => resolve(true) }
+              ])
+            : Alert.alert('Recording may stop when locked', 'Without "Always" location access, the phone can stop recording when the screen locks. Missing time is shown as a gap, never filled in.', [
+                { text: 'Open settings', onPress: () => { void Linking.openSettings(); resolve(false); } },
+                { text: 'Record anyway', onPress: () => resolve(true) }
+              ])
         );
         if (!proceed) return;
       }

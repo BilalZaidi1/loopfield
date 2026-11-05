@@ -1,0 +1,28 @@
+# Publishes the current JavaScript as an update that the Expo Go app can open, for testing on a phone without a
+# Loopfield build. EXPO_GO_UPDATE=1 gives the update the runtime version "exposdk:<SDK version>" (app.config.ts),
+# which no Loopfield build has, so installed builds never receive it.
+# Open it in Expo Go (signed in to the project's Expo account) with the link or QR code in docs/SETUP.md.
+# Expo Go has no Mapbox, Apple Health / Health Connect or background-location code: the app shows those
+# features as unavailable there, and runs record only while the app is on screen.
+# The env block is the `pilot` build profile's env plus EXPO_GO_UPDATE; scripts/check-pilot-env.mjs checks it.
+name: Publish Expo Go preview
+
+jobs:
+  publish_update:
+    name: Publish update (expo-go channel)
+    type: update
+    environment: preview
+    env:
+      EXPO_GO_UPDATE: "1"
+      APP_ENV: "preview"
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      EXPO_PUBLIC_SUPABASE_URL: "https://xcykufhsjyhedkqginay.supabase.co"
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_O-myEhgfv34CkndeMh8FmA_REmzspyj"
+      EXPO_PUBLIC_POSTHOG_KEY: "phc_C9jxLXfUuDokoD3w9dxtgGEGjhmxrwZpEa7YBDyE8QAZ"
+      EXPO_PUBLIC_POSTHOG_HOST: "https://eu.i.posthog.com"
+      EXPO_PUBLIC_DEFAULT_COMPETITION_ID: "00000000-0000-4000-8000-000000000031"
+      EXPO_PUBLIC_DEFAULT_MAP_CENTER: "67.05,24.89"
+    params:
+      channel: expo-go
+      platform: all
+      message: Expo Go preview

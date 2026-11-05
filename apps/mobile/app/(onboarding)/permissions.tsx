@@ -5,6 +5,7 @@ import * as Location from 'expo-location';
 import { COMPETITION_CONSENT_VERSION } from '@/config/env';
 import { friendlyError, rpc } from '@/lib/api';
 import { setAnalyticsConsent, track } from '@/lib/analytics';
+import { isExpoGo } from '@/lib/runtime';
 import { supabase } from '@/lib/supabase';
 import { Banner, Button, Card, Screen, Segmented, Toggle, Txt } from '@/components/ui';
 import { requestNotificationPermission, notificationPermission } from '@/notifications/push';
@@ -22,7 +23,7 @@ export default function PermissionsSetup() {
     queryFn: async () => {
       const fg = await Location.getForegroundPermissionsAsync();
       const bg = await Location.getBackgroundPermissionsAsync().catch(() => ({ status: 'undetermined' }));
-      const loc: LocState = fg.status !== 'granted' ? (fg.canAskAgain ? 'unknown' : 'denied') : bg.status === 'granted' ? 'granted' : 'foreground_only';
+      const loc: LocState = fg.status !== 'granted' ? (fg.canAskAgain ? 'unknown' : 'denied') : bg.status === 'granted' && !isExpoGo ? 'granted' : 'foreground_only';
       return { loc, notif: await notificationPermission() };
     }
   });
@@ -67,7 +68,9 @@ export default function PermissionsSetup() {
   const locText: Record<LocState, string> = {
     unknown: 'Not set up yet. Recording needs location while you run.',
     granted: 'Ready: runs keep recording when the screen is locked.',
-    foreground_only: 'Recording works while the app is open. Allow "Always" (iOS) or "Allow all the time" (Android) so a locked screen does not stop your run.',
+    foreground_only: isExpoGo
+      ? 'Recording works while the app is open. Expo Go cannot record with the screen locked; the installed Loopfield app can.'
+      : 'Recording works while the app is open. Allow "Always" (iOS) or "Allow all the time" (Android) so a locked screen does not stop your run.',
     denied: 'Location is off for this app. Turn it on in system settings to record runs.',
     services_disabled: 'Location services are off on this phone.'
   };
@@ -83,7 +86,7 @@ export default function PermissionsSetup() {
           <Txt variant="caption">Location is recorded only during runs you start. Raw traces are never shown to other runners.</Txt>
           {loc === 'denied' || loc === 'services_disabled' ? (
             <Button variant="secondary" label="Open settings" onPress={() => void Linking.openSettings()} />
-          ) : loc !== 'granted' ? (
+          ) : loc !== 'granted' && !(isExpoGo && loc === 'foreground_only') ? (
             <Button variant="secondary" label="Allow location" onPress={askLocation} />
           ) : null}
         </Card>

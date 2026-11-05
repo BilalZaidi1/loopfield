@@ -6,7 +6,7 @@ import { fmtRelative } from '@/lib/format';
 import { Badge, Banner, Button, Card, Screen, Section, Toggle, Txt } from '@/components/ui';
 import type { HealthCardId } from '@/health/cache';
 import { openHealthConnectSettings } from '@/health/healthconnect';
-import { clearHealthData, connectHealth, disconnectHealth, platformAvailability, PLATFORM_LABEL, setEnabledCards, syncHealth, type Availability } from '@/health/sync';
+import { clearHealthData, connectHealth, disconnectHealth, platformAvailability, PLATFORM_LABEL, setEnabledCards, syncHealth, UNAVAILABLE_BADGE, UNAVAILABLE_TEXT, type Availability } from '@/health/sync';
 import { useHealthConnection } from '@/health/useHealth';
 
 const CARDS: { id: HealthCardId; label: string }[] = [
@@ -62,13 +62,13 @@ export default function HealthConnections() {
       <Stack.Screen options={{ title: 'Health connections' }} />
       <Card accessibilityLabel="Connection status">
         <Txt variant="heading">{PLATFORM_LABEL}</Txt>
-        <Badge label={availability === 'unavailable' ? 'Not supported on this device' : availability === 'needs_update' ? 'Needs an update' : conn.connected ? 'Connected' : 'Not connected'} tone={conn.connected ? 'success' : 'muted'} />
+        <Badge label={availability === 'unavailable' ? UNAVAILABLE_BADGE : availability === 'needs_update' ? 'Needs an update' : conn.connected ? 'Connected' : 'Not connected'} tone={conn.connected ? 'success' : 'muted'} />
         <Txt color="textMuted">Imported health data stays on this phone in protected storage, is excluded from backups and is never uploaded, shared or used for competition.</Txt>
         {conn.lastSyncAt ? <Txt variant="caption">Last synced {fmtRelative(new Date(conn.lastSyncAt).toISOString())}{conn.lastResult && conn.lastResult !== 'ok' ? ` · ${conn.lastResult.replace('_', ' ')}` : ''}</Txt> : null}
         {conn.historyLimitedTo ? <Txt variant="caption">History limit: the most recent {conn.historyLimitedTo} days{Platform.OS === 'android' ? ' (Health Connect allows 30 days unless extra history access is granted; this release does not ask for it)' : ''}.</Txt> : null}
       </Card>
       {availability === 'needs_update' ? <Banner tone="warning" text="Install or update Health Connect from Google Play, then come back." action={{ label: 'Open Play Store', onPress: () => void Linking.openURL('market://details?id=com.google.android.apps.healthdata') }} /> : null}
-      {availability === 'unavailable' ? <Banner tone="info" text={`${PLATFORM_LABEL} is not available on this device. Recording, competition and social features work without it.`} /> : null}
+      {availability === 'unavailable' ? <Banner tone="info" text={UNAVAILABLE_TEXT} /> : null}
       <Section title="Data types">
         <Txt variant="caption">Only the types you choose are requested. You can change permissions later in {Platform.OS === 'ios' ? 'Settings → Health' : 'Health Connect'}.</Txt>
         {CARDS.map((c) => <Toggle key={c.id} label={c.label} value={cards.includes(c.id)} onChange={toggle(c.id)} disabled={c.id === 'workouts'} />)}

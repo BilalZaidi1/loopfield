@@ -8,7 +8,8 @@ import { log } from '@/lib/log';
 import { Badge, Banner, Button, Card, EmptyState, Screen, StatTile, Txt } from '@/components/ui';
 import { MapCanvas } from '@/features/map/MapCanvas';
 import { eventsFor } from '@/recording/db';
-import { discardRun, endCapture, finishRun, pauseRun, resumeAfterInterruption, resumeRun, startCapture } from '@/recording/recorder';
+import { discardRun, endCapture, finishRun, pauseRun, recordingInForegroundOnly, resumeAfterInterruption, resumeRun, startCapture } from '@/recording/recorder';
+import { isExpoGo } from '@/lib/runtime';
 import { processUploads } from '@/recording/uploader';
 import { useRecording } from '@/recording/useRecording';
 import { useSession, useUnits } from '@/state/session';
@@ -80,6 +81,16 @@ export default function ActiveRun() {
         </View>
         {interrupted ? (
           <Banner tone="warning" text="Recording was interrupted (the phone or system stopped the app). The missing time is kept as a gap and is never filled in. Competitive intervals with long gaps do not count." />
+        ) : null}
+        {s.state === 'recording' && recordingInForegroundOnly() ? (
+          <Banner
+            tone="info"
+            text={
+              isExpoGo
+                ? 'Expo Go records only while Loopfield is open on screen, so the screen stays on during this run. Time spent outside the app is kept as a gap, never filled in.'
+                : 'This phone did not allow background recording, so the screen stays on during this run. Time spent outside the app is kept as a gap, never filled in.'
+            }
+          />
         ) : null}
         {live.gpsQuality !== 'good' && s.state === 'recording' ? (
           <Banner tone="warning" text={live.gpsQuality === 'weak' ? 'GPS signal is weak. Loop and route results may not count.' : `No GPS fix${live.gpsStaleSeconds ? ` for ${Math.round(live.gpsStaleSeconds)} s` : ''}. This gap will be shown, not filled in.`} />
