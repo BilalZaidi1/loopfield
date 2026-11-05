@@ -154,3 +154,12 @@ What differs in Expo Go (the app explains each one where it appears; nothing is 
 | Push notifications | Depend on Expo Go's own push support (removed on Android since SDK 53); in-app notifications work |
 | Email links (password reset) | Open the `loopfield://` scheme, which Expo Go does not handle |
 | Everything else (sign-up, onboarding, competition, clubs, social, messages, settings, export) | Same as a build, against the `loopfield-dev` backend |
+
+## 7. Web version (browser review)
+
+The same app runs in a browser through React Native for Web, for reviewing screens and flows on a computer. Build it locally with `cd apps/mobile && npx expo export --platform web` (output in `dist/`), or deploy it to Expo Hosting with the Expo workflow `.eas/workflows/deploy-web.yml` (production URL on `expo.app`; it uses the pilot profile's public values).
+
+* Recording, maps, Apple Health / Health Connect and push are phone-app features. The browser version says so where they appear: the browser variants `src/recording/db.web.ts`, `task.web.ts` and `src/health/cache.web.ts` hold no runs or health readings, and `metro.config.js` keeps the Mapbox and health SDKs out of the web bundle.
+* React Native's `Alert` does nothing in a browser, so `WebAlertHost` shows alerts as an in-app dialog on web (never a browser `confirm()`).
+* The user-facing edge functions accept browser requests only from the Expo Hosting origins (`loopfield` / `bilalzaidi95-loopfield` on `expo.app`, including `--<id>` previews) and `http://localhost:8081`; set `WEB_ALLOWED_ORIGINS` (function secret, comma-separated) for any other host. The *Deploy backend* workflow checks this after every deploy.
+* The deployed site is public to anyone with its link, and sign-up there creates real accounts in `loopfield-dev`.
