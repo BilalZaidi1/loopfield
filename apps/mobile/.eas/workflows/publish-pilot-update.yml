@@ -1,0 +1,26 @@
+# Publishes the current JavaScript and assets as an over-the-air update for installed `pilot` builds.
+# Only builds with the same native fingerprint receive it; anything that changes native code needs a new build.
+# Run from the Expo dashboard (Workflows) or with the Expo connector.
+# The env block must match the `pilot` build profile in eas.json: the values are bundled into the update,
+# and APP_ENV is part of the native fingerprint. scripts/check-pilot-env.mjs fails CI when they drift.
+# Tokens GitHub treats as secrets (the Mapbox token) are Expo environment variables in the `preview`
+# environment instead, which both the pilot build and this job load.
+name: Publish pilot update
+
+jobs:
+  publish_update:
+    name: Publish update (pilot channel)
+    type: update
+    environment: preview
+    env:
+      APP_ENV: "preview"
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      EXPO_PUBLIC_SUPABASE_URL: "https://xcykufhsjyhedkqginay.supabase.co"
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: "sb_publishable_O-myEhgfv34CkndeMh8FmA_REmzspyj"
+      EXPO_PUBLIC_POSTHOG_KEY: "phc_C9jxLXfUuDokoD3w9dxtgGEGjhmxrwZpEa7YBDyE8QAZ"
+      EXPO_PUBLIC_POSTHOG_HOST: "https://eu.i.posthog.com"
+      EXPO_PUBLIC_DEFAULT_COMPETITION_ID: "00000000-0000-4000-8000-000000000031"
+      EXPO_PUBLIC_DEFAULT_MAP_CENTER: "67.05,24.89"
+    params:
+      channel: pilot
+      platform: android

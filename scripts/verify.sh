@@ -47,6 +47,7 @@ edge_check() { (cd supabase/functions && "$DENO_BIN" check --quiet --config deno
 
 echo "Loopfield verification — $(date -u +%Y-%m-%dT%H:%MZ)"
 step "core copy in sync (sync-core --check)" node scripts/sync-core.mjs --check
+step "pilot update env matches build profile" node scripts/check-pilot-env.mjs
 step "typecheck: core, worker, mobile" npm run typecheck --silent
 step "typecheck: scripts" npx tsc -p scripts/tsconfig.json
 step "unit tests: rules engine (vitest)" npm run test:core --silent

@@ -1,29 +1,49 @@
 {
-  "cli": { "version": ">= 18.0.0", "appVersionSource": "remote" },
+  "cli": {
+    "version": ">= 18.0.0",
+    "appVersionSource": "remote"
+  },
   "build": {
     "base": {
       "node": "22.23.4",
-      "env": { "SENTRY_ORG": "futurama-labs", "SENTRY_PROJECT_MOBILE": "loopfield-mobile" },
-      "android": { "image": "latest" },
-      "ios": { "image": "latest" }
+      "env": {
+        "SENTRY_ORG": "futurama-labs",
+        "SENTRY_PROJECT_MOBILE": "loopfield-mobile"
+      },
+      "android": {
+        "image": "latest"
+      },
+      "ios": {
+        "image": "latest"
+      }
     },
     "development": {
       "extends": "base",
       "developmentClient": true,
       "distribution": "internal",
       "environment": "development",
-      "env": { "APP_ENV": "development", "SENTRY_DISABLE_AUTO_UPLOAD": "true" },
-      "android": { "buildType": "apk" },
-      "ios": { "simulator": false }
+      "env": {
+        "APP_ENV": "development",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      }
     },
     "development-simulator": {
       "extends": "development",
-      "ios": { "simulator": true }
+      "ios": {
+        "simulator": true
+      }
     },
     "pilot": {
       "extends": "base",
       "distribution": "internal",
       "environment": "preview",
+      "channel": "pilot",
       "env": {
         "APP_ENV": "preview",
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
@@ -34,19 +54,26 @@
         "EXPO_PUBLIC_DEFAULT_COMPETITION_ID": "00000000-0000-4000-8000-000000000031",
         "EXPO_PUBLIC_DEFAULT_MAP_CENTER": "67.05,24.89"
       },
-      "android": { "buildType": "apk", "withoutCredentials": true }
+      "android": {
+        "buildType": "apk",
+        "withoutCredentials": true
+      }
     },
     "preview": {
       "extends": "base",
       "distribution": "internal",
       "environment": "preview",
-      "env": { "APP_ENV": "preview" },
+      "env": {
+        "APP_ENV": "preview"
+      },
       "channel": "preview"
     },
     "production": {
       "extends": "base",
       "environment": "production",
-      "env": { "APP_ENV": "production" },
+      "env": {
+        "APP_ENV": "production"
+      },
       "channel": "production",
       "autoIncrement": true
     }

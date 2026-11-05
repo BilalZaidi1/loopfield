@@ -36,6 +36,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
   runtimeVersion: { policy: 'fingerprint' },
+  // Over-the-air JavaScript updates (Expo Update). A build only takes updates published for its own channel and
+  // native fingerprint; if none is available, or the download is slow, the bundled code runs.
+  updates: { url: `https://u.expo.dev/${process.env.EAS_PROJECT_ID ?? '2734ce29-57cb-4a7e-b82a-58ecbe115a1e'}`, checkAutomatically: 'ON_LOAD', fallbackToCacheTimeout: 0 },
   icon: './assets/icon.png',
   ios: {
     bundleIdentifier: BUNDLE_ID + suffix,
