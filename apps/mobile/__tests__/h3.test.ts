@@ -1,0 +1,45 @@
+import { latLngToCell } from 'h3-js';
+import { bigintCellToH3, boundsArea, cellsToFeatures, MAX_VIEWPORT_DEG2, roundBounds, summarizeCells, type ViewportCell } from '@/territory/h3';
+
+const palette = { landMine: '#00AA00', unavailable: '#777777' };
+const cell = (lat: number, lng: number) => latLngToCell(lat, lng, 11);
+
+describe('territory rendering helpers (display only, never ownership)', () => {
+  const cells: ViewportCell[] = [
+    { cell: cell(24.9, 67.05), status: 'controlled', controller_key: 'me', controller_handle: 'me', controller_name: 'Me', is_me: true },
+    { cell: cell(24.901, 67.05), status: 'controlled', controller_key: 'abc', controller_handle: 'other', controller_name: 'Other', is_me: false },
+    { cell: cell(24.902, 67.05), status: 'controlled', controller_key: 'abc', controller_handle: 'other', controller_name: 'Other', is_me: false },
+    { cell: cell(24.903, 67.05), status: 'excluded', controller_key: null, controller_handle: null, controller_name: null, is_me: false },
+    { cell: 'not-a-cell', status: 'controlled', controller_key: 'x', controller_handle: null, controller_name: null, is_me: false }
+  ];
+
+  it('builds closed polygons in lng/lat order and skips invalid cells', () => {
+    const fc = cellsToFeatures(cells, palette);
+    expect(fc.features).toHaveLength(4);
+    const ring = (fc.features[0]!.geometry as GeoJSON.Polygon).coordinates[0]!;
+    expect(ring[0]).toEqual(ring[ring.length - 1]);
+    expect(ring[0]![0]).toBeGreaterThan(60); // longitude first
+    expect(fc.features[0]!.properties!.color).toBe(palette.landMine);
+    expect(fc.features[3]!.properties!.color).toBe(palette.unavailable);
+  });
+
+  it('summarizes the view for the accessible text alternative', () => {
+    const s = summarizeCells(cells);
+    expect(s.mine).toBe(1);
+    expect(s.others).toBe(3);
+    expect(s.unavailable).toBe(1);
+    expect(s.topControllers[0]).toEqual({ name: 'Other', cells: 2, mine: false });
+  });
+
+  it('converts bigint-as-text exploration cells without precision loss', () => {
+    const h = cell(24.9, 67.05);
+    expect(bigintCellToH3(BigInt(`0x${h}`).toString())).toBe(h);
+  });
+
+  it('rounds viewports outward and flags oversized boxes like the server guard', () => {
+    const b = roundBounds({ minLng: 67.0512, minLat: 24.8899, maxLng: 67.0611, maxLat: 24.9001 });
+    expect(b.minLng).toBeLessThanOrEqual(67.0512);
+    expect(b.maxLat).toBeGreaterThanOrEqual(24.9001);
+    expect(boundsArea({ minLng: 0, minLat: 0, maxLng: 1, maxLat: 1 }) > MAX_VIEWPORT_DEG2).toBe(true);
+  });
+});
