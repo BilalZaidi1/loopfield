@@ -58,7 +58,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const scheme = mode === 'system' ? (system === 'dark' ? 'dark' : 'light') : mode;
   const theme = themes[scheme];
   useEffect(() => {
-    void SystemUI.setBackgroundColorAsync(theme.palette.bg).catch(() => {});
+    Promise.resolve()
+      .then(() => SystemUI.setBackgroundColorAsync(theme.palette.bg))
+      .catch(() => {});
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
       document.documentElement.style.backgroundColor = theme.palette.bg;
       document.documentElement.style.colorScheme = scheme;

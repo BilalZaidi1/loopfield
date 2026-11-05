@@ -55,7 +55,9 @@ export function BarChart({ data, unit, title, height = 150, format = (v: number)
   const grid = block ? block.chip : p.border;
   const missing = data.filter((d) => d.value === null).length;
   const summary = `${title}. ${values.length} of ${data.length} periods have data${missing ? `, ${missing} without readable data` : ''}. Highest ${values.length ? format(Math.max(...values)) : 'none'} ${unit}.`;
-  const labelEvery = data.length <= 8 ? 1 : Math.ceil(data.length / 7);
+  const [labelsW, setLabelsW] = useState(0);
+  const slotPx = labelsW / n;
+  const labelEvery = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(labelsW / 52))));
   return (
     <View style={{ gap: spacing.sm }}>
       <View accessible accessibilityRole="image" accessibilityLabel={summary}>
@@ -82,12 +84,16 @@ export function BarChart({ data, unit, title, height = 150, format = (v: number)
             })}
           </Svg>
         </Animated.View>
-        <View style={styles.labels}>
-          {data.map((d, i) => (
-            <Txt key={i} variant="micro" color="textMuted" align="center" numberOfLines={1} style={{ flex: 1, fontSize: 11 }}>
-              {i % labelEvery === 0 ? d.label : ''}
-            </Txt>
-          ))}
+        <View style={styles.labels} onLayout={(e) => setLabelsW(e.nativeEvent.layout.width)}>
+          {labelsW > 0
+            ? data.map((d, i) =>
+                i % labelEvery === 0 ? (
+                  <Txt key={i} variant="micro" color="textMuted" align="center" numberOfLines={1} style={{ position: 'absolute', left: Math.min(Math.max(0, i * slotPx + slotPx / 2 - 26), labelsW - 52), width: 52, fontSize: 11 }}>
+                    {d.label}
+                  </Txt>
+                ) : null
+              )
+            : null}
         </View>
       </View>
       {missing > 0 ? <Txt variant="caption">Dashed markers mean no readable data for that period, not zero.</Txt> : null}
@@ -163,6 +169,6 @@ export function DataTable({ rows, header }: { rows: string[][]; header?: string[
 }
 
 const styles = StyleSheet.create({
-  labels: { flexDirection: 'row', marginTop: spacing.xs },
+  labels: { height: 16, marginTop: spacing.xs },
   toggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', minHeight: 40 }
 });

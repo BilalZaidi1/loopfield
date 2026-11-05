@@ -50,7 +50,7 @@ export default function PostDetail() {
         p.comments_enabled ? (
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm }}>
             <View style={{ flex: 1 }}>
-              <TextField label="Add a comment" value={text} onChangeText={setText} multiline maxLength={SOCIAL_RULES.maxCommentChars.value} />
+              <TextField label="Add a comment" labelHidden compact placeholder="Add a comment" value={text} onChangeText={setText} multiline maxLength={SOCIAL_RULES.maxCommentChars.value} />
             </View>
             <IconButton icon="send" label="Post comment" variant="soft" onPress={() => add.mutate()} disabled={!text.trim() || add.isPending} />
           </View>

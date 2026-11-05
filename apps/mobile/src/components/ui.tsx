@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -596,6 +597,7 @@ export function Toggle({ label, description, value, onChange, disabled }: { labe
         trackColor={{ true: p.primaryFill, false: p.borderStrong }}
         thumbColor="#FFFFFF"
         ios_backgroundColor={p.borderStrong}
+        {...(Platform.OS === 'web' ? ({ activeThumbColor: '#FFFFFF', activeTrackColor: p.primaryFill } as object) : null)}
       />
     </View>
   );
@@ -630,8 +632,10 @@ export function Segmented<T extends string>({ options, value, onChange, label }:
   );
 }
 
-export function TextField({ label, value, onChangeText, error, secure, multiline, maxLength, placeholder, autoCapitalize = 'sentences', keyboardType, autoComplete, hint, onSubmitEditing, returnKeyType, autoFocus, editable = true, labelHidden }: {
+export function TextField({ label, value, onChangeText, error, secure, multiline, maxLength, placeholder, autoCapitalize = 'sentences', keyboardType, autoComplete, hint, onSubmitEditing, returnKeyType, autoFocus, editable = true, labelHidden, compact }: {
   label: string;
+  /** Multiline field that starts one line tall (comment and message bars). */
+  compact?: boolean;
   /** Keep the label for screen readers only (compact composers). */
   labelHidden?: boolean;
   value: string;
@@ -657,7 +661,7 @@ export function TextField({ label, value, onChangeText, error, secure, multiline
   return (
     <View style={{ gap: spacing.xs + 2 }}>
       {labelHidden ? null : <Txt variant="label">{label}</Txt>}
-      <View style={[styles.inputWrap, { borderColor: border, borderWidth: focused || error ? 2 : 1, backgroundColor: p.surface, minHeight: multiline ? 112 : 54, opacity: editable ? 1 : 0.6 }]}>
+      <View style={[styles.inputWrap, { borderColor: border, borderWidth: focused || error ? 2 : 1, backgroundColor: p.surface, minHeight: multiline && !compact ? 112 : 54, opacity: editable ? 1 : 0.6 }]}>
         <TextInput
           value={value}
           onChangeText={onChangeText}
@@ -680,7 +684,7 @@ export function TextField({ label, value, onChangeText, error, secure, multiline
           editable={editable}
           selectionColor={p.primary}
           textAlignVertical={multiline ? 'top' : 'center'}
-          style={[type.body, { flex: 1, color: p.text, paddingVertical: multiline ? spacing.md : 0, minHeight: multiline ? 104 : 50 }, customFontsActive ? null : { fontFamily: undefined }]}
+          style={[type.body, { flex: 1, color: p.text, paddingVertical: multiline ? spacing.md : 0, minHeight: multiline && !compact ? 104 : 50, maxHeight: compact ? 140 : undefined }, customFontsActive ? null : { fontFamily: undefined }]}
         />
         {secure ? (
           <Pressable onPress={() => setReveal(!reveal)} accessibilityRole="button" accessibilityLabel={reveal ? 'Hide password' : 'Show password'} hitSlop={6} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>

@@ -7,6 +7,12 @@ import { supabase } from '@/lib/supabase';
 
 export type OAuthProvider = 'apple' | 'google';
 
+/** Providers switched on in the project's public auth settings, Apple first on iOS. */
+export function enabledProviders(external: Record<string, boolean> | undefined, os: string): OAuthProvider[] {
+  const order: OAuthProvider[] = os === 'ios' ? ['apple', 'google'] : ['google', 'apple'];
+  return order.filter((p) => external?.[p] === true);
+}
+
 /**
  * Social sign-in is offered only for providers switched on in the Supabase project (Authentication >
  * Providers). The public auth settings endpoint reports which are enabled, so no button appears for a
@@ -22,8 +28,7 @@ export function useOAuthProviders() {
       const res = await fetch(`${env.supabaseUrl}/auth/v1/settings`, { headers: { apikey: env.supabaseAnonKey } });
       if (!res.ok) return [];
       const body = (await res.json()) as { external?: Record<string, boolean> };
-      const order: OAuthProvider[] = Platform.OS === 'ios' ? ['apple', 'google'] : ['google', 'apple'];
-      return order.filter((p) => body.external?.[p] === true);
+      return enabledProviders(body.external, Platform.OS);
     }
   });
 }

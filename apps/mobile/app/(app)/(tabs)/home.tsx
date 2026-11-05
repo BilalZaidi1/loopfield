@@ -214,10 +214,13 @@ function GroundCard() {
   const s = summary.data;
   return (
     <Card tone="orange" onPress={() => router.push('/map')} accessibilityLabel={`${competition.name}. Open the map`} style={{ flex: 1 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <Icon name="hexagon" color="#121318" size={22} />
-        <Txt variant="heading" style={{ flex: 1 }} numberOfLines={1}>{competition.name}</Txt>
-        {season ? <Badge label={left === 0 ? `Season ${season.number} · last day` : `Season ${season.number} · ${left} days left`} /> : null}
+      <View style={{ gap: spacing.sm }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <Icon name="hexagon" color="#121318" size={22} />
+          <Txt variant="heading" style={{ flex: 1 }} numberOfLines={2}>{competition.name}</Txt>
+          <Icon name="arrow-right" color="#121318" size={22} />
+        </View>
+        {season ? <Badge icon="calendar" label={left === 0 ? `Season ${season.number} · last day` : `Season ${season.number} · ${left} days left`} /> : null}
       </View>
       {!season ? (
         <Txt>No active season right now. Land opens again when the next season starts.</Txt>

@@ -125,7 +125,7 @@ export default function Conversation() {
           <>
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm }}>
               <View style={{ flex: 1 }}>
-                <TextField label="Message" labelHidden placeholder="Message" value={text} onChangeText={setText} multiline maxLength={2000} />
+                <TextField label="Message" labelHidden compact placeholder="Message" value={text} onChangeText={setText} multiline maxLength={2000} />
               </View>
               <PressableScale onPress={() => void send()} disabled={!text.trim() || chat.status !== 'ready'} accessibilityRole="button" accessibilityLabel="Send message" accessibilityState={{ disabled: !text.trim() || chat.status !== 'ready' }} style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: p.primaryFill, alignItems: 'center', justifyContent: 'center', opacity: !text.trim() || chat.status !== 'ready' ? 0.4 : 1 }}>
                 <Icon name="send" color="#FFFFFF" size={22} />

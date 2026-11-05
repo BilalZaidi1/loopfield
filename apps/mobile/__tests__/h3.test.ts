@@ -43,3 +43,23 @@ describe('territory rendering helpers (display only, never ownership)', () => {
     expect(boundsArea({ minLng: 0, minLat: 0, maxLng: 1, maxLat: 1 }) > MAX_VIEWPORT_DEG2).toBe(true);
   });
 });
+
+describe('map drawing helpers', () => {
+  const { gridFeatures, boundsAround, resolutionOf } = require('@/territory/h3') as typeof import('@/territory/h3');
+  it('outlines the visible grid for small views and skips views that would need too many cells', () => {
+    const small = gridFeatures(boundsAround([67.05, 24.89], 0.002, 0.002), 11);
+    expect(small?.features.length).toBeGreaterThan(5);
+    expect(small?.features[0]!.geometry.type).toBe('LineString');
+    expect(gridFeatures(boundsAround([67.05, 24.89], 0.2, 0.2), 11)).toBeNull();
+  });
+  it('summarises a fixed area around a point when no map can be drawn', () => {
+    const b = boundsAround([67.05, 24.89]);
+    expect(b.maxLng - b.minLng).toBeCloseTo(0.024);
+    expect(b.maxLat - b.minLat).toBeCloseTo(0.018);
+  });
+  it('reads the grid resolution from published cells', () => {
+    const { latLngToCell } = require('h3-js') as typeof import('h3-js');
+    expect(resolutionOf([{ cell: latLngToCell(24.89, 67.05, 10) }], 11)).toBe(10);
+    expect(resolutionOf([], 11)).toBe(11);
+  });
+});
