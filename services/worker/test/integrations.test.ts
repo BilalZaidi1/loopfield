@@ -162,6 +162,41 @@ describe('media pipeline strips location metadata (FR39)', () => {
   });
 });
 
+describe('data export (FR09)', () => {
+  it('exports only the requester’s own records and never another runner’s route', async () => {
+    const owner = await createUser(ctx.sql, 'export_owner');
+    const other = await createUser(ctx.sql, 'export_other');
+    const start = Date.now() - 4 * 3600_000;
+    const own = samplePath(circlePath(destination(ORIGIN, 7000, 90), 240), { startT: start });
+    const theirs = samplePath(circlePath(destination(ORIGIN, 7000, 270), 240), { startT: start });
+    await uploadRun(ctx, owner, own, loopEvents(own), null);
+    await uploadRun(ctx, other, theirs, loopEvents(theirs), null);
+    await drain(ctx);
+    const [{ id: exportId }] = (await asUser(owner, (tx) => tx`select public.request_data_export() as id`)) as unknown as [{ id: string }];
+    await drain(ctx);
+    const [row] = await ctx.sql`select status, storage_path, expires_at from public.data_exports where id = ${exportId}`;
+    expect(row!.status).toBe('ready');
+    expect(new Date(row!.expires_at).getTime()).toBeGreaterThan(Date.now());
+    const body = await ctx.blobs.get(BUCKETS.exports, row!.storage_path);
+    const data = JSON.parse(new TextDecoder().decode(body!));
+    expect(data.profile.id).toBe(owner);
+    expect(data.activities).toHaveLength(1);
+    expect(data.activities[0].personal_route).toBeTruthy();
+    const [theirActivity] = await ctx.sql`select id, personal_route from public.activities where user_id = ${other}`;
+    const text = JSON.stringify(data);
+    expect(text).not.toContain(theirActivity!.id);
+    expect(text).not.toContain(theirActivity!.personal_route);
+    expect(data.notes.join(' ')).toMatch(/health data is stored only on your phone/i);
+    // Under RLS as the `authenticated` role, only the owner can see the export row.
+    const visibleTo = (userId: string) => asUser(userId, async (tx) => {
+      await tx`set local role authenticated`;
+      return tx`select id from public.data_exports where id = ${exportId}`;
+    });
+    expect(await visibleTo(other)).toHaveLength(0);
+    expect(await visibleTo(owner)).toHaveLength(1);
+  });
+});
+
 describe('account deletion (FR23) and consent withdrawal', () => {
   it('withdraws land, removes identity and deletes the auth user', async () => {
     const u = await createUser(ctx.sql, 'leaving_runner');

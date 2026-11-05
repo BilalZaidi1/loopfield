@@ -98,7 +98,7 @@ create table public.user_settings (
   default_post_audience text not null default 'followers' check (default_post_audience in ('only_me', 'followers', 'public')),
   full_private_mode boolean not null default false,
   units text not null default 'metric' check (units in ('metric', 'imperial')),
-  analytics_enabled boolean not null default true,
+  analytics_enabled boolean not null default false,
   -- Contest consent flags are written only through set_consent() so they always match the consent ledger.
   territory_competition_enabled boolean not null default false,
   speed_competition_enabled boolean not null default false,

@@ -1,0 +1,126 @@
+# Setup: local development, staging and device builds
+
+The working name **Loopfield** is a placeholder (naming and trademark clearance are open, PRD §22); display name, bundle ID and URL scheme come from environment variables.
+
+## 1. Prerequisites
+
+| Tool | Version | Needed for |
+|---|---|---|
+| Node.js + npm | 22.12 or later 22.x (`.nvmrc`) | everything |
+| PostgreSQL + PostGIS + pgTAP | PostgreSQL 16, PostGIS 3.4, pgTAP 1.3 | database and integration tests (`scripts/test-db.sh`) |
+| psql | 15 or later | tests, `scripts/setup-supabase.sh` (uses `\getenv`) |
+| Deno | 2.9 | edge-function type check and smoke test (optional locally, used in CI) |
+| Supabase CLI | 3.0.0 (pinned in CI) | staging deployment, `db push` rehearsal |
+| EAS CLI | 18 or later | device builds |
+| Xcode / Android Studio | current stable | only for local native builds (`expo run:*`) |
+
+On Ubuntu/Debian: `sudo apt-get install postgresql-16 postgresql-16-postgis-3 postgresql-16-pgtap`. `scripts/test-db.sh` starts a throwaway cluster from `/usr/lib/postgresql/16/bin` on port 54329 (override with `PGBIN`, `PGTEST_PORT`), or uses an existing server when `PGTEST_URL` is set.
+
+## 2. Repository layout
+
+```
+apps/mobile          Expo app (Expo Router, TypeScript); all screens in app/, services in src/
+packages/core        Pure TypeScript rules engine shared by app, edge functions and worker
+supabase/migrations  Schema, RLS, territory and speed engines, social/ops RPCs, jobs, storage, schedules
+supabase/functions   Deno edge functions; _shared/ holds handlers, job registry and a synced copy of core
+supabase/tests       pgTAP suites and a Supabase role/auth/storage shim for plain PostgreSQL
+services/worker      Node job worker (container) running the same job handlers
+scripts              verification, setup, type generation and smoke tests
+docs                 plan, traceability, verification, decisions, manual steps, progress
+```
+
+## 3. Local development
+
+```bash
+npm install                      # root workspaces: core, worker, mobile
+npm run verify                   # every check available on this machine (see docs/VERIFICATION.md)
+```
+
+Individual checks: `npm run test:core`, `npm run test:db`, `npm run test:worker`, `npm run test:edge` (needs Deno), `npm run test:cli-push` (needs the Supabase CLI), `npm run check:queries`, `npm run gen:types` (after any migration change; CI fails on stale types), `npm run sync:core` (after editing `packages/core`; CI checks the copy).
+
+### Full local Supabase stack (optional)
+
+`supabase start` needs Docker. `supabase/config.toml` is set up for it: email confirmations on, the Send Email hook pointing at the local `auth-email-hook` function, deep-link redirect URLs for `loopfield://` and the dev client.
+
+```bash
+export SEND_EMAIL_HOOK_SECRET="v1,whsec_$(openssl rand -base64 32)"   # config.toml requires a well-formed secret
+supabase start
+cp supabase/functions/.env.example supabase/functions/.env               # fill in; same SEND_EMAIL_HOOK_SECRET
+supabase functions serve --env-file supabase/functions/.env
+npm run worker                                                           # or rely on the jobs function + pg_cron
+```
+
+### Mobile app
+
+The app uses native modules (Mapbox, HealthKit, Health Connect, RevenueCat, background location), so it runs in a **development build**, not Expo Go.
+
+```bash
+cp apps/mobile/.env.example apps/mobile/.env     # public client identifiers only
+cd apps/mobile
+npx expo start --dev-client                      # after installing a development build (section 5)
+```
+
+`.env.example` already points at the `loopfield-dev` Supabase project and the EU PostHog project; their keys are public client identifiers. Without `EXPO_PUBLIC_SUPABASE_URL`/`_ANON_KEY` the app shows a configuration screen instead of starting. Optional integrations (Mapbox token, Sentry DSN, RevenueCat keys) are off until set, and the app says so where they would appear.
+
+## 4. Staging (hosted Supabase)
+
+Use an isolated project (the development project is `loopfield-dev`, ref `xcykufhsjyhedkqginay`). Each command below is idempotent. Steps marked **dashboard** cannot be scripted with the tools available; they are also listed in `docs/MANUAL_STEPS.md`.
+
+```bash
+export SUPABASE_PROJECT_REF=xcykufhsjyhedkqginay
+supabase login                                   # or export SUPABASE_ACCESS_TOKEN
+scripts/setup-supabase.sh link migrate           # migrate lists pending migrations and asks first
+scripts/setup-supabase.sh seed                   # development region only; refused when LOOPFIELD_ENV=production
+cp supabase/functions/.env.example supabase/functions/.env   # fill in server secrets (never commit)
+scripts/setup-supabase.sh secrets functions
+export SUPABASE_DB_URL='postgresql://…'          # session pooler string from the dashboard
+export JOBS_RUNNER_SECRET='…'                    # same value as in supabase/functions/.env
+scripts/setup-supabase.sh vault check
+scripts/setup-supabase.sh types                  # optional: types from the hosted schema (should match the committed file)
+```
+
+The development project currently has migrations `…000100`–`…000600` and the seed applied; `migrate` applies `…000700`–`…001400`. That exact path was rehearsed locally with Supabase CLI 3.0.0 (`npm run test:cli-push`), followed by the full pgTAP suite.
+
+**Dashboard: Authentication**
+1. *URL configuration*: Site URL `loopfield://`; redirect URLs `loopfield://*` and `exp+loopfield://*` (add the production scheme or universal-link domain when one exists).
+2. *Providers → Email*: enable email sign-in, confirm email, secure email change; minimum password length 10 with lower, upper and digits (mirrors `config.toml`).
+3. *Hooks → Send Email hook*: HTTPS, URL `https://<ref>.supabase.co/functions/v1/auth-email-hook`, **Generate secret**, then put that secret in `SEND_EMAIL_HOOK_SECRET` and run `scripts/setup-supabase.sh secrets` again. Do not configure custom SMTP: with the hook enabled, Supabase sends no email of its own, so every auth email goes out once, through Resend.
+
+**Job runner.** Jobs run either in the `jobs` edge function (pg_cron calls it every minute once the Vault entries exist) or in the Node worker container (`services/worker`, with `Dockerfile`, `fly.toml` and `render.yaml`). Running both is safe: jobs are claimed with `FOR UPDATE SKIP LOCKED`.
+
+**CI deployment.** `.github/workflows/deploy-staging.yml` is manual (`workflow_dispatch`) and runs in the protected `staging` environment (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, variable `SUPABASE_PROJECT_REF`). It pushes migrations and deploys functions; it never sets function secrets.
+
+### Provider configuration
+
+| Provider | Steps |
+|---|---|
+| **Resend** | Add and verify a sending domain (DNS records); create an API key with sending access → `RESEND_API_KEY`; set `RESEND_FROM`; add a webhook to `https://<ref>.supabase.co/functions/v1/resend-webhook` for `email.sent`, `email.delivered`, `email.bounced`, `email.complained` → signing secret into `RESEND_WEBHOOK_SECRET`. |
+| **Stream Chat** | Create an app (choose the data region); server key and secret → `STREAM_API_KEY`, `STREAM_API_SECRET`; then `STREAM_WEBHOOK_URL=https://<ref>.supabase.co/functions/v1/stream-webhook npm run setup:stream` (dry run), then add `-- --apply`. The script creates the `loopfield_dm` channel type (no read receipts, presence, typing, uploads, link previews or Stream push), restricts grants, keeps auth and permission checks on and subscribes only `message.new`, then reads the configuration back and fails on any difference. The app needs no Stream variable: the token endpoint returns the public key. |
+| **RevenueCat** | Only for sandbox testing of the P2 subscription (paywall off by default). Create the project and the `premium` entitlement; public SDK keys → `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `_ANDROID_KEY`; secret API key → `REVENUECAT_SECRET_API_KEY`; webhook to `/functions/v1/revenuecat-webhook` with an Authorization header value → `REVENUECAT_WEBHOOK_AUTH`. Products and store agreements are manual. |
+| **Sentry** | Create projects `loopfield-mobile` (React Native) and `loopfield-backend` (Node/Deno) in org `futurama-labs` (EU region, `https://de.sentry.io`). Mobile DSN → `EXPO_PUBLIC_SENTRY_DSN`; backend DSN → `SENTRY_DSN_BACKEND`; an org auth token with `project:releases` → `SENTRY_AUTH_TOKEN` as an EAS secret for source maps. Session Replay stays disabled in code. |
+| **Mapbox** | Public token (`pk.`) restricted to the app's bundle identifiers → `EXPO_PUBLIC_MAPBOX_TOKEN`; secret token with `DOWNLOADS:READ` → `RNMAPBOX_MAPS_DOWNLOAD_TOKEN` as an EAS secret (native SDK download). Telemetry is disabled in code; attribution and logo stay visible. |
+| **PostHog** | Project "Default project", EU cloud (`https://eu.i.posthog.com`). The dashboard *Loopfield pilot metrics* and its five funnel/retention insights already exist; they fill once events arrive. In the client, analytics is opt-in (`defaultOptIn: false`), autocapture, lifecycle events and session replay are off, GeoIP enrichment is disabled, and every event passes the allowlist in `packages/core/src/analytics/events.ts`. |
+| **Expo push** | `EXPO_ACCESS_TOKEN` (with enhanced push security enabled for the project) lets the backend send pushes; APNs key and FCM credentials are uploaded through `eas credentials`. |
+
+## 5. Device builds (EAS)
+
+```bash
+npm install -g eas-cli
+cd apps/mobile
+eas init                                   # creates the EAS project; put the ID in EAS_PROJECT_ID
+eas env:create --environment development --name EXPO_PUBLIC_SUPABASE_URL --value … --visibility plaintext
+eas env:create --environment development --name RNMAPBOX_MAPS_DOWNLOAD_TOKEN --value … --visibility secret
+eas env:create --environment development --name SENTRY_AUTH_TOKEN --value … --visibility secret
+eas build --profile development --platform ios        # internal distribution to registered devices
+eas build --profile development --platform android    # APK
+npx expo start --dev-client
+```
+
+Repeat the `eas env:create` lines for each `EXPO_PUBLIC_*` value in `.env.example`. Profiles in `eas.json`: `development` (dev client, internal), `development-simulator`, `preview` (internal, `preview` channel), `production` (store builds; not to be submitted without authorization). Bundle identifiers are `dev.loopfield.app.development` / `.preview` / `dev.loopfield.app` unless `APP_BUNDLE_ID` is set.
+
+Platform notes:
+* **HealthKit** needs the HealthKit capability on the App ID (the config plugin adds the entitlement) and a physical iPhone.
+* **Health Connect** needs Android 9+ with the Health Connect app (built in from Android 14). Play Console requires the health permissions declaration before release.
+* **Background location**: iOS "Always" permission and Android `ACCESS_BACKGROUND_LOCATION` with a foreground service; both stores review the justification (texts are in `app.config.ts`).
+
+Local native builds also work (`npx expo prebuild` then `npx expo run:ios|android`), with `RNMAPBOX_MAPS_DOWNLOAD_TOKEN` exported in the shell. The generated `ios/` and `android/` folders are not committed.

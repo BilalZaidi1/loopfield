@@ -1,5 +1,5 @@
 import { scrubText } from '../core/index.ts';
-import type { Sql } from '../clients.ts';
+import { pgArray, type Sql } from '../clients.ts';
 import { deleteAccount, deleteActivity, exportData, purgeRawEvidence, withdrawCompetition } from './account.ts';
 import { reconcileEntitlement } from './billing.ts';
 import { buildRouteProposal, evaluateAttemptJob, evaluateFoundingAttempt, evaluateLoopJob, reconcileActivity } from './competition.ts';
@@ -57,7 +57,7 @@ export async function runBatch(
   report: (err: unknown, job: JobRow) => void = () => {}
 ): Promise<BatchResult> {
   const sql: Sql = ctx.sql;
-  const jobs = (await sql`select * from internal.claim_jobs(${workerId}, ${sql.array(queues)}::text[], ${limit}, 300)`) as unknown as JobRow[];
+  const jobs = (await sql`select * from internal.claim_jobs(${workerId}, ${pgArray(queues)}::text[], ${limit}, 300)`) as unknown as JobRow[];
   const result: BatchResult = { claimed: jobs.length, succeeded: 0, failed: 0 };
   for (const job of jobs) {
     const handler = HANDLERS[job.kind];

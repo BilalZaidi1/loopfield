@@ -22,6 +22,16 @@ export function getSql(env: ServerEnv, max = 3): Sql {
   return sqlSingleton;
 }
 
+/**
+ * Array bind parameter as a Postgres array literal, for use with an explicit cast: `${pgArray(ids)}::uuid[]`.
+ * postgres.js's sql.array() looks up array type OIDs that it only fetches once a connection is open, so on the
+ * first query of a fresh connection (every edge-function cold start) it sends "a,b" instead of {a,b} and the
+ * cast fails. A quoted literal parsed by the cast does not depend on that state.
+ */
+export function pgArray(values: readonly (string | number | bigint)[]): string {
+  return `{${values.map((v) => `"${String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
+}
+
 export async function closeSql(): Promise<void> {
   if (sqlSingleton) {
     await sqlSingleton.end({ timeout: 5 });

@@ -12,7 +12,7 @@ export const env = {
   mapboxToken: v(process.env.EXPO_PUBLIC_MAPBOX_TOKEN),
   mapboxStyleUrl: v(process.env.EXPO_PUBLIC_MAPBOX_STYLE_URL) ?? 'mapbox://styles/mapbox/outdoors-v12',
   posthogKey: v(process.env.EXPO_PUBLIC_POSTHOG_KEY),
-  posthogHost: v(process.env.EXPO_PUBLIC_POSTHOG_HOST) ?? 'https://us.i.posthog.com',
+  posthogHost: v(process.env.EXPO_PUBLIC_POSTHOG_HOST) ?? 'https://eu.i.posthog.com',
   sentryDsn: v(process.env.EXPO_PUBLIC_SENTRY_DSN),
   revenueCatIosKey: v(process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY),
   revenueCatAndroidKey: v(process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY),

@@ -18,6 +18,7 @@ import {
 import { candidateCells, cellRecords, visitedCells } from '../h3cells.ts';
 import { loadEvidence } from './evidence.ts';
 import { NonRetryableError, type JobContext, type JobHandler } from './context.ts';
+import { pgArray } from '../clients.ts';
 
 const str = (v: unknown, name: string): string => {
   if (typeof v !== 'string' || !v) throw new NonRetryableError(`payload.${name} missing`);
@@ -40,13 +41,13 @@ export const reconcileActivity: JobHandler = async (payload, ctx) => {
     where id = ${ev.activityId} and deleted_at is null`;
   if (usable.length) {
     const cells = visitedCells(usable, TERRITORY_RULES.explorationResolution.value);
-    await ctx.sql`select internal.record_exploration(${ev.activityId}::uuid, ${ev.userId}::uuid, ${ctx.sql.array(cells)}::bigint[], ${ev.startedAt})`;
+    await ctx.sql`select internal.record_exploration(${ev.activityId}::uuid, ${ev.userId}::uuid, ${pgArray(cells)}::bigint[], ${ev.startedAt})`;
   }
 };
 
 async function setClaimOutcome(ctx: JobContext, claimId: string, status: string, reasons: ReasonCode[], extra: { completedAt?: number | null; lengthM?: number } = {}) {
   await ctx.sql`
-    update public.loop_claims set status = ${status}, reasons = ${ctx.sql.array(reasons)}::text[], validated_at = now(),
+    update public.loop_claims set status = ${status}, reasons = ${pgArray(reasons)}::text[], validated_at = now(),
            completed_at = coalesce(${extra.completedAt ? new Date(extra.completedAt) : null}, completed_at),
            length_m = coalesce(${extra.lengthM ?? null}, length_m)
      where id = ${claimId} and status = 'processing'`;
@@ -82,14 +83,14 @@ export const evaluateLoopJob: JobHandler = async (payload, ctx) => {
   const records = cellRecords(candidates, resolution);
   const decIds = records.map((r) => r.cell);
   const existing = new Set<string>(
-    (await ctx.sql`select cell::text as cell from internal.territory_cells where cell = any(${ctx.sql.array(decIds)}::bigint[])`).map((r) => r.cell as string)
+    (await ctx.sql`select cell::text as cell from internal.territory_cells where cell = any(${pgArray(decIds)}::bigint[])`).map((r) => r.cell as string)
   );
   const missing = records.filter((r) => !existing.has(r.cell));
   for (let i = 0; i < missing.length; i += 1500) {
     await ctx.sql`select internal.upsert_cells(${ctx.sql.json(missing.slice(i, i + 1500) as never)}::jsonb)`;
   }
   const ring = result.ring.map((p) => [p.lng, p.lat]);
-  const [evaluated] = await ctx.sql`select status from internal.evaluate_claim_geometry(${claimId}::uuid, ${ctx.sql.json(ring as never)}::jsonb, ${ctx.sql.array(decIds)}::bigint[])`;
+  const [evaluated] = await ctx.sql`select status from internal.evaluate_claim_geometry(${claimId}::uuid, ${ctx.sql.json(ring as never)}::jsonb, ${pgArray(decIds)}::bigint[])`;
   if (evaluated?.status === 'eligible') await ctx.sql`select internal.apply_claim(${claimId}::uuid)`;
   ctx.log('loop evaluated', { claimId, status: evaluated?.status, candidates: decIds.length });
 };
@@ -141,7 +142,7 @@ export const evaluateAttemptJob: JobHandler = async (payload, ctx) => {
   }
   const decision = decide(reasons);
   await ctx.sql`
-    update public.speed_attempts set status = ${decision}, reasons = ${ctx.sql.array(reasons)}::text[], validated_at = now(),
+    update public.speed_attempts set status = ${decision}, reasons = ${pgArray(reasons)}::text[], validated_at = now(),
            algorithm_version = ${result?.ruleVersion ?? SPEED_RULES.version},
            start_crossing_at = ${result?.startCrossingT ? new Date(result.startCrossingT) : null},
            completed_at = ${result?.finishCrossingT ? new Date(result.finishCrossingT) : null},
@@ -236,7 +237,7 @@ export const evaluateFoundingAttempt: JobHandler = async (payload, ctx) => {
   const [att] = await ctx.sql`
     insert into public.speed_attempts (activity_id, user_id, course_version_id, competition_id, season_id, status, reasons, rule_version, algorithm_version,
                                       start_crossing_at, completed_at, elapsed_ms, uncertainty_ms, coverage, is_founding, received_at, validated_at, publish_after)
-    values (${p.source_activity_id}, ${p.creator_id}, ${courseVersionId}, ${p.competition_id}, ${p.season_id}, ${r.decision}, ${ctx.sql.array(r.reasons)}::text[],
+    values (${p.source_activity_id}, ${p.creator_id}, ${courseVersionId}, ${p.competition_id}, ${p.season_id}, ${r.decision}, ${pgArray(r.reasons)}::text[],
             ${SPEED_RULES.version}, ${r.ruleVersion}, ${r.startCrossingT ? new Date(r.startCrossingT) : null}, ${r.finishCrossingT ? new Date(r.finishCrossingT) : null},
             ${r.elapsedMs}, ${r.uncertaintyMs}, ${r.coverage}, true, ${p.received_at}, now(), now())
     on conflict (activity_id, course_version_id) do nothing returning id`;

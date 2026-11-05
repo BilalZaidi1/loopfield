@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { AppState } from 'react-native';
 import { env } from '@/config/env';
+import type { Database } from './database.types';
 
 /**
  * Session storage in the platform keychain/keystore. Sessions can exceed SecureStore's per-item size
@@ -35,12 +36,13 @@ export const secureSessionStorage = {
   }
 };
 
-let client: SupabaseClient | null = null;
+let client: SupabaseClient<Database> | null = null;
 
-export function supabase(): SupabaseClient {
+/** Typed client: table, column and RPC names are checked against the generated schema types. */
+export function supabase(): SupabaseClient<Database> {
   if (!client) {
     if (!env.supabaseUrl || !env.supabaseAnonKey) throw new Error('Supabase is not configured (EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY).');
-    client = createClient(env.supabaseUrl, env.supabaseAnonKey, {
+    client = createClient<Database>(env.supabaseUrl, env.supabaseAnonKey, {
       auth: { storage: secureSessionStorage, autoRefreshToken: true, persistSession: true, detectSessionInUrl: false, flowType: 'pkce' }
     });
     // Refresh tokens only while the app is in the foreground (Supabase React Native guidance).

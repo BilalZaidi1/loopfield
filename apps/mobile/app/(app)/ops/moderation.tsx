@@ -22,7 +22,7 @@ interface QueueRow {
 /** Moderation queue and content appeals (moderator role). */
 export default function ModerationQueue() {
   const qc = useQueryClient();
-  const [status, setStatus] = useState<'open' | 'in_review' | 'resolved'>('open');
+  const [status, setStatus] = useState<'open' | 'in_review' | 'actioned' | 'dismissed'>('open');
   const queue = useQuery({ queryKey: ['ops_moderation_queue', status], queryFn: () => rpc<QueueRow[]>('ops_moderation_queue', { p_status: status, p_limit: 100 }) });
   const appeals = useQuery({
     queryKey: ['ops_content_appeals'],
@@ -42,10 +42,10 @@ export default function ModerationQueue() {
     <Screen onRefresh={() => { void queue.refetch(); void appeals.refetch(); }} refreshing={queue.isRefetching}>
       <Stack.Screen options={{ title: 'Moderation' }} />
       {prompt.element}
-      <Segmented label="Status" value={status} onChange={setStatus} options={[{ value: 'open', label: 'Open' }, { value: 'in_review', label: 'In review' }, { value: 'resolved', label: 'Resolved' }]} />
+      <Segmented label="Status" value={status} onChange={setStatus} options={[{ value: 'open', label: 'Open' }, { value: 'in_review', label: 'In review' }, { value: 'actioned', label: 'Actioned' }, { value: 'dismissed', label: 'Dismissed' }]} />
       {queue.isLoading ? <LoadingState /> : queue.error ? <ErrorState error={queue.error} onRetry={() => void queue.refetch()} /> : queue.data?.length ? (
         queue.data.map((c) => (
-          <Row key={c.id} title={`${c.object_type} · ${c.categories.join(', ')}`} subtitle={`${c.report_count} report(s) · ${fmtRelative(c.created_at)}`} right={<Badge label={c.priority} tone={c.priority === 'high' ? 'danger' : 'muted'} />} onPress={() => router.push({ pathname: '/ops/moderation/[id]', params: { id: c.id } })} />
+          <Row key={c.id} title={`${c.object_type} · ${c.categories.join(', ')}`} subtitle={`${c.report_count} report(s) · ${fmtRelative(c.created_at)}`} right={<Badge label={c.priority} tone={c.priority === 'urgent' ? 'danger' : 'muted'} />} onPress={() => router.push({ pathname: '/ops/moderation/[id]', params: { id: c.id } })} />
         ))
       ) : <EmptyState title="Queue is empty" />}
       <Section title="Content appeals">

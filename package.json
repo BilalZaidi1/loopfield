@@ -18,7 +18,14 @@
     "test:db": "bash scripts/test-db.sh",
     "test:worker": "npm run test -w @loopfield/worker",
     "worker": "npm run start -w @loopfield/worker",
-    "verify": "bash scripts/verify.sh"
+    "verify": "bash scripts/verify.sh",
+    "test:edge": "node scripts/smoke-functions.mjs",
+    "test:cli-push": "bash scripts/test-cli-push.sh",
+    "gen:types": "bash scripts/gen-types.sh",
+    "check:queries": "node scripts/check-client-queries.mjs",
+    "sync:core": "node scripts/sync-core.mjs",
+    "setup:supabase": "bash scripts/setup-supabase.sh",
+    "setup:stream": "tsx scripts/setup-stream.ts"
   },
   "devDependencies": {
     "typescript": "~6.0.3"

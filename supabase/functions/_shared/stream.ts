@@ -31,9 +31,22 @@ export const DM_CHANNEL_TYPE_CONFIG = {
   // change membership from a client; channels are created server-side. Frozen channels (blocks) reject sends.
   // Permission IDs follow Stream's permission catalogue; scripts/setup-stream.ts verifies them on apply.
   grants: {
+    anonymous: [],
+    guest: [],
     user: [],
     channel_member: ['read-channel', 'read-channel-members', 'create-message', 'update-message-owner', 'delete-message-owner', 'add-links', 'mute-channel', 'flag-message']
   }
+} as const;
+
+/**
+ * App-level settings the privacy model depends on. Auth and permission checks must stay on (Stream lets
+ * development apps disable them); only `message.new` webhooks are delivered, to the backend's safe
+ * notification path.
+ */
+export const STREAM_APP_REQUIREMENTS = {
+  disable_auth_checks: false,
+  disable_permissions_checks: false,
+  webhook_events: ['message.new']
 } as const;
 
 let client: StreamChat | null = null;

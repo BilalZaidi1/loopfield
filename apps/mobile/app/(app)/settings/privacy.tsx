@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { COMPETITION_CONSENT_VERSION } from '@/config/env';
 import { friendlyError, rpc } from '@/lib/api';
 import { setAnalyticsConsent } from '@/lib/analytics';
+import type { TablesUpdate } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
 import { Banner, Button, Card, Row, Screen, Section, Segmented, TextField, Toggle, Txt } from '@/components/ui';
 import { useSession } from '@/state/session';
@@ -38,16 +39,17 @@ export default function Privacy() {
     },
     onError: (e) => Alert.alert('Not saved', friendlyError(e))
   });
-  const updateSettings = (patch: Record<string, unknown>) => run.mutate(async () => {
+  const updateSettings = (patch: TablesUpdate<'user_settings'>) => run.mutate(async () => {
     const { error } = await supabase().from('user_settings').update(patch).eq('user_id', userId!);
     if (error) throw error;
   });
-  const updateProfile = (patch: Record<string, unknown>) => run.mutate(async () => {
+  const updateProfile = (patch: TablesUpdate<'profiles'>) => run.mutate(async () => {
     const { error } = await supabase().from('profiles').update(patch).eq('id', userId!);
     if (error) throw error;
   });
 
   const addArea = async () => {
+    if (!userId) return;
     const perm = await Location.requestForegroundPermissionsAsync();
     if (perm.status !== 'granted') return Alert.alert('Location needed', 'Allow location to place a protected area where you are now.');
     const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });

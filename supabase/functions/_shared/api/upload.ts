@@ -12,7 +12,7 @@ import {
   type SessionTicketClaims
 } from '../core/index.ts';
 import { BUCKETS, evidenceChunkPath, type BlobStore } from '../blobs.ts';
-import type { Sql } from '../clients.ts';
+import { pgArray, type Sql } from '../clients.ts';
 import type { ServerEnv } from '../env.ts';
 import { HttpError, isUuid } from '../http.ts';
 
@@ -169,7 +169,7 @@ export async function finalizeActivity(sql: Sql, blobs: BlobStore, env: ServerEn
     const status = reasons.length ? (reasons.includes('duplicate_evidence') || reasons.includes('ticket_reused') ? 'invalid' : 'unranked') : 'processing';
     const [claim] = await sql`
       insert into public.loop_claims (activity_id, user_id, competition_id, season_id, status, reasons, rule_version, received_at)
-      values (${req.activityId}, ${userId}, ${ticket.competitionId}, ${ticket.seasonId}, ${status}, ${sql.array(reasons)}::text[], ${ticket.territoryRulesVersion}, ${receivedAt})
+      values (${req.activityId}, ${userId}, ${ticket.competitionId}, ${ticket.seasonId}, ${status}, ${pgArray(reasons)}::text[], ${ticket.territoryRulesVersion}, ${receivedAt})
       on conflict (activity_id) do update set received_at = excluded.received_at returning id`;
     receipt.territoryClaimId = claim!.id;
     receipt.competitive.territory = reasons.length ? reasons : 'queued';
@@ -180,7 +180,7 @@ export async function finalizeActivity(sql: Sql, blobs: BlobStore, env: ServerEn
     const status = reasons.length ? (reasons.includes('duplicate_evidence') || reasons.includes('ticket_reused') ? 'invalid' : 'unranked') : 'processing';
     const [att] = await sql`
       insert into public.speed_attempts (activity_id, user_id, course_version_id, competition_id, season_id, status, reasons, rule_version, received_at)
-      values (${req.activityId}, ${userId}, ${ticket.courseVersionId}, ${ticket.competitionId}, ${ticket.seasonId}, ${status}, ${sql.array(reasons)}::text[], ${ticket.speedRulesVersion}, ${receivedAt})
+      values (${req.activityId}, ${userId}, ${ticket.courseVersionId}, ${ticket.competitionId}, ${ticket.seasonId}, ${status}, ${pgArray(reasons)}::text[], ${ticket.speedRulesVersion}, ${receivedAt})
       on conflict (activity_id, course_version_id) do update set received_at = excluded.received_at returning id`;
     receipt.speedAttemptId = att!.id;
     receipt.competitive.speed = reasons.length ? reasons : 'queued';

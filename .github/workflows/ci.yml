@@ -1,0 +1,91 @@
+# Runs the same checks as `npm run verify` on every push and pull request.
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 30
+    env:
+      PGTEST_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      SUPABASE_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.x
+
+      - name: Install pgTAP in the database container
+        run: |
+          docker exec ${{ job.services.postgres.id }} bash -c \
+            "apt-get update -qq && apt-get install -y -qq postgresql-16-pgtap > /dev/null"
+
+      - name: PostgreSQL client
+        run: psql --version || (sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client)
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Supabase CLI (pinned)
+        run: |
+          npm install --prefix "$RUNNER_TEMP/supabase-cli" --no-audit --no-fund supabase@3.0.0
+          echo "SUPABASE_CLI=$RUNNER_TEMP/supabase-cli/node_modules/.bin/supabase" >> "$GITHUB_ENV"
+
+      - name: Verify
+        run: bash scripts/verify.sh
+        env:
+          DENO: deno
+          VERIFY_LOG_DIR: ${{ runner.temp }}/verify-logs
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-logs
+          path: ${{ runner.temp }}/verify-logs
+          retention-days: 7
+
+  mobile-bundle:
+    # JavaScript bundles for both platforms (no native build, no signing, no store upload).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: expo export (android + ios)
+        working-directory: apps/mobile
+        run: npx expo export --platform android --platform ios --output-dir "$RUNNER_TEMP/export"
+        env:
+          # Public, non-secret placeholders: the bundle must build without real configuration.
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_placeholder
+      - name: expo prebuild (config plugins and native manifests)
+        working-directory: apps/mobile
+        run: npx expo prebuild --clean --no-install --platform all

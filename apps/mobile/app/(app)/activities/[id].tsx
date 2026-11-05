@@ -115,7 +115,7 @@ function NotesForm({ activity, onSaved }: { activity: ActivityJson; onSaved: () 
   return (
     <Section title="Your notes">
       <TextField label="Title" value={title} onChangeText={setTitle} maxLength={80} />
-      <TextField label="Notes" value={notes} onChangeText={setNotes} multiline maxLength={2000} />
+      <TextField label="Notes" value={notes} onChangeText={setNotes} multiline maxLength={1000} />
       <Segmented label="Perceived effort (optional)" value={effort} onChange={setEffort} options={[{ value: 'none', label: '—' }, ...['1', '3', '5', '7', '10'].map((v) => ({ value: v, label: v }))]} />
       <Button variant="secondary" label="Save notes" onPress={() => void save()} />
     </Section>

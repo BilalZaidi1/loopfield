@@ -3,7 +3,7 @@ import { circlePath, loopEvents, ORIGIN, samplePath, speedEvents } from '../../.
 import { destination } from '../../../packages/core/src/index.ts';
 import { issueTicket } from '../../../supabase/functions/_shared/api/sessions.ts';
 import { HttpError } from '../../../supabase/functions/_shared/http.ts';
-import type { Sql } from '../../../supabase/functions/_shared/clients.ts';
+import { pgArray, type Sql } from '../../../supabase/functions/_shared/clients.ts';
 import { COMP, createUser, drain, grantConsent, makeCtx, uploadRun } from './helpers.ts';
 
 const ctx = makeCtx(8);
@@ -102,7 +102,7 @@ describe('recording upload → validation → territory (server-authoritative)',
     const incremental = await controlSnapshot();
     await ctx.sql`select internal.replay_season(${COMP}::uuid, '00000000-0000-4000-8000-000000000041'::uuid)`;
     expect(await controlSnapshot()).toEqual(incremental);
-    const owners = await ctx.sql`select controller_id, count(*)::int as n from internal.cell_control where controller_id = any(${ctx.sql.array(users)}::uuid[]) group by controller_id`;
+    const owners = await ctx.sql`select controller_id, count(*)::int as n from internal.cell_control where controller_id = any(${pgArray(users)}::uuid[]) group by controller_id`;
     expect(owners.length).toBe(3); // later loops took only the overlap; earlier owners keep their remainder
   });
 
@@ -141,5 +141,40 @@ describe('recording upload → validation → territory (server-authoritative)',
     const [title] = await ctx.sql`select champion_id from internal.speed_titles where course_version_id = ${cv!.current_version_id}`;
     expect(title!.champion_id).toBe(fast.user);
     expect(await controlSnapshot()).toEqual(landBefore); // speed-only sessions change no cells
+  });
+});
+
+describe('private exploration (FR19)', () => {
+  it('survives losing the claimed land and is withdrawn only when its source run is deleted', async () => {
+    const first = await createUser(ctx.sql, 'explore_first');
+    const second = await createUser(ctx.sql, 'explore_second');
+    await grantConsent(ctx.sql, first, ['territory_competition']);
+    await grantConsent(ctx.sql, second, ['territory_competition']);
+    const center = destination(ORIGIN, 5000, 225);
+    const start = Date.now() - 3 * 3600_000;
+    const run = async (u: string, t0: number) => {
+      const ticket = await issueTicket(ctx.sql, ctx.env, u, { mode: 'territory', competitionId: COMP }, t0 - 60_000);
+      const s = samplePath(circlePath(center, 250), { startT: t0 });
+      const receipt = await uploadRun(ctx, u, s, loopEvents(s), ticket);
+      await drain(ctx);
+      return receipt.activityId;
+    };
+    const explored = async (u: string) => (await ctx.sql`select count(*)::int as n from public.exploration_cells where user_id = ${u}`)[0]!.n as number;
+    const controlled = async (u: string) => (await ctx.sql`select count(*)::int as n from internal.cell_control where controller_id = ${u} and competition_id = ${COMP}`)[0]!.n as number;
+
+    const firstRun = await run(first, start);
+    const exploredBefore = await explored(first);
+    expect(exploredBefore).toBeGreaterThan(0);
+    expect(await controlled(first)).toBeGreaterThan(0);
+
+    await run(second, start + 30 * 60_000); // same loop, completed later: takes the land
+    expect(await controlled(first)).toBe(0);
+    expect(await controlled(second)).toBeGreaterThan(0);
+    expect(await explored(first)).toBe(exploredBefore); // losing land leaves private history intact
+
+    await asUser(ctx.sql, first, (tx) => tx`select public.delete_activity(${firstRun}::uuid)`);
+    await drain(ctx);
+    expect(await explored(first)).toBe(0); // derived history follows its source
+    expect(await controlled(second)).toBeGreaterThan(0); // the other runner's result is unaffected
   });
 });

@@ -1,41 +1,36 @@
 # Progress log
 
-Working file kept current so work survives context limits. Newest entries first.
+Working file kept current so work survives context limits. Newest first.
 
-## Status snapshot (2026-11-04)
+## Status snapshot (5 Nov 2026)
 
 | Area | State | Evidence |
 |---|---|---|
-| Rules engine `packages/core` | Implemented | `npm run test:core` — 67 unit tests, typecheck clean |
-| Database migrations (13) | Implemented, applied to local PG16+PostGIS 3.4 | `npm run test:db` — 114 pgTAP assertions across 5 files |
-| Edge functions / worker | In progress | — |
-| Mobile app | Not started | — |
-| Connectors | Supabase dev project `loopfield-dev` (ref `xcykufhsjyhedkqginay`, ap-south-1, Free org) created; nothing applied yet | — |
+| Rules engine `packages/core` | Done | 67 unit tests |
+| Database (14 migrations) | Done locally; dev project has `…000100`–`…000600` + seed | 114 pgTAP assertions; `supabase db push` rehearsal passes |
+| Edge functions (10) and worker | Done; not deployed | 21 integration tests; `deno check`; 24 Deno HTTP smoke checks |
+| Mobile app (49 screens + subscription, club creation, operator tools) | Done; no device run | typecheck, lint, 21 jest tests, Android/iOS bundles, prebuild |
+| Generated DB types + query checks | Done | `gen-types --check`, `check:queries` |
+| Connectors | Supabase dev project, PostHog dashboard done; Sentry blocked (403); Resend, Stream, RevenueCat, Mapbox, EAS need the owner | `docs/VERIFICATION.md` §Hosted resources |
+| Docs, CI, setup scripts | Done | `docs/*`, `.github/workflows/*`, `scripts/*` |
 
-## Decisions recorded
+## 5 Nov 2026
 
-* Working codename **Loopfield** (placeholder; naming/clearance is an open PRD decision).
-* Expo SDK 58 / React Native 0.88.1 / React 19.3 / TypeScript ~6.0 (template default; typescript-eslint supports <6.1).
-* H3 is not available on Supabase (checked `list_extensions`): the worker computes H3 cells with `h3-js`; PostGIS remains authoritative for validity, area, inward band, containment, exclusions and masks.
-* Partition locking via transaction advisory locks on H3 res-7 parents (sorted) instead of row-lock ordering.
-* Published vs authoritative state kept separately (cell_control vs cell_control_public; speed_titles.published_*) to enforce the 30-minute publication delay.
-* Fail-closed eligibility: claims in regions without a reviewed exclusion set get `eligibility_data_unavailable`.
-* Contest consent flags only change through `set_consent` (column privileges); withdrawal queues result withdrawal.
-* Route geometry is built server-side from evidence; clients never upload route geometry.
-* Dev seed = one labelled development region (Karachi test rectangle), no users or activity.
+* Added generated Supabase types (postgres-meta over the migrations) and typed the app's client; RPC names are now compile-checked and `scripts/check-client-queries.mjs` checks select columns and RPC arguments.
+* Installed Deno 2.9.6 and Supabase CLI 3.0.0 in the workspace: all edge functions type-check; a Deno smoke test exercises every function over HTTP; `supabase db push` applies all migrations to a fresh database and the pgTAP suite passes on it.
+* Fixed two runtime defects found that way (postgres.js array parameters on cold start; `ConfigError` reported as 500) with regression tests; fixed a protected-area insert guard and a deprecated config key; added the missing data-export (FR09) and exploration (FR19) tests.
+* Wrote `scripts/verify.sh`, `setup-supabase.sh`, `setup-stream.ts`, `gen-types.sh`, `test-cli-push.sh`, `smoke-functions.mjs`, CI and staging workflows, `supabase/functions/.env.example`, and the docs.
+* Remote migrations `…000700`+ were left for the owner (`scripts/setup-supabase.sh migrate`): the connector's confirmation for statements containing `DELETE` had been cancelled by the client and was not retried.
 
-## Commands
+## 4 Nov 2026
 
-```
-npm install                 # root (workspaces)
-npm run test:core           # rules engine
-npm run test:db             # migrations + pgTAP (starts a throwaway PG16 cluster on :54329)
-```
+* Rules engine, schema, RLS, territory and speed engines, social and ops APIs, jobs, storage, schedules; pgTAP suite with a Supabase shim.
+* Edge functions, shared job handlers, Node worker, integration tests.
+* Mobile app: all screens, recording and upload queue, maps, chat, billing, push, on-device health.
+* Supabase `loopfield-dev` created (ap-south-1); first six migrations and the seed applied; advisors reviewed; performance fixes written as migration `…001400`. PostHog dashboard and five insights created. Sentry project creation refused for the member account.
 
 ## Next steps
 
-1. Job handlers + worker (Node) + `jobs` edge function; integration tests incl. concurrent claims.
-2. Edge functions: session-ticket, activity-upload, chat, stream-webhook, revenuecat-webhook, auth-email-hook, resend-webhook, media/account helpers.
-3. Mobile app (49 screens + subscription + ops).
-4. Apply migrations to `loopfield-dev`, generate types, deploy functions, Sentry projects, PostHog dashboards.
-5. Traceability, verification report, setup docs.
+1. Owner: `docs/MANUAL_STEPS.md` section A (migrations, secrets, functions, auth hook, Resend, Stream, Sentry, Mapbox, EAS).
+2. First development builds on one iPhone and one mid-range Android; run the device checks in `docs/MANUAL_STEPS.md` B5.
+3. Field calibration of the proposed thresholds before any public competition.

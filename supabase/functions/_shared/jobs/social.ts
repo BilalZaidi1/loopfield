@@ -2,6 +2,7 @@ import { BUCKETS } from '../blobs.ts';
 import { dmChannelId, inQuietHours, jpegDimensions, safePushPreview, SOCIAL_RULES, stripJpegMetadata, UnsupportedImageError, type NotificationPrefs } from '../core/index.ts';
 import { clubInvitationEmail, sha256Hex } from '../email.ts';
 import { NonRetryableError, type JobHandler } from './context.ts';
+import { pgArray } from '../clients.ts';
 
 /** Strip metadata, validate and publish processed derivatives; originals never reach viewers (FR39). */
 export const processPostMedia: JobHandler = async (payload, ctx) => {
@@ -93,13 +94,13 @@ export const pushPending: JobHandler = async (payload, ctx) => {
     const preview = safePushPreview(n.kind, n.actor_name ?? null);
     send.push({ id: n.id, ...preview, data: { notification_id: n.id, kind: n.kind, ...(channel ? { channel_id: channel } : {}) } });
   }
-  if (suppressed.length) await ctx.sql`update public.notifications set push_state = 'suppressed' where id = any(${ctx.sql.array(suppressed)}::uuid[])`;
+  if (suppressed.length) await ctx.sql`update public.notifications set push_state = 'suppressed' where id = any(${pgArray(suppressed)}::uuid[])`;
   if (!send.length) return;
   const messages = send.flatMap((s) => tokens.map((t) => ({ to: t.token as string, title: s.title, body: s.body, data: s.data })));
   const results = await ctx.integrations.sendPush(messages);
   const invalid = results.filter((r) => r.invalidToken).map((r) => r.token);
-  if (invalid.length) await ctx.sql`update public.push_tokens set disabled_at = now() where token = any(${ctx.sql.array(invalid)}::text[])`;
-  await ctx.sql`update public.notifications set push_state = ${results.some((r) => r.ok) ? 'sent' : 'failed'} where id = any(${ctx.sql.array(send.map((s) => s.id))}::uuid[])`;
+  if (invalid.length) await ctx.sql`update public.push_tokens set disabled_at = now() where token = any(${pgArray(invalid)}::text[])`;
+  await ctx.sql`update public.notifications set push_state = ${results.some((r) => r.ok) ? 'sent' : 'failed'} where id = any(${pgArray(send.map((s) => s.id))}::uuid[])`;
 };
 
 /** One aggregated competitive update per user per local day (PRD §7), sent at the user's digest hour. */

@@ -1,4 +1,5 @@
 import { env } from '@/config/env';
+import type { Database } from './database.types';
 import { supabase } from './supabase';
 
 export class ApiError extends Error {
@@ -37,9 +38,14 @@ export function friendlyError(err: unknown): string {
   return e?.message && e.message.length < 160 ? e.message : 'Something went wrong. Please try again.';
 }
 
-/** Typed RPC call; authorization is enforced server-side by RLS and SECURITY DEFINER checks. */
-export async function rpc<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
-  const { data, error } = await supabase().rpc(fn, args);
+export type RpcName = keyof Database['public']['Functions'];
+
+/**
+ * RPC call. The function name is checked against the generated schema types; the result type is the
+ * caller's view of the returned JSON. Authorization is enforced server-side by RLS and SECURITY DEFINER checks.
+ */
+export async function rpc<T>(fn: RpcName, args: Record<string, unknown> = {}): Promise<T> {
+  const { data, error } = await supabase().rpc(fn, args as never);
   if (error) {
     const err = new ApiError(error.code ?? 'rpc_error', error.message);
     (err as unknown as { code: string }).code = error.code ?? 'rpc_error';

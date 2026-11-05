@@ -28,7 +28,9 @@ export interface ServerEnv {
   RELEASE: string;
 }
 
-export class ConfigError extends Error {}
+export class ConfigError extends Error {
+  override name = 'ConfigError';
+}
 
 export function readEnv(get: (key: string) => string | undefined): ServerEnv {
   const required = (k: string, ...alts: string[]) => {
