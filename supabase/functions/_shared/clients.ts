@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import postgres from 'postgres';
-import type { ServerEnv } from './env.ts';
+import { ConfigError, type ServerEnv } from './env.ts';
 import { HttpError } from './http.ts';
 
 export type Sql = ReturnType<typeof postgres>;
@@ -30,6 +30,29 @@ export function getSql(env: ServerEnv, max = 3): Sql {
  */
 export function pgArray(values: readonly (string | number | bigint)[]): string {
   return `{${values.map((v) => `"${String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')}}`;
+}
+
+const vaultCache = new Map<string, string>();
+
+/**
+ * Server-only secret: the environment value when set, otherwise the named Supabase Vault entry. Vault
+ * entries are generated inside the database (see scripts/setup-supabase.sh vault), so nobody has to
+ * copy them between systems. Throws ConfigError (HTTP 503 not_configured) when neither exists.
+ */
+export async function serverSecret(sql: Sql, envValue: string | undefined, vaultName: string): Promise<string> {
+  if (envValue) return envValue;
+  const cached = vaultCache.get(vaultName);
+  if (cached) return cached;
+  let value: string | undefined;
+  try {
+    const rows = await sql`select decrypted_secret from vault.decrypted_secrets where name = ${vaultName}`;
+    value = (rows[0]?.decrypted_secret as string | undefined) ?? undefined;
+  } catch {
+    value = undefined; // no Vault (plain PostgreSQL): fall through to the configuration error
+  }
+  if (!value) throw new ConfigError(`Integration not configured: missing ${vaultName}`);
+  vaultCache.set(vaultName, value);
+  return value;
 }
 
 export async function closeSql(): Promise<void> {

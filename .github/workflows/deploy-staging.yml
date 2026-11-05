@@ -1,12 +1,12 @@
-# Manual backend deployment to the staging Supabase project. Protect the `staging` environment with
-# required reviewers (Settings > Environments) so every run is approved by a person.
+# Backend deployment to the hosted development project: applies pending migrations and deploys every edge
+# function, then checks that each function answers. Runs on demand (Actions > Deploy backend > Run workflow)
+# or when commits are pushed to the `deploy/dev` branch.
 #
-# Environment secrets: SUPABASE_ACCESS_TOKEN (scoped: database_write, edge_functions_write, secrets_write),
-#                      SUPABASE_DB_PASSWORD
-# Environment variable: SUPABASE_PROJECT_REF
-# Function secrets are NOT set from CI: they are entered once per project with `scripts/setup-supabase.sh secrets`
-# (or in the dashboard), so provider keys never pass through workflow logs.
-name: Deploy backend (staging)
+# Repository secret:   SUPABASE_ACCESS_TOKEN   (Supabase dashboard > Account > Access tokens)
+# Optional secret:     SUPABASE_DB_PASSWORD    (only if the token lacks database access)
+# Optional variable:   SUPABASE_PROJECT_REF    (defaults to the loopfield-dev project)
+# Function secrets (Stream, Resend, ...) are never set from CI; they are entered once in the Supabase dashboard.
+name: Deploy backend
 on:
   workflow_dispatch:
     inputs:
@@ -18,39 +18,57 @@ on:
         description: Deploy edge functions
         type: boolean
         default: true
+  push:
+    branches: [deploy/dev]
 permissions:
   contents: read
 concurrency:
-  group: deploy-staging
+  group: deploy-backend
   cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: ubuntu-24.04
-    environment: staging
     timeout-minutes: 20
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF || 'xcykufhsjyhedkqginay' }}
       SUPABASE_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
+      - name: Throwaway hook secret for config parsing
+        # config.toml requires a well-formed hook secret to parse; the hosted hook is configured in the dashboard.
+        run: echo "SEND_EMAIL_HOOK_SECRET=v1,whsec_$(openssl rand -base64 32)" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
       - name: Supabase CLI (pinned)
         run: npm install -g --no-audit --no-fund supabase@3.0.0
-      - name: Refuse unexpected targets
+      - name: Check configuration
         run: |
-          test -n "$SUPABASE_PROJECT_REF" || { echo "SUPABASE_PROJECT_REF is not set for the staging environment"; exit 1; }
+          test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::Add the SUPABASE_ACCESS_TOKEN repository secret"; exit 1; }
+          echo "Target project: $SUPABASE_PROJECT_REF"
       - name: Link
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF"
       - name: Pending migrations
-        run: supabase migration list --remote --password "$SUPABASE_DB_PASSWORD"
+        run: supabase migration list --remote ${SUPABASE_DB_PASSWORD:+--password "$SUPABASE_DB_PASSWORD"}
       - name: Apply migrations
-        if: inputs.migrate
-        run: supabase db push --remote --password "$SUPABASE_DB_PASSWORD" --skip-vault --yes
+        if: github.event_name == 'push' || inputs.migrate
+        run: supabase db push --remote --skip-vault --yes ${SUPABASE_DB_PASSWORD:+--password "$SUPABASE_DB_PASSWORD"}
       - name: Deploy edge functions
-        if: inputs.functions
+        if: github.event_name == 'push' || inputs.functions
         run: supabase functions deploy --no-verify-jwt --use-api --yes
+      - name: Check deployed functions answer
+        run: |
+          base="https://$SUPABASE_PROJECT_REF.supabase.co/functions/v1"
+          fail=0
+          check() {  # $1 = path, $2 = accepted status codes
+            code=$(curl -s -o /tmp/body -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{}' "$base/$1")
+            if [[ " $2 " == *" $code "* ]]; then echo "ok   $1 -> $code"; else echo "FAIL $1 -> $code $(head -c 200 /tmp/body)"; fail=1; fi
+          }
+          # User endpoints must reject the missing session (a 503 here would mean the runtime is misconfigured).
+          for fn in session-ticket activity-upload/finalize chat/token account billing-sync jobs; do check "$fn" "401"; done
+          # Webhooks reject the unsigned request, or report not_configured until their provider secret is set.
+          for fn in revenuecat-webhook stream-webhook resend-webhook auth-email-hook; do check "$fn" "401 503"; done
+          exit $fail

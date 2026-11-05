@@ -17,9 +17,9 @@
 #   secrets    supabase secrets set --env-file supabase/functions/.env (server-only values; see .env.example there)
 #   functions  deploy every edge function. Each one verifies its own credentials (user session, webhook signature or
 #              shared secret), so gateway JWT verification is off, matching supabase/config.toml
-#   vault      store jobs_runner_url and jobs_runner_secret in Vault so pg_cron can trigger the `jobs` function.
-#              Needs SUPABASE_DB_URL and JOBS_RUNNER_SECRET in the environment; psql reads them with \getenv,
-#              so the secret never appears in a command line
+#   vault      create the job-runner URL and secret and the ticket-signing secret in Vault, generated inside the
+#              database (existing entries are kept). Needs SUPABASE_DB_URL. Optional JOBS_RUNNER_SECRET /
+#              TICKET_SIGNING_SECRET force specific values; psql reads them with \getenv, never from argv
 #   types      regenerate apps/mobile/src/lib/database.types.ts from the linked project
 #   check      migration status, scheduled jobs and the names (never values) of the Vault entries
 #
@@ -61,21 +61,29 @@ for step in "$@"; do
       supabase functions deploy --no-verify-jwt ${FUNCTIONS_DEPLOY_FLAGS:---use-api}
       ;;
     vault)
+      # Server secrets live in Vault and are generated inside the database, so nobody copies them around:
+      #   jobs_runner_url / jobs_runner_secret  pg_cron -> jobs function trigger (the function reads the same entry)
+      #   ticket_signing_secret                 signs competitive session tickets
+      # Existing entries are kept. Set JOBS_RUNNER_SECRET or TICKET_SIGNING_SECRET only to force a specific value.
       need_db_url
-      [[ -n "${JOBS_RUNNER_SECRET:-}" ]] || { echo "Set JOBS_RUNNER_SECRET (the same value as in supabase/functions/.env)."; exit 2; }
       export JOBS_RUNNER_URL="https://$REF.supabase.co/functions/v1/jobs"
+      export JOBS_RUNNER_SECRET="${JOBS_RUNNER_SECRET:-}" TICKET_SIGNING_SECRET="${TICKET_SIGNING_SECRET:-}"
       psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -q <<'SQL'
 \getenv runner_url JOBS_RUNNER_URL
 \getenv runner_secret JOBS_RUNNER_SECRET
+\getenv ticket_secret TICKET_SIGNING_SECRET
 \o /dev/null
 select vault.update_secret(id, :'runner_url') from vault.secrets where name = 'jobs_runner_url';
 select vault.create_secret(:'runner_url', 'jobs_runner_url', 'Loopfield jobs edge function URL')
  where not exists (select 1 from vault.secrets where name = 'jobs_runner_url');
-select vault.update_secret(id, :'runner_secret') from vault.secrets where name = 'jobs_runner_secret';
-select vault.create_secret(:'runner_secret', 'jobs_runner_secret', 'Shared secret sent as x-jobs-secret')
+select vault.update_secret(id, :'runner_secret') from vault.secrets where name = 'jobs_runner_secret' and :'runner_secret' <> '';
+select vault.create_secret(coalesce(nullif(:'runner_secret', ''), encode(extensions.gen_random_bytes(32), 'hex')), 'jobs_runner_secret', 'Shared secret sent as x-jobs-secret')
  where not exists (select 1 from vault.secrets where name = 'jobs_runner_secret');
+select vault.update_secret(id, :'ticket_secret') from vault.secrets where name = 'ticket_signing_secret' and :'ticket_secret' <> '';
+select vault.create_secret(coalesce(nullif(:'ticket_secret', ''), encode(extensions.gen_random_bytes(48), 'base64')), 'ticket_signing_secret', 'Signs competitive session tickets')
+ where not exists (select 1 from vault.secrets where name = 'ticket_signing_secret');
 SQL
-      echo "vault entries jobs_runner_url and jobs_runner_secret are set"
+      echo "vault entries jobs_runner_url, jobs_runner_secret and ticket_signing_secret are present"
       ;;
     types)
       bash scripts/gen-types.sh --remote
@@ -84,7 +92,7 @@ SQL
       supabase migration list --remote
       if [[ -n "${SUPABASE_DB_URL:-}" ]]; then
         psql "$SUPABASE_DB_URL" -X -q -c "select jobname, schedule from cron.job where jobname like 'loopfield-%' order by 1" \
-          -c "select name from vault.secrets where name in ('jobs_runner_url', 'jobs_runner_secret') order by 1"
+          -c "select name from vault.secrets where name in ('jobs_runner_url', 'jobs_runner_secret', 'ticket_signing_secret') order by 1"
       else
         echo "(set SUPABASE_DB_URL to also list cron jobs and Vault entry names)"
       fi

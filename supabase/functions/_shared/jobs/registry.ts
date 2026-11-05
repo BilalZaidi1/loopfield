@@ -6,6 +6,7 @@ import { buildRouteProposal, evaluateAttemptJob, evaluateFoundingAttempt, evalua
 import { NonRetryableError, type JobContext, type JobHandler, type JobRow } from './context.ts';
 import {
   clubInvitationEmailJob,
+  configureStream,
   deactivateChatUser,
   deletePostMedia,
   dispatchDigests,
@@ -34,7 +35,8 @@ export const HANDLERS: Record<string, JobHandler> = {
   export_data: exportData,
   delete_account: deleteAccount,
   purge_raw_evidence: purgeRawEvidence,
-  reconcile_entitlement: reconcileEntitlement
+  reconcile_entitlement: reconcileEntitlement,
+  configure_stream: configureStream
 };
 
 export const ALL_QUEUES = ['territory', 'speed', 'publication', 'social', 'notifications', 'media', 'email', 'chat', 'account', 'billing', 'maintenance'];

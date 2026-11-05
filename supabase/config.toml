@@ -48,24 +48,35 @@ secrets = "env(SEND_EMAIL_HOOK_SECRET)"
 enabled = true
 file_size_limit = "10MiB"
 
-# Every function verifies its own credentials (user session, webhook signature or shared secret).
+# Every function verifies its own credentials (user session, webhook signature or shared secret), and all
+# share one import map (supabase/functions/deno.json, also used by `deno check`).
 [functions.session-ticket]
 verify_jwt = false
+import_map = "./functions/deno.json"
 [functions.activity-upload]
 verify_jwt = false
+import_map = "./functions/deno.json"
 [functions.chat]
 verify_jwt = false
+import_map = "./functions/deno.json"
 [functions.account]
 verify_jwt = false
+import_map = "./functions/deno.json"
 [functions.billing-sync]
 verify_jwt = false
+import_map = "./functions/deno.json"
 [functions.stream-webhook]
 verify_jwt = false
+import_map = "./functions/deno.json"
 [functions.revenuecat-webhook]
 verify_jwt = false
+import_map = "./functions/deno.json"
 [functions.resend-webhook]
 verify_jwt = false
+import_map = "./functions/deno.json"
 [functions.auth-email-hook]
 verify_jwt = false
+import_map = "./functions/deno.json"
 [functions.jobs]
 verify_jwt = false
+import_map = "./functions/deno.json"

@@ -44,10 +44,23 @@ export function readEnv(get: (key: string) => string | undefined): ServerEnv {
     const v = get(k);
     return v && v.trim() ? v.trim() : undefined;
   };
+  // Hosted Edge Functions receive the new API keys as JSON dictionaries (SUPABASE_SECRET_KEYS /
+  // SUPABASE_PUBLISHABLE_KEYS, key "default"); legacy projects also get SUPABASE_SERVICE_ROLE_KEY / _ANON_KEY.
+  const fromKeyset = (k: string) => {
+    const raw = optional(k);
+    if (!raw) return undefined;
+    try {
+      const keys = JSON.parse(raw) as Record<string, unknown>;
+      const value = typeof keys.default === 'string' ? keys.default : Object.values(keys).find((v) => typeof v === 'string');
+      return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+    } catch {
+      return undefined;
+    }
+  };
   return {
     SUPABASE_URL: required('SUPABASE_URL'),
-    SUPABASE_SERVICE_KEY: required('SUPABASE_SECRET_KEY', 'SUPABASE_SERVICE_ROLE_KEY'),
-    SUPABASE_ANON_KEY: optional('SUPABASE_PUBLISHABLE_KEY') ?? optional('SUPABASE_ANON_KEY'),
+    SUPABASE_SERVICE_KEY: optional('SUPABASE_SECRET_KEY') ?? fromKeyset('SUPABASE_SECRET_KEYS') ?? required('SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_SECRET_KEY'),
+    SUPABASE_ANON_KEY: optional('SUPABASE_PUBLISHABLE_KEY') ?? fromKeyset('SUPABASE_PUBLISHABLE_KEYS') ?? optional('SUPABASE_ANON_KEY'),
     SUPABASE_DB_URL: required('SUPABASE_DB_URL'),
     TICKET_SIGNING_SECRET: optional('TICKET_SIGNING_SECRET'),
     STREAM_API_KEY: optional('STREAM_API_KEY'),

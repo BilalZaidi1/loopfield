@@ -1,6 +1,6 @@
 import { SEASON_RULES, SPEED_RULES_VERSION, TERRITORY_RULES_VERSION, signTicket, type SessionTicketClaims } from '../core/index.ts';
-import type { Sql } from '../clients.ts';
-import { requireKeys, type ServerEnv } from '../env.ts';
+import { serverSecret, type Sql } from '../clients.ts';
+import type { ServerEnv } from '../env.ts';
 import { HttpError, isUuid } from '../http.ts';
 
 export interface TicketRequest {
@@ -14,7 +14,7 @@ export interface TicketRequest {
  * enabled mode; a speed ticket pins the course version. Private runs never need a ticket.
  */
 export async function issueTicket(sql: Sql, env: ServerEnv, userId: string, req: TicketRequest, now = Date.now()) {
-  const { TICKET_SIGNING_SECRET } = requireKeys(env, ['TICKET_SIGNING_SECRET']);
+  const TICKET_SIGNING_SECRET = await serverSecret(sql, env.TICKET_SIGNING_SECRET, 'ticket_signing_secret');
   if (!['territory', 'speed', 'territory_speed'].includes(req.mode)) throw new HttpError(400, 'invalid_mode');
   if (!isUuid(req.competitionId)) throw new HttpError(400, 'invalid_competition');
   const modes = { territory: req.mode !== 'speed', speed: req.mode !== 'territory' };

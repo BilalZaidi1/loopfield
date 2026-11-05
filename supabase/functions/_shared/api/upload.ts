@@ -12,7 +12,7 @@ import {
   type SessionTicketClaims
 } from '../core/index.ts';
 import { BUCKETS, evidenceChunkPath, type BlobStore } from '../blobs.ts';
-import { pgArray, type Sql } from '../clients.ts';
+import { pgArray, serverSecret, type Sql } from '../clients.ts';
 import type { ServerEnv } from '../env.ts';
 import { HttpError, isUuid } from '../http.ts';
 
@@ -129,7 +129,8 @@ export async function finalizeActivity(sql: Sql, blobs: BlobStore, env: ServerEn
   // Ticket: server-signed modes are the only source of competitive intent.
   let ticket: SessionTicketClaims | null = null;
   if (req.ticket) {
-    const valid = env.TICKET_SIGNING_SECRET ? await verifyTicket(req.ticket.claims, req.ticket.signature, env.TICKET_SIGNING_SECRET) : false;
+    const signingSecret = await serverSecret(sql, env.TICKET_SIGNING_SECRET, 'ticket_signing_secret').catch(() => null);
+    const valid = signingSecret ? await verifyTicket(req.ticket.claims, req.ticket.signature, signingSecret) : false;
     const [row] = await sql`select * from internal.recording_sessions where ticket_id = ${req.ticket.claims.ticketId}`;
     if (!valid || !row || row.user_id !== userId || row.signature !== req.ticket.signature) shared.push('ticket_invalid');
     else if (row.consumed_by_activity && row.consumed_by_activity !== req.activityId) shared.push('ticket_reused');

@@ -3,6 +3,7 @@ import { dmChannelId, inQuietHours, jpegDimensions, safePushPreview, SOCIAL_RULE
 import { clubInvitationEmail, sha256Hex } from '../email.ts';
 import { NonRetryableError, type JobHandler } from './context.ts';
 import { pgArray } from '../clients.ts';
+import { ensureStreamConfiguration, streamServer } from '../stream.ts';
 
 /** Strip metadata, validate and publish processed derivatives; originals never reach viewers (FR39). */
 export const processPostMedia: JobHandler = async (payload, ctx) => {
@@ -174,4 +175,15 @@ export const deactivateChatUser: JobHandler = async (payload, ctx) => {
 export const moderateMessage: JobHandler = async (payload, ctx) => {
   if (!ctx.integrations.chat) throw new Error('chat integration not configured');
   await ctx.integrations.chat.deleteMessage(String(payload.message_id));
+};
+
+/**
+ * One-off, idempotent: applies the Stream channel type and app settings with the server's own Stream
+ * credentials. Enqueue with: select internal.enqueue_job('chat', 'configure_stream', '{}', 'configure-stream');
+ */
+export const configureStream: JobHandler = async (payload, ctx) => {
+  const webhookUrl = typeof payload.webhook_url === 'string' ? payload.webhook_url : `${ctx.env.SUPABASE_URL}/functions/v1/stream-webhook`;
+  const report = await ensureStreamConfiguration(streamServer(ctx.env), { apply: true, webhookUrl });
+  ctx.log('stream configuration applied', { ...report });
+  if (report.remaining.length) throw new NonRetryableError(`Stream configuration still differs: ${report.remaining.join('; ')}`);
 };

@@ -1,6 +1,6 @@
 import postgres from 'postgres';
 import { describe, expect, it } from 'vitest';
-import { pgArray, type Sql } from '../../../supabase/functions/_shared/clients.ts';
+import { pgArray, serverSecret, type Sql } from '../../../supabase/functions/_shared/clients.ts';
 import { ConfigError, requireKeys, readEnv } from '../../../supabase/functions/_shared/env.ts';
 import { HttpError, toResponse } from '../../../supabase/functions/_shared/http.ts';
 import { runBatch } from '../../../supabase/functions/_shared/jobs/registry.ts';
@@ -56,5 +56,37 @@ describe('edge function error mapping', () => {
     const internal = toResponse(new Error('connection to 10.0.0.1 failed for user x@example.com'), () => {});
     expect(internal.status).toBe(500);
     expect(await internal.json()).toEqual({ error: 'internal_error' });
+  });
+});
+
+describe('hosted configuration', () => {
+  it('reads the new JSON API key sets that hosted Edge Functions receive', () => {
+    const env = readEnv((k) => ({
+      SUPABASE_URL: 'https://ref.supabase.co',
+      SUPABASE_DB_URL: 'postgres://x',
+      SUPABASE_SECRET_KEYS: JSON.stringify({ default: 'sb_secret_example' }),
+      SUPABASE_PUBLISHABLE_KEYS: JSON.stringify({ default: 'sb_publishable_example' })
+    })[k]);
+    expect(env.SUPABASE_SERVICE_KEY).toBe('sb_secret_example');
+    expect(env.SUPABASE_ANON_KEY).toBe('sb_publishable_example');
+    const legacy = readEnv((k) => ({ SUPABASE_URL: 'https://ref.supabase.co', SUPABASE_DB_URL: 'postgres://x', SUPABASE_SERVICE_ROLE_KEY: 'legacy-service' })[k]);
+    expect(legacy.SUPABASE_SERVICE_KEY).toBe('legacy-service');
+    expect(() => readEnv((k) => ({ SUPABASE_URL: 'https://ref.supabase.co', SUPABASE_DB_URL: 'postgres://x' })[k])).toThrow(ConfigError);
+  });
+
+  it('takes server secrets from the environment first, then from Vault, else reports not configured', async () => {
+    const sql = postgres(DB_URL, { max: 1, prepare: false, onnotice: () => {} }) as unknown as Sql;
+    try {
+      // Stand-in for Supabase Vault's decrypted view (plain PostgreSQL has no Vault).
+      await sql`create schema if not exists vault`;
+      await sql`create table if not exists vault.decrypted_secrets (name text primary key, decrypted_secret text)`;
+      await sql`insert into vault.decrypted_secrets values ('test_runtime_secret', 'from-vault') on conflict (name) do update set decrypted_secret = excluded.decrypted_secret`;
+      expect(await serverSecret(sql, 'from-env', 'test_runtime_secret')).toBe('from-env');
+      expect(await serverSecret(sql, undefined, 'test_runtime_secret')).toBe('from-vault');
+      await expect(serverSecret(sql, undefined, 'test_missing_secret')).rejects.toBeInstanceOf(ConfigError);
+    } finally {
+      await sql`drop schema if exists vault cascade`;
+      await (sql as unknown as { end(): Promise<void> }).end();
+    }
   });
 });
