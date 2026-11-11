@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Linking, View } from 'react-native';
 import { router, Stack } from 'expo-router';
-import { RETENTION_RULES, SEASON_RULES, SPEED_RULES, SPEED_RULES_VERSION, TERRITORY_RULES, TERRITORY_RULES_VERSION } from '@loopfield/core';
+import { MOVEMENT_RULES, RETENTION_RULES, SEASON_RULES, SPEED_RULES, SPEED_RULES_VERSION, TERRITORY_RULES, TERRITORY_RULES_VERSION } from '@loopfield/core';
 import { env } from '@/config/env';
 import { fmtDistance } from '@/lib/format';
 import { ArrowLink, Banner, Button, Card, Screen, Section, Txt } from '@/components/ui';
@@ -50,6 +50,21 @@ export default function Help() {
         <Bullet>To take a title you must beat the record by a clear margin: the larger of {S.marginMinSeconds.value} s, {S.marginFraction.value * 100}% of the record, or the combined timing uncertainty. Near ties do not change the title.</Bullet>
         <Bullet>Titles count only on the same version of a route. Speed never moves land, and land never protects a title.</Bullet>
         <Bullet>Anyone can propose a route ({fmtDistance(S.minCourseLengthMeters.value, units, 0)}–{fmtDistance(S.maxCourseLengthMeters.value, units, 0)}) from one of their runs; reviewers check safety, public access and duplicates.</Bullet>
+        </Card>
+      </Section>
+      <Section title="Movement points and reclaiming" icon="bolt">
+        <Card>
+        <Bullet>Every verified run earns {MOVEMENT_RULES.pointsPerKm.value} points per kilometre, including private runs, up to {MOVEMENT_RULES.dailyPointsCap.value} a day. Private runs still never post, claim land or appear on a map.</Bullet>
+        <Bullet>Only distance the server can verify counts: mocked locations earn nothing, and gaps, pauses, GPS jumps and stretches at vehicle speed are left out.</Bullet>
+        <Bullet>Spend points to reclaim cells you held this season and lost to another runner’s loop. Tap the dashed cells on the Map, or choose them from the list. Points never buy ground you did not hold.</Bullet>
+        <Bullet>A cell someone took back from you with points can only be won back by running, so points never trade back and forth. If the run that took your cell is ruled invalid, the points you spent are refunded.</Bullet>
+        </Card>
+      </Section>
+      <Section title="Challenges, badges and ranking" icon="medal">
+        <Card>
+        <Bullet>Challenges in six categories (distance, consistency, territory, exploration, community and competitive) award bronze, silver, gold and platinum badges automatically.</Bullet>
+        <Bullet>The global ranking counts badges by tier, plus a bonus for each category you cover. Movement points never count toward it.</Bullet>
+        <Bullet>Compare with everyone, your country, your region, friends (mutual follows) or a club. Runners with private profiles appear as “Private runner”; full private mode keeps you out of rankings.</Bullet>
         </Card>
       </Section>
       <Section title="Seasons" icon="calendar">

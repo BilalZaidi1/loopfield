@@ -11,7 +11,10 @@ import { BarChart } from '@/components/charts';
 import { Icon } from '@/components/icons';
 import { TopBar } from '@/components/TopBar';
 import { PostCard, useFeed, type PostJson } from '@/features/social/PostCard';
-import { thisWeekByDay, useActivities } from '@/features/results/useActivities';
+import { BadgeMedal } from '@/features/achievements/Badges';
+import { progressText, TIER_LABEL, useMyChallenges } from '@/features/achievements/api';
+import { useMovement } from '@/features/movement/api';
+import { localDayKey, thisWeekByDay, useActivities } from '@/features/results/useActivities';
 import { daysLeft, useLeaderboard, useMyTerritorySummary } from '@/features/territory/useTerritoryStats';
 import { getGoals } from '@/health/cache';
 import { useCompetition } from '@/state/competition';
@@ -64,6 +67,7 @@ export default function Home() {
         </View>
         <View style={{ flex: isTablet ? 1 : undefined, gap: spacing.lg }}>
           <GroundCard />
+          <NextBadgeCard />
         </View>
       </View>
       <TopRunners />
@@ -140,6 +144,8 @@ function WeekCard({ acts }: { acts: ReturnType<typeof useActivities> }) {
   const dist = splitValue(fmtDistance(totals.distance, units, 1));
   const delta = (totals.distance - totals.last) / factor;
   const weekday = new Intl.DateTimeFormat(undefined, { weekday: 'narrow' });
+  const weekdayShort = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
+  const todayKey = localDayKey(new Date(now));
   return (
     <Card tone="violet" onPress={() => router.push('/progress')} accessibilityLabel="This week. Open progress">
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -179,9 +185,10 @@ function WeekCard({ acts }: { acts: ReturnType<typeof useActivities> }) {
             title={`Distance per day this week (${unit}), next to last week`}
             unit={unit}
             height={84}
-            data={week.map((d) => ({ label: weekday.format(d.date), value: d.distanceM / factor }))}
+            data={week.map((d) => ({ label: weekday.format(d.date), long: weekdayShort.format(d.date), value: d.distanceM / factor, current: d.day === todayKey }))}
             compare={week.map((d) => d.lastWeekM / factor)}
             format={(v) => v.toFixed(1)}
+            table={{ period: 'Day', series: 'This week', compareSeries: 'Last week', currentTag: 'Today', total: true }}
           />
         </>
       )}
@@ -248,6 +255,38 @@ function GroundCard() {
 }
 
 /** Top of the season's land ranking, plus your own row when you are further down. */
+/** The challenge closest to completion, plus my movement points: what one more run would move. */
+function NextBadgeCard() {
+  const p = usePalette();
+  const challenges = useMyChallenges();
+  const movement = useMovement();
+  const next = useMemo(
+    () => [...(challenges.data ?? [])].filter((c) => !c.completed_at).sort((a, b) => b.progress / b.target - a.progress / a.target || a.sort - b.sort)[0],
+    [challenges.data]
+  );
+  if (challenges.isLoading) return <Skeleton height={132} />;
+  if (!challenges.data?.length) return null;
+  const earned = challenges.data.filter((c) => c.completed_at).length;
+  return (
+    <Card onPress={() => router.push('/achievements')} accessibilityLabel={next ? `Next badge: ${next.title}, ${progressText(next)}. ${earned} badges earned. Open challenges` : 'All badges earned. Open challenges'}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+        {next ? <BadgeMedal tier={next.tier} category={next.category} size={56} earned={false} /> : null}
+        <View style={{ flex: 1, gap: 4 }}>
+          <Txt variant="label" color="textMuted">{next ? `Next badge · ${TIER_LABEL[next.tier]}` : 'Every badge earned'}</Txt>
+          <Txt variant="headline" numberOfLines={1}>{next?.title ?? 'Challenges complete'}</Txt>
+          {next ? <ProgressBar value={next.progress / next.target} label={`${next.title} progress`} /> : null}
+          {next ? <Txt variant="micro" color="textMuted" tabular>{progressText(next)}</Txt> : null}
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <Icon name="bolt" color={p.greenText} size={18} />
+        <Txt variant="label" style={{ flex: 1 }} tabular>{movement.data ? `${movement.data.balance.toLocaleString()} movement points · ${earned} ${earned === 1 ? 'badge' : 'badges'}` : `${earned} ${earned === 1 ? 'badge' : 'badges'}`}</Txt>
+        <ArrowLink label="Challenges" onPress={() => router.push('/achievements')} />
+      </View>
+    </Card>
+  );
+}
+
 function TopRunners() {
   const units = useUnits();
   const { season } = useCompetition();

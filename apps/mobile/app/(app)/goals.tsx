@@ -77,11 +77,11 @@ export default function Goals() {
           <Section title="Last 12 weeks" icon="progress">
             <Card>
               <Txt variant="label" color="textMuted">{`Distance per week (${unit})`}</Txt>
-              <BarChart title={`Distance per week (${unit})`} unit={unit} data={weekly.map((w) => ({ label: fmtDay(w.week), value: w.distanceM / factor }))} format={(v) => v.toFixed(1)} />
+              <BarChart title={`Distance per week (${unit})`} unit={unit} data={weekly.map((w, i) => ({ label: fmtDay(w.week), value: w.distanceM / factor, current: i === weekly.length - 1 }))} format={(v) => v.toFixed(1)} table={{ period: 'Week of', series: `Distance (${unit})`, currentTag: 'This week', total: true }} />
             </Card>
             <Card>
               <Txt variant="label" color="textMuted">Moving time per week (min)</Txt>
-              <BarChart title="Moving time per week (min)" unit="min" data={weekly.map((w) => ({ label: fmtDay(w.week), value: w.durationMs / 60_000 }))} format={(v) => v.toFixed(0)} />
+              <BarChart title="Moving time per week (min)" unit="min" data={weekly.map((w, i) => ({ label: fmtDay(w.week), value: w.durationMs / 60_000, current: i === weekly.length - 1 }))} format={(v) => v.toFixed(0)} table={{ period: 'Week of', series: 'Minutes', currentTag: 'This week', total: true }} />
             </Card>
             <Txt variant="caption">Descriptive trends from runs recorded in this app. Total time: {fmtDuration(weekly.reduce((t, w) => t + w.durationMs, 0))}.</Txt>
           </Section>

@@ -52,3 +52,10 @@ export function splitValue(formatted: string): { value: string; unit: string } {
   const i = formatted.lastIndexOf(' ');
   return i > 0 ? { value: formatted.slice(0, i), unit: formatted.slice(i + 1) } : { value: formatted, unit: '' };
 }
+
+/** 1,234 below ten thousand; 12.3k above, so a count never pushes its column wider. */
+export function fmtCount(n: number): string {
+  if (n < 10_000) return n.toLocaleString();
+  if (n < 1_000_000) return `${(n / 1000).toFixed(n < 100_000 ? 1 : 0)}k`;
+  return `${(n / 1_000_000).toFixed(1)}M`;
+}

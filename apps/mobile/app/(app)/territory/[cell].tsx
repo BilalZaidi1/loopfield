@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
+import { useMovement } from '@/features/movement/api';
+import { ReclaimDone, ReclaimReceipt, useReclaimFlow } from '@/features/movement/Reclaim';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { TERRITORY_RULES } from '@loopfield/core';
-import { rpc } from '@/lib/api';
+import { friendlyError, rpc } from '@/lib/api';
 import { fmtArea, fmtDate } from '@/lib/format';
 import { View } from 'react-native';
-import { Avatar, Badge, Button, Card, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, Txt } from '@/components/ui';
+import { Avatar, Badge, Banner, Button, Card, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { MapCanvas } from '@/features/map/MapCanvas';
 import { reasonText } from '@/features/results/ResultCards';
@@ -23,6 +25,12 @@ interface CellDetail {
   controlled_since: string | null;
   claim_cells: number | null;
   my_claim_id: string | null;
+  /** How the controller holds it: a run ('loop') or movement points ('reclaim'). */
+  held_by: 'loop' | 'reclaim' | null;
+  was_mine: boolean;
+  reclaimable: boolean;
+  blocked_reason: 'season_closed' | 'not_participating' | 'taken_with_points' | null;
+  reclaim_cost: number | null;
 }
 
 interface TerritoryEvent {
@@ -34,7 +42,14 @@ interface TerritoryEvent {
   provisional: boolean;
   reason: string | null;
   occurred_on: string;
+  source: 'loop' | 'reclaim';
 }
+
+const BLOCKED: Record<string, string> = {
+  taken_with_points: 'They reclaimed it from you with movement points, so only a run can win it back.',
+  season_closed: 'The season is closed, so it can no longer be reclaimed.',
+  not_participating: 'Turn on territory in Privacy settings to reclaim it.'
+};
 
 /** S15 Territory detail — selected eligible area, controller, season and partial capture or correction explanation. */
 export default function TerritoryDetail() {
@@ -50,6 +65,8 @@ export default function TerritoryDetail() {
   });
   const events = useQuery({ queryKey: ['my_territory_events'], queryFn: () => rpc<TerritoryEvent[]>('my_territory_events', { p_limit: 20 }) });
   const d = detail.data;
+  const movement = useMovement();
+  const flow = useReclaimFlow(competition?.id, season?.id);
   const fc = useMemo(() => {
     const color = !d?.status ? p.textSubtle : d.status === 'excluded' ? t.territory.unavailableFill : d.is_me ? t.territory.mineFill : t.territory.rivalHues[0]!;
     return { ...plainCellsToFeatures([cell!], color), features: plainCellsToFeatures([cell!], color).features.map((f) => ({ ...f, properties: { ...f.properties, mine: Boolean(d?.is_me), status: d?.status ?? 'unclaimed' } })) };
@@ -83,8 +100,10 @@ export default function TerritoryDetail() {
           <Txt variant="label" color="textMuted">{`${competition.name} · season ${season.number}`}</Txt>
           <Txt variant="display" style={{ fontSize: 36, lineHeight: 40 }}>Your ground</Txt>
           <Txt>{`Held since ${fmtDate(d.controlled_since)}.`}</Txt>
-          {d.claim_cells ? <Badge icon="hexagon" label={`Your claiming loop awarded ${d.claim_cells} cells`} /> : null}
-          <Txt color="textMuted">The latest eligible completed loop takes each overlapping cell, so this can change hands when someone completes a newer loop around it.</Txt>
+          {d.held_by === 'reclaim' ? <Badge icon="bolt" label="Reclaimed with movement points" /> : d.claim_cells ? <Badge icon="hexagon" label={`Your claiming loop awarded ${d.claim_cells} cells`} /> : null}
+          <Txt color="textMuted">{d.held_by === 'reclaim'
+            ? 'A newer loop by another runner can take it again; points cannot.'
+            : 'The latest eligible completed loop takes each overlapping cell, so this can change hands when someone completes a newer loop around it.'}</Txt>
         </Card>
       ) : (
         <Card>
@@ -96,9 +115,34 @@ export default function TerritoryDetail() {
               {d.controller_handle ? <Txt variant="caption">@{d.controller_handle}</Txt> : null}
             </View>
           </View>
+          {d.held_by === 'reclaim' ? <Badge icon="bolt" label="Held through movement points" /> : null}
           <Txt color="textMuted">{`Held since ${fmtDate(d.controlled_since)}. The latest eligible completed loop takes each overlapping cell, so this can change hands when someone completes a newer loop around it.`}</Txt>
         </Card>
       )}
+      {d && !d.is_me && d.was_mine ? (
+        flow.done ? (
+          <Card><ReclaimDone result={flow.done} onDone={() => { flow.reset(); void detail.refetch(); }} /></Card>
+        ) : (
+          <Card tone="soft" accessibilityLabel={d.reclaimable ? `This was yours. Reclaim it for ${d.reclaim_cost} points` : 'This was yours earlier this season'}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+              <Icon name="hexagon" color={p.primary} size={22} />
+              <Txt variant="heading" style={{ flex: 1 }}>This was yours</Txt>
+            </View>
+            {d.reclaimable && d.reclaim_cost ? (
+              <>
+                <Txt color="textMuted">You held this cell earlier this season. Reclaim it with movement points and it is yours again straight away.</Txt>
+                <ReclaimReceipt cells={1} costPerCell={d.reclaim_cost} total={d.reclaim_cost} balance={movement.data?.balance ?? 0} remaining={(movement.data?.balance ?? 0) - d.reclaim_cost} />
+                {flow.error ? <Banner tone="danger" text={friendlyError(flow.error)} /> : null}
+                <Button label={`Reclaim for ${d.reclaim_cost} points`} size="lg" arrow icon="bolt" loading={flow.busy}
+                  disabled={(movement.data?.balance ?? 0) < d.reclaim_cost || flow.busy}
+                  onPress={() => flow.start([d.cell], d.reclaim_cost!, movement.data?.balance ?? 0)} />
+              </>
+            ) : (
+              <Txt color="textMuted">{BLOCKED[d.blocked_reason ?? ''] ?? 'You held this cell earlier this season.'}</Txt>
+            )}
+          </Card>
+        )
+      ) : null}
       <Txt variant="caption">Only cells fully inside a loop after a {TERRITORY_RULES.boundaryUncertaintyBandMeters.value} m edge band are awarded, so the edges of a loop may look unclaimed. Thresholds are proposed pilot values.</Txt>
       <Button variant="ghost" icon="flag" label="Report a problem with this area" onPress={() => router.push({ pathname: '/report', params: { type: 'area', id: cell! } })} />
       <Section title="Recent changes to your land" icon="refresh">
@@ -109,8 +153,10 @@ export default function TerritoryDetail() {
                 key={e.event_id}
                 icon={e.direction === 'gained' ? 'plus' : e.direction === 'lost' ? 'minus' : 'refresh'}
                 destructive={e.direction === 'lost'}
-                title={`${e.direction === 'gained' ? 'Gained' : e.direction === 'lost' ? 'Lost' : 'Corrected'} ${fmtArea(e.area_m2, units)}`}
-                subtitle={`${e.cells} cells · ${fmtDate(e.occurred_on)}${e.provisional ? ' · provisional' : ''}${e.reason ? ` · ${reasonText(e.reason)}` : ''}`}
+                title={e.source === 'reclaim'
+                  ? `${e.direction === 'gained' ? 'Reclaimed' : 'Taken back with points:'} ${fmtArea(e.area_m2, units)}`
+                  : `${e.direction === 'gained' ? 'Gained' : e.direction === 'lost' ? 'Lost' : 'Corrected'} ${fmtArea(e.area_m2, units)}`}
+                subtitle={`${e.cells} ${e.cells === 1 ? 'cell' : 'cells'} · ${fmtDate(e.occurred_on)}${e.provisional ? ' · provisional' : ''}${e.reason ? ` · ${reasonText(e.reason)}` : ''}`}
               />
             ))}
           </ListGroup>

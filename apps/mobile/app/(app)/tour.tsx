@@ -86,7 +86,12 @@ export default function Tour() {
         </ScrollView>
         <View style={{ paddingHorizontal: gutter, paddingBottom: spacing.lg, paddingTop: spacing.md, gap: spacing.sm }}>
           <Button label={last ? 'Start exploring' : 'Next'} size="lg" arrow onPress={() => (last ? close() : goTo(index + 1))} />
-          {index > 0 ? <Button label="Back" variant="ghost" onPress={() => goTo(index - 1)} /> : null}
+          {/* Same height as Next; the slot is kept on the first page so Next never moves between pages. */}
+          {index > 0 ? (
+            <Button label="Back" variant="ghost" size="lg" onPress={() => goTo(index - 1)} />
+          ) : (
+            <View style={{ height: 58 }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
+          )}
         </View>
       </View>
     </SafeAreaView>

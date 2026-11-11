@@ -45,7 +45,7 @@ export function SocialButtons({ intent }: { intent: 'sign-in' | 'sign-up' }) {
             accessibilityRole="button"
             accessibilityLabel={LABEL[provider]}
             accessibilityState={{ busy: busy === provider, disabled: busy !== null }}
-            style={{ minHeight: 56, borderRadius: radius.pill, backgroundColor: bg, borderWidth: apple ? 0 : 1, borderColor: p.borderStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md, opacity: busy && busy !== provider ? 0.5 : 1 }}>
+            style={{ minHeight: 58, borderRadius: radius.pill, backgroundColor: bg, borderWidth: apple ? 0 : 1.5, borderColor: p.borderStrong, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.md, opacity: busy && busy !== provider ? 0.5 : 1 }}>
             {busy === provider ? <ActivityIndicator color={fg} /> : <Icon name={provider} color={fg} size={22} />}
             <Txt variant="bodyStrong" style={{ color: fg, fontWeight: '700' }}>{LABEL[provider]}</Txt>
           </PressableScale>

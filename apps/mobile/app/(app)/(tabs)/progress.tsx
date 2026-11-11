@@ -57,8 +57,9 @@ export default function Progress() {
                   title={`Weekly distance (${units === 'metric' ? 'km' : 'mi'})`}
                   unit={units === 'metric' ? 'km' : 'mi'}
                   height={110}
-                  data={weekly.map((w) => ({ label: fmtDay(w.week), value: w.distanceM / factor }))}
+                  data={weekly.map((w, i) => ({ label: fmtDay(w.week), value: w.distanceM / factor, current: i === weekly.length - 1 }))}
                   format={(v) => v.toFixed(1)}
+                  table={{ period: 'Week of', series: units === 'metric' ? 'Distance (km)' : 'Distance (mi)', currentTag: 'This week', total: true }}
                 />
               </Card>
               <Card onPress={() => router.push('/goals')} accessibilityLabel={`Weekly goal: ${runsThisWeek} of ${goalRuns || 'no'} runs. Open goals and trends`}>
@@ -88,6 +89,9 @@ export default function Progress() {
                 )}
               </Section>
               <ListGroup>
+                <Row icon="trophy" title="Challenges and badges" subtitle="Progress toward every badge" onPress={() => router.push('/achievements')} />
+                <Row icon="medal" title="Global ranking" subtitle="Ranked by badges, never by points" onPress={() => router.push('/achievements/ranking')} />
+                <Row icon="bolt" title="Movement points" subtitle="Earned on every verified run; reclaim lost ground" onPress={() => router.push('/points')} />
                 <Row icon="record" title="Activity history" subtitle="Every run, month by month" onPress={() => router.push('/activities')} />
                 <Row icon="calendar" title="Season history" subtitle="Past standings and route titles" onPress={() => router.push('/seasons')} />
                 <Row icon="target" title="Goals and trends" subtitle="Weekly goals and 12-week trends" onPress={() => router.push('/goals')} />

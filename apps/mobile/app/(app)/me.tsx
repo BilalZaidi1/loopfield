@@ -7,6 +7,9 @@ import { fmtArea, splitValue } from '@/lib/format';
 import { Avatar, BigNumber, Button, Card, EmptyState, IconButton, ListGroup, LoadingState, Medal, Row, Screen, Section, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { ClubMonogram, clubTone } from '@/features/clubs/ClubBits';
+import { BadgeStrip } from '@/features/achievements/Badges';
+import { useAchievementProfile, useMyChallenges } from '@/features/achievements/api';
+import { useMovement } from '@/features/movement/api';
 import { useLayout } from '@/theme/layout';
 import { useMyClubs } from '@/features/clubs/api';
 import { useSignedUrl } from '@/features/social/media';
@@ -33,6 +36,9 @@ export default function MyProfile() {
   const titles = useQuery({ queryKey: ['my_titles'], queryFn: () => rpc<{ course_id: string; course_name: string; benchmark_ms: number; competition_id: string }[]>('my_titles') });
   const clubs = useMyClubs();
   const posts = useFeed('profile_posts', { p_profile: userId }, Boolean(userId));
+  const achievements = useAchievementProfile();
+  const challenges = useMyChallenges();
+  const movement = useMovement();
   if (!profile) return <Screen><LoadingState variant="cards" /></Screen>;
   const activeClubs = (clubs.data ?? []).filter((c) => c.state === 'active');
   const area = land.data ? splitValue(fmtArea(land.data.published_area_m2, units)) : null;
@@ -67,17 +73,39 @@ export default function MyProfile() {
           <Txt variant="caption">Clubs</Txt>
         </Pressable>
       </Card>
-      <Section title="Achievements" icon="medal">
+      <Section title="Achievements" icon="medal" onSeeAll={() => router.push('/achievements')} seeAllLabel="Challenges">
+        <Card tone="ink" onPress={() => router.push('/achievements/ranking')}
+          accessibilityLabel={achievements.data?.global_rank ? `Global rank ${achievements.data.global_rank} of ${achievements.data.ranked_runners}, score ${achievements.data.score}. Open the ranking` : 'Not ranked yet. Open the ranking'}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.md }}>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Txt variant="label">Global rank</Txt>
+              <Txt variant="display" tabular>{achievements.data?.global_rank ? `#${achievements.data.global_rank}` : '–'}</Txt>
+              <Txt variant="caption">{achievements.data?.global_rank ? `of ${achievements.data.ranked_runners?.toLocaleString()} runners · score ${achievements.data.score}` : 'Earn a badge to be ranked'}</Txt>
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 2 }}>
+              <Txt variant="metric" tabular style={{ fontSize: 26, lineHeight: 30 }}>{`${achievements.data?.badges ?? 0}/${challenges.data?.length ?? 24}`}</Txt>
+              <Txt variant="caption">challenges done</Txt>
+            </View>
+          </View>
+          <BadgeStrip badges={achievements.data?.earned ?? []} onPress={() => router.push('/achievements')} empty="No badges yet. Every verified run counts toward the distance challenges." />
+        </Card>
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
+          <Card style={{ flex: 1, alignItems: 'center' }} onPress={() => router.push('/points')} accessibilityLabel={`${movement.data?.balance ?? 0} movement points. Open points`}>
+            <View style={[styles.pointsBadge, { backgroundColor: p.greenSoft }]}>
+              <Icon name="bolt" color={p.greenText} size={26} />
+            </View>
+            <Txt variant="metric" tabular align="center" style={{ fontSize: 24, lineHeight: 28 }}>{(movement.data?.balance ?? 0).toLocaleString()}</Txt>
+            <Txt variant="caption" align="center">Movement points</Txt>
+          </Card>
           <Card style={{ flex: 1, alignItems: 'center' }} onPress={() => router.push('/map')} accessibilityLabel={area ? `Land this season: ${area.value} ${area.unit}` : 'No land this season yet'}>
-            <Medal label={area ? area.value : '0'} tone="violet" size={72} earned={Boolean(land.data?.published_area_m2)} />
+            <Medal label={area ? area.value : '0'} tone="violet" size={56} earned={Boolean(land.data?.published_area_m2)} />
             <Txt variant="label" align="center">{area ? `${area.unit} of land` : 'Land'}</Txt>
-            <Txt variant="caption" align="center">{season ? `Season ${season.number}` : 'No active season'}</Txt>
+            <Txt variant="caption" align="center">{season ? `Season ${season.number}` : 'No season'}</Txt>
           </Card>
           <Card style={{ flex: 1, alignItems: 'center' }} onPress={() => router.push('/seasons')} accessibilityLabel={`${titles.data?.length ?? 0} route titles held`}>
-            <Medal label={String(titles.data?.length ?? 0)} tone="orange" size={72} earned={Boolean(titles.data?.length)} />
+            <Medal label={String(titles.data?.length ?? 0)} tone="orange" size={56} earned={Boolean(titles.data?.length)} />
             <Txt variant="label" align="center">Route titles</Txt>
-            <Txt variant="caption" align="center">Held right now</Txt>
+            <Txt variant="caption" align="center">Held now</Txt>
           </Card>
         </View>
       </Section>
@@ -134,5 +162,6 @@ export default function MyProfile() {
 
 const styles = StyleSheet.create({
   count: { flex: 1, alignItems: 'center', gap: 2, minHeight: 48, justifyContent: 'center' },
+  pointsBadge: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   editBadge: { position: 'absolute', right: 0, bottom: 0, width: 34, height: 34, borderRadius: 17, borderWidth: 3, alignItems: 'center', justifyContent: 'center' }
 });

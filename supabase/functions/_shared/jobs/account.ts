@@ -19,6 +19,8 @@ export const deleteActivity: JobHandler = async (payload, ctx) => {
   const [a] = await ctx.sql`select id, user_id from public.activities where id = ${activityId} and user_id = ${userId}`;
   if (!a) return;
   await withdrawActivityResults(ctx, activityId, 'source_deleted');
+  // A deleted run no longer earns points; spent points are not given back, so the balance may go below zero.
+  await ctx.sql`select internal.revoke_movement_points(${activityId}::uuid, 'source_deleted')`;
   await ctx.sql`select internal.remove_exploration(${activityId}::uuid)`;
   await ctx.sql`update public.route_proposals set status = 'withdrawn', decided_at = coalesce(decided_at, now())
                  where source_activity_id = ${activityId} and status in ('processing', 'pending_review')`;

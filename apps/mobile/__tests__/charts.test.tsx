@@ -7,8 +7,8 @@ describe('accessible charts', () => {
     expect(screen.getByLabelText(/2 of 3 periods have data, 1 without readable data/)).toBeTruthy();
     expect(screen.getByText(/no readable data for that period, not zero/)).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: /^Show numbers/ }));
-    expect(screen.getByText('No data')).toBeTruthy();
-    expect(screen.getByText('5000 steps')).toBeTruthy();
-    expect(screen.getByText('0 steps')).toBeTruthy();
+    expect(screen.getByLabelText('11-02: no data')).toBeTruthy();
+    expect(screen.getByLabelText('11-01: 5000 steps')).toBeTruthy();
+    expect(screen.getByLabelText('11-03: 0 steps')).toBeTruthy();
   });
 });

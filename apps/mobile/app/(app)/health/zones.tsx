@@ -70,7 +70,7 @@ export default function Zones() {
           </View>
           {summary && summary.msInZone.some((x) => x > 0) ? (
             <>
-              <BarChart title="Minutes per zone" unit="min" data={summary.msInZone.map((ms, i) => ({ label: `Z${i + 1}`, value: ms / 60_000 }))} format={(v) => v.toFixed(1)} />
+              <BarChart title="Minutes per zone" unit="min" data={summary.msInZone.map((ms, i) => ({ label: `Z${i + 1}`, long: `Zone ${i + 1}`, value: ms / 60_000 }))} format={(v) => v.toFixed(1)} table={{ period: 'Zone', series: 'Minutes', total: true }} />
               {summary.uncoveredMs > 0 ? <Banner tone="info" text={`${fmtDuration(summary.uncoveredMs)} of this run had no heart rate readings and is not assigned to any zone.`} /> : null}
               <Txt variant="caption">Zone version {summary.zoneVersion}. Descriptive only — not training or medical advice.</Txt>
             </>

@@ -69,11 +69,18 @@ export default function Notifications() {
       {list.isLoading ? <LoadingState /> : list.error ? <ErrorState error={list.error} onRetry={() => void list.refetch()} /> : list.data?.length ? (
         <ListGroup>
           {list.data.map((n) => {
-            const preview = safePushPreview(n.kind, n.actor?.display_name ?? null);
+            const base = safePushPreview(n.kind, n.actor?.display_name ?? null);
+            const d = (n.data ?? {}) as { title?: string; tier?: string; points?: number };
+            // In the app (not in push), name the badge or the refund so the row says what happened.
+            const preview = n.kind === 'badge_earned' && d.title
+              ? { title: `Badge earned: ${d.title}`, body: `${d.tier ? `${d.tier[0]!.toUpperCase()}${d.tier.slice(1)} badge` : 'New badge'} added to your collection` }
+              : n.kind === 'points_refunded' && d.points
+                ? { title: `${d.points} points refunded`, body: base.body }
+                : base;
             return (
               <Row
                 key={n.id}
-                icon={CATEGORY_ICON[n.category] ?? 'bell'}
+                icon={n.kind === 'badge_earned' ? 'trophy' : n.kind === 'points_refunded' ? 'bolt' : CATEGORY_ICON[n.category] ?? 'bell'}
                 title={preview.title}
                 subtitle={`${preview.body} · ${fmtRelative(n.created_at)}`}
                 highlight={!n.read_at}

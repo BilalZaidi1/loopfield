@@ -8,9 +8,27 @@ import { Icon } from './icons';
 import { Txt, useBlock } from './ui';
 
 export interface ChartPoint {
+  /** Short axis label (for example "M" or "2 Nov"). */
   label: string;
   /** null = no readable data (drawn as a gap marker, never as zero). */
   value: number | null;
+  /** Full name for the numbers table and screen readers (for example "Monday"). Defaults to `label`. */
+  long?: string;
+  /** The period in progress (today, this week): highlighted in the numbers table. */
+  current?: boolean;
+}
+
+export interface ChartTableOptions {
+  /** Header of the first column, for example "Day" or "Week". */
+  period?: string;
+  /** Header of the value column; defaults to the unit. */
+  series?: string;
+  /** Header of the comparison column, for example "Last week". */
+  compareSeries?: string;
+  /** Tag shown on the current row, for example "Today". */
+  currentTag?: string;
+  /** Add a total row (only for additive measures such as distance or time). */
+  total?: boolean;
 }
 
 /** Bars grow up from the baseline once, when the chart first appears. */
@@ -28,7 +46,7 @@ function useGrow() {
  * table alternative is always one tap away (PRD §8, FR54). `compare` draws a thin second series (for
  * example the previous period) next to each bar.
  */
-export function BarChart({ data, unit, title, height = 150, format = (v: number) => v.toFixed(0), compare, showTableToggle = true }: {
+export function BarChart({ data, unit, title, height = 150, format = (v: number) => v.toFixed(0), compare, showTableToggle = true, table }: {
   data: ChartPoint[];
   unit: string;
   title: string;
@@ -36,6 +54,7 @@ export function BarChart({ data, unit, title, height = 150, format = (v: number)
   format?: (v: number) => string;
   compare?: (number | null)[];
   showTableToggle?: boolean;
+  table?: ChartTableOptions;
 }) {
   const t = useTheme();
   const p = t.palette;
@@ -57,7 +76,9 @@ export function BarChart({ data, unit, title, height = 150, format = (v: number)
   const summary = `${title}. ${values.length} of ${data.length} periods have data${missing ? `, ${missing} without readable data` : ''}. Highest ${values.length ? format(Math.max(...values)) : 'none'} ${unit}.`;
   const [labelsW, setLabelsW] = useState(0);
   const slotPx = labelsW / n;
-  const labelEvery = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(labelsW / 52))));
+  // Axis labels are as wide as the longest label needs, so seven single-letter days all fit.
+  const labelW = Math.min(52, Math.max(18, Math.max(...data.map((d) => d.label.length)) * 7 + 6));
+  const labelEvery = Math.max(1, Math.ceil(n / Math.max(1, Math.floor(labelsW / labelW))));
   return (
     <View style={{ gap: spacing.sm }}>
       <View accessible accessibilityRole="image" accessibilityLabel={summary}>
@@ -88,7 +109,7 @@ export function BarChart({ data, unit, title, height = 150, format = (v: number)
           {labelsW > 0
             ? data.map((d, i) =>
                 i % labelEvery === 0 ? (
-                  <Txt key={i} variant="micro" color="textMuted" align="center" numberOfLines={1} style={{ position: 'absolute', left: Math.min(Math.max(0, i * slotPx + slotPx / 2 - 26), labelsW - 52), width: 52, fontSize: 11 }}>
+                  <Txt key={i} variant="micro" color="textMuted" align="center" numberOfLines={1} style={{ position: 'absolute', left: Math.min(Math.max(0, i * slotPx + slotPx / 2 - labelW / 2), labelsW - labelW), width: labelW, fontSize: 11 }}>
                     {d.label}
                   </Txt>
                 ) : null
@@ -103,26 +124,95 @@ export function BarChart({ data, unit, title, height = 150, format = (v: number)
           <Txt variant="label" style={{ color: block ? block.fg : p.primary }}>{showTable ? 'Hide numbers' : 'Show numbers'}</Txt>
         </Pressable>
       ) : null}
-      {showTable ? <DataTable rows={data.map((d) => [d.label, d.value === null ? 'No data' : `${format(d.value)} ${unit}`])} /> : null}
+      {showTable ? <ChartTable data={data} compare={compare} unit={unit} format={format} options={table} /> : null}
     </View>
   );
 }
 
-export function DataTable({ rows, header }: { rows: string[][]; header?: string[] }) {
+/** Colours for tables, following the coloured card they sit on (so a table on violet stays violet). */
+function useTableColors() {
   const { palette: p } = useTheme();
+  const block = useBlock();
+  return block
+    ? { panel: block.chip, rule: block.chip, head: block.fgMuted, text: block.fg, muted: block.fgMuted, track: block.chip, fill: block.fg, current: block.chip, tagBg: block.fg, tagFg: block.bg }
+    : { panel: p.surfaceAlt, rule: p.border, head: p.textMuted, text: p.text, muted: p.textSubtle, track: p.surfaceSunken, fill: p.primaryFill, current: p.primarySoft, tagBg: p.primaryFill, tagFg: '#FFFFFF' };
+}
+
+/**
+ * The numbers behind a chart: full period names, right-aligned tabular values with a small magnitude
+ * bar, an optional comparison column and total. "No data" is written out, never shown as zero.
+ */
+export function ChartTable({ data, compare, unit, format, options = {} }: { data: ChartPoint[]; compare?: (number | null)[]; unit: string; format: (v: number) => string; options?: ChartTableOptions }) {
+  const c = useTableColors();
+  const values = data.map((d) => d.value).filter((v): v is number => v !== null);
+  const max = Math.max(1e-9, ...values);
+  const sum = (xs: (number | null)[]) => xs.reduce<number>((t, v) => t + (v ?? 0), 0);
+  const cell = (v: number | null, strong: boolean) => (
+    <Txt variant="label" tabular align="right" numberOfLines={1} style={{ color: v === null || v === 0 ? c.muted : c.text, fontWeight: strong && v ? '700' : '600' }}>
+      {v === null ? '–' : format(v)}
+    </Txt>
+  );
   return (
-    <View style={{ borderRadius: radius.md, overflow: 'hidden', backgroundColor: p.surfaceAlt }}>
+    <View style={[styles.table, { backgroundColor: c.panel }]}>
+      <View style={[styles.row, styles.head, { borderBottomColor: c.rule }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <Txt variant="micro" style={{ flex: 1, color: c.head }}>{options.period ?? 'Period'}</Txt>
+        <Txt variant="micro" align="right" numberOfLines={1} style={[styles.value, { color: c.head }]}>{options.series ?? unit}</Txt>
+        {compare ? <Txt variant="micro" align="right" numberOfLines={1} style={[styles.num, { color: c.head }]}>{options.compareSeries ?? 'Before'}</Txt> : null}
+      </View>
+      {data.map((d, i) => {
+        const prev = compare?.[i] ?? null;
+        const name = d.long ?? d.label;
+        const spoken = `${name}: ${d.value === null ? 'no data' : `${format(d.value)} ${unit}`}${compare ? `, ${options.compareSeries ?? 'before'} ${prev === null ? 'no data' : `${format(prev)} ${unit}`}` : ''}`;
+        return (
+          <View key={i} accessible accessibilityLabel={d.current && options.currentTag ? `${spoken}, ${options.currentTag}` : spoken} style={[styles.row, { borderTopWidth: i ? StyleSheet.hairlineWidth : 0, borderTopColor: c.rule }, d.current ? { backgroundColor: c.current } : null]}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minWidth: 0 }}>
+              <Txt variant="label" numberOfLines={1} style={{ color: c.text, flexShrink: 1 }}>{name}</Txt>
+              {d.current && options.currentTag ? (
+                <View style={[styles.tag, { backgroundColor: c.tagBg }]}>
+                  <Txt variant="micro" style={{ color: c.tagFg }}>{options.currentTag}</Txt>
+                </View>
+              ) : null}
+            </View>
+            <View style={[styles.value, { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: spacing.sm }]}>
+              <View style={[styles.track, { backgroundColor: c.track }]}>
+                {d.value ? <View style={{ width: Math.max(3, (d.value / max) * 32), height: 6, borderRadius: 3, backgroundColor: c.fill }} /> : null}
+              </View>
+              <View style={{ flex: 1 }}>{cell(d.value, true)}</View>
+            </View>
+            {compare ? <View style={styles.num}>{cell(prev, false)}</View> : null}
+          </View>
+        );
+      })}
+      {options.total ? (
+        <View style={[styles.row, { borderTopWidth: 1, borderTopColor: c.rule }]} accessible accessibilityLabel={`Total: ${format(sum(data.map((d) => d.value)))} ${unit}${compare ? `, ${options.compareSeries ?? 'before'} ${format(sum(compare))} ${unit}` : ''}`}>
+          <Txt variant="label" style={{ flex: 1, color: c.text, fontWeight: '700' }}>Total</Txt>
+          <Txt variant="label" tabular align="right" numberOfLines={1} style={[styles.value, { color: c.text, fontWeight: '800' }]}>{`${format(sum(data.map((d) => d.value)))} ${unit}`}</Txt>
+          {compare ? <Txt variant="label" tabular align="right" numberOfLines={1} style={[styles.num, { color: c.muted, fontWeight: '700' }]}>{`${format(sum(compare))} ${unit}`}</Txt> : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * General table (splits, daily readings). The first column is the row name; every other column is
+ * a right-aligned tabular value.
+ */
+export function DataTable({ rows, header }: { rows: string[][]; header?: string[] }) {
+  const c = useTableColors();
+  return (
+    <View style={[styles.table, { backgroundColor: c.panel }]}>
       {header ? (
-        <View style={{ flexDirection: 'row', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: p.surfaceSunken }}>
+        <View style={[styles.row, styles.head, { borderBottomColor: c.rule }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           {header.map((h, i) => (
-            <Txt key={i} variant="label" style={{ flex: 1 }}>{h}</Txt>
+            <Txt key={i} variant="micro" align={i === 0 ? 'left' : 'right'} numberOfLines={1} style={{ flex: i === 0 ? 1.2 : 1, color: c.head }}>{h}</Txt>
           ))}
         </View>
       ) : null}
       {rows.map((r, i) => (
-        <View key={i} accessible accessibilityLabel={r.join(', ')} style={{ flexDirection: 'row', paddingHorizontal: spacing.md, paddingVertical: spacing.sm + 2, borderTopWidth: i || header ? StyleSheet.hairlineWidth : 0, borderColor: p.border }}>
-          {r.map((c, j) => (
-            <Txt key={j} variant="caption" color={j === 0 ? 'textMuted' : 'text'} tabular style={{ flex: 1 }}>{c}</Txt>
+        <View key={i} accessible accessibilityLabel={header ? r.map((v, j) => `${header[j] ?? ''} ${v}`.trim()).join(', ') : r.join(', ')} style={[styles.row, { borderTopWidth: i ? StyleSheet.hairlineWidth : 0, borderTopColor: c.rule }]}>
+          {r.map((v, j) => (
+            <Txt key={j} variant="label" tabular align={j === 0 ? 'left' : 'right'} numberOfLines={1} style={{ flex: j === 0 ? 1.2 : 1, color: j === 0 ? c.text : /^(no data|–|-)$/i.test(v) ? c.muted : c.text, fontWeight: j === 0 ? '600' : '700' }}>{v}</Txt>
           ))}
         </View>
       ))}
@@ -132,5 +222,12 @@ export function DataTable({ rows, header }: { rows: string[][]; header?: string[
 
 const styles = StyleSheet.create({
   labels: { height: 16, marginTop: spacing.xs },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', minHeight: 40 }
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, alignSelf: 'flex-start', minHeight: 40 },
+  table: { borderRadius: radius.md, overflow: 'hidden', paddingVertical: spacing.xs },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, minHeight: 42 },
+  head: { minHeight: 34, borderBottomWidth: StyleSheet.hairlineWidth },
+  value: { width: 96, alignItems: 'flex-end' },
+  num: { width: 60, alignItems: 'flex-end' },
+  track: { width: 32, height: 6, borderRadius: 3, overflow: 'hidden' },
+  tag: { borderRadius: radius.pill, paddingHorizontal: 7, paddingVertical: 1 }
 });

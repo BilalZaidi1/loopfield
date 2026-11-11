@@ -29,7 +29,7 @@ export default function MetricDetail() {
       <Stack.Screen options={{ title: meta.title }} />
       <Segmented label="Period" value={period} onChange={setPeriod} options={[{ value: '7', label: '7 days' }, { value: '28', label: '28 days' }, { value: '90', label: '90 days' }]} />
       <Card>
-        <BarChart title={`${meta.title} per day (${meta.unit})`} unit={meta.unit} data={days.map((k) => ({ label: fmtDay(k), value: daily.get(k) ?? null }))} format={fmt} />
+        <BarChart title={`${meta.title} per day (${meta.unit})`} unit={meta.unit} data={days.map((k) => ({ label: fmtDay(k), long: fmtDay(k, { weekday: 'short', day: 'numeric', month: 'short' }), value: daily.get(k) ?? null }))} format={fmt} table={{ period: 'Day', series: meta.unit }} />
       </Card>
       <Card accessibilityLabel="Coverage and comparison">
         <Txt>Data on {covered} of {days.length} days{covered < days.length ? ' — days without readings are left empty, not counted as zero' : ''}.</Txt>

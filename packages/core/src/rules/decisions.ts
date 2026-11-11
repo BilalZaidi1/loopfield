@@ -51,6 +51,9 @@ export type ReasonCode =
   | 'gate_fix_spacing'
   | 'timing_uncertainty'
   | 'speed_suspended'
+  // movement points and reclamation
+  | 'movement_too_short'
+  | 'basis_invalidated'
   // corrections
   | 'source_deleted'
   | 'consent_withdrawn'
@@ -113,6 +116,8 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   gate_fix_spacing: 'GPS fixes around a timing gate were too far apart.',
   timing_uncertainty: 'Timing uncertainty was above the allowed limit.',
   speed_suspended: 'Speed titles are temporarily suspended.',
+  movement_too_short: 'Less than 200 m of verified distance, so this run earned no movement points.',
+  basis_invalidated: 'The run that showed you held this ground was ruled invalid, so the reclaim was withdrawn.',
   source_deleted: 'The source activity was deleted.',
   consent_withdrawn: 'Competition consent was withdrawn.',
   staff_invalidated: 'This result was invalidated after review.',

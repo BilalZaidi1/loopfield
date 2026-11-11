@@ -75,6 +75,8 @@ export function routeForNotification(n: { kind: string; object_type: string | nu
   if (n.kind === 'club_join_request') return { pathname: '/club/[id]/organizer', params: { id } };
   if (n.kind === 'territory_digest') return '/map';
   if (n.kind === 'title_digest') return '/routes';
+  if (n.kind === 'badge_earned') return '/achievements';
+  if (n.kind === 'points_refunded') return '/points';
   switch (n.object_type) {
     case 'post':
       return { pathname: '/post/[id]', params: { id } };

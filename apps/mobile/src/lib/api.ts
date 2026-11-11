@@ -25,11 +25,21 @@ const FRIENDLY: Record<string, string> = {
   messaging_suspended: 'Messaging is temporarily unavailable.',
   not_allowed: 'This runner is not accepting messages from you.',
   blocked: 'Messaging is unavailable with this runner.',
-  network: 'You appear to be offline.'
+  network: 'You appear to be offline.',
+  insufficient_points: 'You do not have enough movement points for that. Every verified kilometre adds 10.',
+  nothing_to_reclaim: 'None of those cells can be reclaimed any more. They may have changed hands.',
+  season_closed: 'This season is closed, so ground can no longer be reclaimed.',
+  not_participating: 'Turn on territory competition in Privacy settings to reclaim ground.',
+  reclaim_suspended: 'Reclaiming is temporarily unavailable.',
+  region_suspended: 'Competition in this area is suspended.',
+  too_many_cells: 'Choose at most 200 cells at a time.',
+  reclaim_conflict: 'The map changed while you were reclaiming. Nothing was charged; please try again.',
+  set_city: 'Set your city in your profile to see regional rankings.',
+  no_country: 'Country rankings are not available for your area yet.'
 };
 
 export function friendlyError(err: unknown): string {
-  if (err instanceof ApiError) return FRIENDLY[err.code] ?? err.message;
+  if (err instanceof ApiError) return FRIENDLY[err.code] ?? FRIENDLY[err.message] ?? err.message;
   const e = err as { code?: string; message?: string };
   if (e?.code === '42501') return FRIENDLY.forbidden!;
   if (e?.code === 'P0429') return FRIENDLY.rate_limited!;

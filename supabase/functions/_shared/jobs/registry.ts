@@ -2,7 +2,7 @@ import { scrubText } from '../core/index.ts';
 import { pgArray, type Sql } from '../clients.ts';
 import { deleteAccount, deleteActivity, exportData, purgeRawEvidence, withdrawCompetition } from './account.ts';
 import { reconcileEntitlement } from './billing.ts';
-import { buildRouteProposal, evaluateAttemptJob, evaluateFoundingAttempt, evaluateLoopJob, reconcileActivity } from './competition.ts';
+import { awardMovementJob, buildRouteProposal, evaluateAttemptJob, evaluateFoundingAttempt, evaluateLoopJob, reconcileActivity } from './competition.ts';
 import { NonRetryableError, type JobContext, type JobHandler, type JobRow } from './context.ts';
 import {
   clubInvitationEmailJob,
@@ -18,6 +18,7 @@ import {
 
 export const HANDLERS: Record<string, JobHandler> = {
   reconcile_activity: reconcileActivity,
+  award_movement: awardMovementJob,
   evaluate_loop: evaluateLoopJob,
   evaluate_attempt: evaluateAttemptJob,
   build_route_proposal: buildRouteProposal,

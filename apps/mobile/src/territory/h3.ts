@@ -28,15 +28,25 @@ export function roundBounds(b: Bounds): Bounds {
   return { minLng: r(b.minLng, false), minLat: r(b.minLat, false), maxLng: r(b.maxLng, true), maxLat: r(b.maxLat, true) };
 }
 
+/**
+ * The server stores and returns cells as H3 indexes in decimal text (Postgres bigint); h3-js works on
+ * hexadecimal. H3 indexes below resolution 15 always contain an "f", so an all-digit string is decimal.
+ */
+export function toH3(cell: string): string {
+  return /^[0-9]+$/.test(cell) ? bigintCellToH3(cell) : cell;
+}
+
 export function cellPolygon(cell: string): GeoJSON.Polygon | null {
-  if (!isValidCell(cell)) return null;
-  const ring = cellToBoundary(cell, true) as [number, number][];
+  const h3 = toH3(cell);
+  if (!isValidCell(h3)) return null;
+  const ring = cellToBoundary(h3, true) as [number, number][];
   return { type: 'Polygon', coordinates: [[...ring, ring[0]!]] };
 }
 
 export function cellCenter(cell: string): [number, number] | null {
-  if (!isValidCell(cell)) return null;
-  const [lat, lng] = cellToLatLng(cell);
+  const h3 = toH3(cell);
+  if (!isValidCell(h3)) return null;
+  const [lat, lng] = cellToLatLng(h3);
   return [lng, lat];
 }
 
@@ -73,8 +83,21 @@ export function gridFeatures(b: Bounds, resolution: number, max = 2500): GeoJSON
 
 /** Grid resolution of published cells (falls back to the given default when none are in view). */
 export function resolutionOf(cells: { cell: string }[], fallback: number): number {
-  const first = cells.find((c) => isValidCell(c.cell));
-  return first ? getResolution(first.cell) : fallback;
+  const first = cells.map((c) => toH3(c.cell)).find((h) => isValidCell(h));
+  return first ? getResolution(first) : fallback;
+}
+
+/**
+ * Cells I held and lost (properties: cell in the server's decimal form, reclaimable, selected), drawn as
+ * a dashed outline in my colour over the rival's fill; selected cells fill in my colour.
+ */
+export function lostToFeatures(cells: readonly { cell: string; reclaimable: boolean }[], selected: ReadonlySet<string>): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = [];
+  for (const c of cells) {
+    const geometry = cellPolygon(c.cell);
+    if (geometry) features.push({ type: 'Feature', id: c.cell, geometry, properties: { cell: c.cell, reclaimable: c.reclaimable, selected: selected.has(c.cell) } });
+  }
+  return { type: 'FeatureCollection', features };
 }
 
 /** About 2.5 km × 2 km around a point: the area summarised when no map can be shown. */

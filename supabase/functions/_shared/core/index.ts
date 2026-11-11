@@ -6,6 +6,7 @@ export * from './recording/types.ts';
 export * from './recording/summary.ts';
 export * from './territory/loop.ts';
 export * from './territory/ledger.ts';
+export * from './movement/points.ts';
 export * from './speed/course.ts';
 export * from './speed/match.ts';
 export * from './speed/titles.ts';

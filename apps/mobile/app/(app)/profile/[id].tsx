@@ -7,6 +7,8 @@ import { useLayout } from '@/theme/layout';
 import { startConversation } from '@/chat/client';
 import { useSignedUrl } from '@/features/social/media';
 import { PostCard, useFeed } from '@/features/social/PostCard';
+import { BadgeStrip } from '@/features/achievements/Badges';
+import { useAchievementProfile } from '@/features/achievements/api';
 import { useProfileCard, useRelationshipActions } from '@/features/social/profile';
 import { spacing, usePalette } from '@/theme/tokens';
 
@@ -18,6 +20,7 @@ export default function OtherProfile() {
   const card = useProfileCard(id);
   const c = card.data;
   const avatar = useSignedUrl('avatars', c?.avatar_path);
+  const achievements = useAchievementProfile(id);
   const posts = useFeed('profile_posts', { p_profile: id }, Boolean(c?.can_view_content));
   const eligibility = useQuery({ queryKey: ['messaging_eligibility', id], enabled: Boolean(c && !c.is_me), queryFn: () => rpc<{ allowed: boolean; reason: string }>('messaging_eligibility', { p_target: id }) });
   const actions = useRelationshipActions(id!);
@@ -86,6 +89,15 @@ export default function OtherProfile() {
         </View>
       )}
       {!eligibility.data?.allowed && eligibility.data ? <Txt variant="caption" align="center">{eligibility.data.reason === 'not_allowed' ? 'This runner accepts messages only from people they allow.' : 'Messaging is unavailable with this runner.'}</Txt> : null}
+      {achievements.data?.visible ? (
+        <Card accessibilityLabel={achievements.data.global_rank ? `Global rank ${achievements.data.global_rank}, ${achievements.data.badges} badges` : `${achievements.data.badges} badges`}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+            <Txt variant="heading" style={{ flex: 1 }}>Badges</Txt>
+            <Txt variant="label" color="textMuted" tabular>{achievements.data.global_rank ? `Global #${achievements.data.global_rank} · score ${achievements.data.score}` : 'Not ranked yet'}</Txt>
+          </View>
+          <BadgeStrip badges={achievements.data.earned ?? []} empty="No badges yet." />
+        </Card>
+      ) : null}
       {!c.can_view_content ? <Banner text="This profile is private. Follow requests must be approved before posts appear." /> : <Txt variant="headline">Posts</Txt>}
     </View>
   );

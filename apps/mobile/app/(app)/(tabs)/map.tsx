@@ -6,8 +6,9 @@ import Animated, { LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polygon } from 'react-native-svg';
 import { TERRITORY_RULES } from '@loopfield/core';
-import { fmtDate, fmtDistance, fmtDuration } from '@/lib/format';
-import { Avatar, Badge, Banner, Button, IconButton, OfflineBanner, Row, Sheet, Skeleton, Txt } from '@/components/ui';
+import { fmtCount, fmtDate, fmtDistance, fmtDuration } from '@/lib/format';
+import { friendlyError } from '@/lib/api';
+import { Avatar, Badge, Banner, Button, IconButton, OfflineBanner, PressableScale, Row, Sheet, Skeleton, Txt } from '@/components/ui';
 import { Icon, type IconName } from '@/components/icons';
 import { MapCanvas, mapAvailability, type MapHandle } from '@/features/map/MapCanvas';
 import { useInitialCenter } from '@/features/map/useInitialCenter';
@@ -15,7 +16,10 @@ import { routesToFeatures, useExclusions, useRoutesInView, useTerritoryViewport,
 import { daysLeft } from '@/features/territory/useTerritoryStats';
 import { useCompetition } from '@/state/competition';
 import { useSession, useUnits } from '@/state/session';
-import { boundsAround, cellsToFeatures, gridFeatures, resolutionOf, summarizeCells, type Bounds, type ViewportCell } from '@/territory/h3';
+import { boundsAround, cellsToFeatures, gridFeatures, lostToFeatures, resolutionOf, summarizeCells, type Bounds, type ViewportCell } from '@/territory/h3';
+import { useLostCells, useMovement, useReclaimQuote, type LostCell } from '@/features/movement/api';
+import { PointsChip, ReclaimDone, ReclaimReceipt, ReclaimSheet, useReclaimFlow } from '@/features/movement/Reclaim';
+import { tick } from '@/theme/motion';
 import { controllerColor, radius, spacing, useTheme } from '@/theme/tokens';
 import { useLayout } from '@/theme/layout';
 
@@ -50,6 +54,9 @@ export default function TerritoryMap() {
   const [expanded, setExpanded] = useState(false);
   const [sheet, setSheet] = useState<'legend' | 'competition' | null>(null);
   const [sheetH, setSheetH] = useState(240);
+  const [reclaiming, setReclaiming] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [listOpen, setListOpen] = useState(false);
   const mapRef = useRef<MapHandle>(null);
 
   // Without a drawable map (browser, Expo Go) the area around the start point is summarised instead.
@@ -68,6 +75,35 @@ export default function TerritoryMap() {
   const selectedCell = selected?.kind === 'cell' ? (cells.data ?? []).find((c) => c.cell === selected.id) ?? null : null;
   const selectedRoute = selected?.kind === 'route' ? (routes.data ?? []).find((r) => r.course_id === selected.id) ?? null : null;
   const left = daysLeft(season?.ends_at);
+
+  // Ground I held this season and lost to another runner: in view on the map, the whole season otherwise.
+  const lost = useLostCells(competition?.id, season?.id, available ? bounds : 'all', Boolean(competition && season));
+  const movement = useMovement();
+  const lostByCell = useMemo(() => new Map((lost.data ?? []).map((c) => [c.cell, c])), [lost.data]);
+  const lostFc = useMemo(() => (available && lost.data?.length ? lostToFeatures(lost.data, picked) : undefined), [available, lost.data, picked]);
+  const reclaimable = (lost.data ?? []).filter((c) => c.reclaimable).length;
+  const quote = useReclaimQuote(picked, lost.data, movement.data?.balance);
+  const flow = useReclaimFlow(competition?.id, season?.id);
+  const endReclaim = () => {
+    flow.reset();
+    setPicked(new Set());
+    setReclaiming(false);
+  };
+  const startReclaim = (first?: string) => {
+    if (!available) return setListOpen(true);
+    setSelected(null);
+    setExpanded(false);
+    setPicked(new Set(first ? [first] : []));
+    setReclaiming(true);
+  };
+  const togglePick = (cell: string) => {
+    if (!lostByCell.get(cell)?.reclaimable) return;
+    const next = new Set(picked);
+    if (next.has(cell)) next.delete(cell);
+    else next.add(cell);
+    tick('light');
+    setPicked(next);
+  };
 
   const recenter = useCallback(async () => {
     const perm = await Location.requestForegroundPermissionsAsync().catch(() => null);
@@ -92,14 +128,14 @@ export default function TerritoryMap() {
           showUser
           ornamentBottom={isWide ? 8 : sheetH + 8}
           selectedCell={selected?.kind === 'cell' ? selected.id : null}
-          layers={{ cells: fc, exclusions: exclusions.data, grid, routes: showRoutes ? routeFc : undefined }}
+          layers={{ cells: fc, exclusions: exclusions.data, grid, routes: showRoutes && !reclaiming ? routeFc : undefined, lost: lostFc }}
           onIdle={(b, z) => {
             setBounds(b);
             setZoom(z);
           }}
-          onPressCell={(cell) => setSelected({ kind: 'cell', id: cell })}
-          onPressRoute={(id) => setSelected({ kind: 'route', id })}
-          onPressMap={() => setSelected(null)}
+          onPressCell={(cell) => (reclaiming ? togglePick(cell) : setSelected({ kind: 'cell', id: cell }))}
+          onPressRoute={(id) => (reclaiming ? undefined : setSelected({ kind: 'route', id }))}
+          onPressMap={() => (reclaiming ? undefined : setSelected(null))}
         />
       )}
 
@@ -120,6 +156,7 @@ export default function TerritoryMap() {
             </View>
             <Icon name="chevron-down" color={p.textMuted} size={20} />
           </Pressable>
+          <PointsChip balance={movement.data?.balance} loading={movement.isLoading} onPress={() => router.push('/points')} />
           <IconButton icon="medal" label="Leaderboard" variant="surface" onPress={() => router.push('/leaderboard')} />
         </View>
       </View>
@@ -143,14 +180,48 @@ export default function TerritoryMap() {
         <Pressable onPress={() => setExpanded(!expanded)} accessibilityRole="button" accessibilityLabel={expanded ? 'Show less' : 'Show more about this area'} accessibilityState={{ expanded }} hitSlop={8} style={{ alignItems: 'center', paddingVertical: spacing.sm }}>
           <View style={[styles.grabber, { backgroundColor: p.borderStrong }]} />
         </Pressable>
-        {selectedCell ? (
-          <CellPanel cell={selectedCell} rivalHues={tc.rivalHues} onClose={() => setSelected(null)} />
+        {reclaiming ? (
+          flow.done ? (
+            <ReclaimDone result={flow.done} onDone={endReclaim} />
+          ) : (
+            <View style={{ gap: spacing.md }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Txt variant="headline">Reclaim lost ground</Txt>
+                  <Txt variant="caption">{quote.cells.length ? 'Tap more dashed cells, or reclaim these.' : 'Tap the dashed cells you lost to choose them.'}</Txt>
+                </View>
+                <Button label="Done" size="sm" variant="secondary" onPress={endReclaim} />
+              </View>
+              <ReclaimReceipt cells={quote.cells.length} costPerCell={quote.costPerCell} total={quote.total} balance={quote.balance} remaining={quote.remaining} />
+              {quote.cells.length && quote.remaining < 0 ? <Banner tone="warning" text={`You need ${-quote.remaining} more points: about ${(-quote.remaining * 100).toLocaleString()} m of running.`} /> : null}
+              {flow.error ? <Banner tone="danger" text={friendlyError(flow.error)} /> : null}
+              <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                {quote.cells.length ? <Button label="Clear" variant="ghost" size="lg" onPress={() => setPicked(new Set())} /> : null}
+                <Button
+                  label={quote.cells.length ? `Reclaim ${quote.cells.length} for ${quote.total} pts` : 'Choose cells'}
+                  size="lg"
+                  arrow
+                  style={{ flex: 1 }}
+                  loading={flow.busy}
+                  disabled={!quote.affordable || flow.busy}
+                  onPress={() => flow.start(quote.cells, quote.total, quote.balance)}
+                />
+              </View>
+            </View>
+          )
+        ) : selectedCell ? (
+          <CellPanel cell={selectedCell} lost={lostByCell.get(selectedCell.cell)} rivalHues={tc.rivalHues} onClose={() => setSelected(null)} onReclaim={() => startReclaim(selectedCell.cell)} />
         ) : selectedRoute ? (
           <RoutePanel route={selectedRoute} onClose={() => setSelected(null)} />
         ) : (
-          <InView summary={summary} loading={cells.isFetching && !cells.data} available={available} expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+          <>
+            <InView summary={summary} loading={cells.isFetching && !cells.data} available={available} expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+            {lost.data?.length ? (
+              <LostCallout count={lost.data.length} reclaimable={reclaimable} cost={lost.data.find((c) => c.reclaimable)?.cost ?? null} balance={movement.data?.balance ?? null} scope={available ? 'in view' : 'this season'} onPress={() => startReclaim()} />
+            ) : null}
+          </>
         )}
-        {expanded && !selected ? (
+        {expanded && !selected && !reclaiming ? (
           <ScrollView style={{ maxHeight: 340 }} contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.sm }}>
             {cells.tooLarge ? <Banner tone="info" text="Zoom in to load territory for this area." /> : null}
             {cells.error ? <Banner tone="danger" text="Territory could not be loaded for this view." action={{ label: 'Retry', onPress: () => void cells.refetch() }} /> : null}
@@ -174,6 +245,7 @@ export default function TerritoryMap() {
               </View>
             ) : null}
             <View>
+              <Row icon="bolt" title="Movement points" subtitle={movement.data ? `${movement.data.balance.toLocaleString()} points · earned on every verified run` : 'Earned on every verified run'} onPress={() => router.push('/points')} />
               <Row icon="medal" title="Leaderboard" subtitle="Published land this season" onPress={() => router.push('/leaderboard')} />
               <Row icon="route" title="Speed routes" subtitle="Approved routes and their title holders" onPress={() => router.push('/routes')} />
               <Row icon="compass" title="My exploration" subtitle="Private record of where you have run" onPress={() => router.push('/exploration')} />
@@ -181,8 +253,10 @@ export default function TerritoryMap() {
             <Txt variant="caption">Unmarked ground is unclaimed. Grey areas are unavailable for competition (for example private or restricted land). Land shown is published at least 30 minutes after a run.</Txt>
           </ScrollView>
         ) : null}
-        <Button label="Start a run" size="lg" arrow icon="record" onPress={() => router.push('/record')} />
+        {reclaiming ? null : <Button label="Start a run" size="lg" arrow icon="record" onPress={() => router.push('/record')} />}
       </Animated.View>
+
+      <ReclaimSheet visible={listOpen} onClose={() => setListOpen(false)} competitionId={competition?.id} seasonId={season?.id} />
 
       <Sheet visible={sheet === 'legend'} title="Map key" onClose={() => setSheet(null)}>
         <Legend />
@@ -201,6 +275,8 @@ export default function TerritoryMap() {
                   select(c.id);
                   setSelected(null);
                   setSheet(null);
+                  setReclaiming(false);
+                  setPicked(new Set());
                 }}
               />
             ))}
@@ -223,49 +299,107 @@ export default function TerritoryMap() {
   );
 }
 
-function Swatch({ color, dashed }: { color: string; dashed?: boolean }) {
+function Swatch({ color, dashed, size = 26 }: { color: string; dashed?: boolean; size?: number }) {
   return (
-    <Svg width={26} height={28} style={{ flexShrink: 0 }} viewBox="0 0 26 28" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <Polygon points="13,2 24,8 24,20 13,26 2,20 2,8" fill={color} fillOpacity={dashed ? 0.2 : 0.55} stroke={color} strokeWidth={2} strokeDasharray={dashed ? '3,2' : undefined} />
+    <Svg width={size} height={size * (28 / 26)} style={{ flexShrink: 0 }} viewBox="0 0 26 28" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Polygon points="13,2 24,8 24,20 13,26 2,20 2,8" fill={color} fillOpacity={dashed ? 0.2 : 0.55} stroke={color} strokeWidth={size < 20 ? 2.6 : 2} strokeDasharray={dashed ? '3,2' : undefined} />
     </Svg>
   );
 }
 
-function Stat({ color, label, value, dashed }: { color: string; label: string; value: number; dashed?: boolean }) {
-  const { palette: p } = useTheme();
+/**
+ * Who holds the cells around you: a share bar, then one column per state with the count above a short
+ * label. Columns are equal thirds and labels never wrap, so "Unavailable" always fits.
+ */
+function Scoreboard({ summary }: { summary: ReturnType<typeof summarizeCells> }) {
+  const t = useTheme();
+  const p = t.palette;
+  const tc = t.territory;
+  const items = [
+    { key: 'mine', label: 'Yours', value: summary.mine, color: tc.mineFill, dashed: false },
+    { key: 'rivals', label: 'Rivals', value: summary.others, color: tc.rivalHues[0]!, dashed: false },
+    { key: 'off', label: 'Unavailable', value: summary.unavailable, color: tc.unavailableFill, dashed: true }
+  ];
+  const total = items.reduce((sum, i) => sum + i.value, 0);
+  const held = summary.mine + summary.others;
+  const share = held ? Math.round((summary.mine / held) * 100) : 0;
   return (
-    <View style={[styles.stat, { backgroundColor: p.surfaceAlt }]} accessible accessibilityLabel={`${label}: ${value}`}>
-      <Swatch color={color} dashed={dashed} />
-      <View>
-        <Txt variant="metric" style={{ fontSize: 24, lineHeight: 26 }}>{String(value)}</Txt>
-        <Txt variant="caption" numberOfLines={1}>{label}</Txt>
+    <View style={[styles.board, { backgroundColor: p.surfaceAlt }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: spacing.sm }}>
+        <Txt variant="micro" color="textMuted">Cells around you</Txt>
+        <Txt variant="micro" color={held ? 'text' : 'textMuted'} tabular>{held ? `You hold ${share}% of claimed ground` : 'No ground claimed here yet'}</Txt>
+      </View>
+      <View style={[styles.share, { backgroundColor: p.surfaceSunken }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        {total ? items.map((i) => (i.value ? <View key={i.key} style={{ flex: i.value, backgroundColor: i.color, opacity: i.dashed ? 0.4 : 1 }} /> : null)) : null}
+      </View>
+      <View style={{ flexDirection: 'row' }}>
+        {items.map((i, idx) => (
+          <View key={i.key} style={[styles.col, idx ? { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: p.borderStrong, paddingLeft: spacing.md } : null]} accessible accessibilityLabel={`${i.label}: ${i.value} ${i.value === 1 ? 'cell' : 'cells'}`}>
+            <Txt variant="metric" tabular numberOfLines={1} style={{ fontSize: 26, lineHeight: 30, color: i.value ? p.text : p.textSubtle }}>{fmtCount(i.value)}</Txt>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, maxWidth: '100%' }}>
+              <Swatch color={i.color} dashed={i.dashed} size={13} />
+              <Txt variant="caption" color="textMuted" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ flexShrink: 1 }}>{i.label}</Txt>
+            </View>
+          </View>
+        ))}
       </View>
     </View>
   );
 }
 
 function InView({ summary, loading, available, expanded, onToggle }: { summary: ReturnType<typeof summarizeCells>; loading: boolean; available: boolean; expanded: boolean; onToggle: () => void }) {
-  const t = useTheme();
-  const tc = t.territory;
   return (
     <View style={{ gap: spacing.md }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <View style={{ flex: 1 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+        <View style={{ flex: 1, gap: 2 }}>
           <Txt variant="headline">{available ? 'In view' : 'Around your area'}</Txt>
           <Txt variant="caption">{loading ? 'Loading territory…' : available ? 'Pan and zoom to explore who holds what.' : 'About 2.5 km around your last known start point.'}</Txt>
         </View>
-        <Button label={expanded ? 'Less' : 'More'} size="sm" variant="ghost" onPress={onToggle} />
+        <Button label={expanded ? 'Less' : 'More'} size="sm" variant="secondary" icon={expanded ? 'chevron-down' : 'chevron-up'} onPress={onToggle} accessibilityLabel={expanded ? 'Show less' : 'Show more about this area'} />
       </View>
-      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-        <Stat color={tc.mineFill} label="Yours" value={summary.mine} />
-        <Stat color={tc.rivalHues[0]!} label="Rivals" value={summary.others} />
-        <Stat color={tc.unavailableFill} label="Unavailable" value={summary.unavailable} dashed />
-      </View>
+      <Scoreboard summary={summary} />
     </View>
   );
 }
 
-function CellPanel({ cell, rivalHues, onClose }: { cell: ViewportCell; rivalHues: readonly string[]; onClose: () => void }) {
+/** Dashed outline in my colour: ground I held and lost. */
+function LostSwatch({ faded, size = 26 }: { faded?: boolean; size?: number }) {
+  const t = useTheme();
+  return (
+    <Svg width={size} height={size * (28 / 26)} style={{ flexShrink: 0, opacity: faded ? 0.5 : 1 }} viewBox="0 0 26 28" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Polygon points="13,2 24,8 24,20 13,26 2,20 2,8" fill={t.territory.rivalHues[0]!} fillOpacity={0.35} stroke={t.territory.mineLine} strokeWidth={2.4} strokeDasharray="3.5,2.5" />
+    </Svg>
+  );
+}
+
+/** "You lost N cells": the way into reclaiming, with the price and my balance up front. */
+function LostCallout({ count, reclaimable, cost, balance, scope, onPress }: { count: number; reclaimable: number; cost: number | null; balance: number | null; scope: string; onPress: () => void }) {
+  const t = useTheme();
+  const p = t.palette;
+  const sub = reclaimable && cost
+    ? `${reclaimable === count ? 'All' : reclaimable} reclaimable at ${cost} points a cell${balance != null ? ` · you have ${balance.toLocaleString()}` : ''}`
+    : 'Taken back with points: only a run can win it back';
+  return (
+    <PressableScale onPress={onPress} accessibilityRole="button" accessibilityLabel={`You lost ${count} ${count === 1 ? 'cell' : 'cells'} ${scope}. ${sub}. Reclaim`}
+      style={[styles.callout, { backgroundColor: p.primarySoft }]}>
+      <LostSwatch faded={!reclaimable} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Txt variant="bodyStrong" numberOfLines={1}>{`You lost ${count} ${count === 1 ? 'cell' : 'cells'} ${scope}`}</Txt>
+        <Txt variant="caption" numberOfLines={2}>{sub}</Txt>
+      </View>
+      <Txt variant="label" style={{ color: p.onPrimarySoft }}>{reclaimable ? 'Reclaim' : 'View'}</Txt>
+      <Icon name="chevron-right" color={p.onPrimarySoft} size={18} />
+    </PressableScale>
+  );
+}
+
+const BLOCKED_TEXT: Record<string, string> = {
+  taken_with_points: 'Taken back with movement points, so only a run can win it back.',
+  season_closed: 'The season is closed, so it can no longer be reclaimed.',
+  not_participating: 'Turn on territory in Privacy settings to reclaim it.'
+};
+
+function CellPanel({ cell, lost, rivalHues, onClose, onReclaim }: { cell: ViewportCell; lost?: LostCell; rivalHues: readonly string[]; onClose: () => void; onReclaim: () => void }) {
   const t = useTheme();
   const tc = t.territory;
   const excluded = cell.status === 'excluded';
@@ -286,7 +420,17 @@ function CellPanel({ cell, rivalHues, onClose }: { cell: ViewportCell; rivalHues
         </View>
         <IconButton icon="close" label="Close details" variant="soft" size={40} onPress={onClose} />
       </View>
-      <Txt color="textMuted">{body}</Txt>
+      {lost ? (
+        <View style={[styles.callout, { backgroundColor: t.palette.primarySoft }]}>
+          <LostSwatch faded={!lost.reclaimable} size={22} />
+          <Txt variant="label" style={{ flex: 1, color: t.palette.onPrimarySoft }}>
+            {lost.reclaimable ? `This was yours until ${fmtDate(lost.lost_on)}. Reclaim it for ${lost.cost} points.` : BLOCKED_TEXT[lost.blocked_reason ?? ''] ?? 'This was yours earlier this season.'}
+          </Txt>
+        </View>
+      ) : (
+        <Txt color="textMuted">{body}</Txt>
+      )}
+      {lost?.reclaimable ? <Button label={`Reclaim for ${lost.cost} points`} size="lg" arrow icon="bolt" onPress={onReclaim} /> : null}
       <Button label="Cell details" variant="secondary" icon="hexagon" onPress={() => router.push({ pathname: '/territory/[cell]', params: { cell: cell.cell } })} />
     </View>
   );
@@ -323,6 +467,8 @@ function Legend() {
   const items: { swatch: ReactNode; title: string; body: string }[] = [
     { swatch: <Swatch color={tc.mineFill} />, title: 'Your ground', body: 'Cells you hold this season, outlined with a glow.' },
     { swatch: <View style={{ flexDirection: 'row' }}><Swatch color={tc.rivalHues[0]!} /><Swatch color={tc.rivalHues[1]!} /></View>, title: 'Rival ground', body: 'Held by other runners. Each runner keeps one colour so you can tell them apart.' },
+    { swatch: <LostSwatch />, title: 'Was yours', body: 'Ground you held this season that another runner\'s loop took. Tap it to reclaim it with movement points.' },
+    { swatch: <LostSwatch faded />, title: 'Taken back with points', body: 'A runner reclaimed it from you with points. Only a run can win it back.' },
     { swatch: <Swatch color={tc.unavailableFill} dashed />, title: 'Unavailable', body: 'Private, restricted or unsafe areas. They are never awarded.' },
     { swatch: <LegendIcon icon="hexagon" color={t.palette.primary} />, title: 'Unclaimed', body: 'No marking means nobody holds it. Only an eligible loop can claim it; the faint grid shows the cell shapes.' },
     { swatch: <LegendIcon icon="route" color={tc.route} />, title: 'Speed routes', body: 'Approved routes with titles. Your colour when you hold the title, dashed while suspended.' }
@@ -354,5 +500,8 @@ const styles = StyleSheet.create({
   controls: { position: 'absolute', right: spacing.lg, gap: spacing.sm },
   sheet: { position: 'absolute', paddingHorizontal: spacing.xl, paddingBottom: spacing.lg, gap: spacing.md },
   grabber: { width: 44, height: 5, borderRadius: 3 },
-  stat: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md }
+  board: { borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.lg, gap: spacing.md },
+  share: { height: 8, borderRadius: 4, overflow: 'hidden', flexDirection: 'row', gap: 2 },
+  col: { flex: 1, minWidth: 0, gap: 2, paddingRight: spacing.sm, alignItems: 'flex-start' },
+  callout: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.md, borderRadius: radius.md, minHeight: 56 }
 });

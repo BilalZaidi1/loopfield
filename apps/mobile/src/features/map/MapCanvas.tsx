@@ -47,6 +47,8 @@ export interface MapLayers {
   exclusions?: GeoJSON.FeatureCollection;
   /** Private overlays such as your exploration cells (properties.color). */
   overlayCells?: GeoJSON.FeatureCollection;
+  /** Cells I held and lost (properties: cell, reclaimable, selected): dashed in my colour; selected ones filled. */
+  lost?: GeoJSON.FeatureCollection;
   /** Faint outline of the ownership grid (visual only). */
   grid?: GeoJSON.FeatureCollection | null;
   routes?: GeoJSON.FeatureCollection;
@@ -210,6 +212,22 @@ export function MapCanvas({
             <LineLayer id="cells-excluded-line" filter={['==', ['get', 'status'], 'excluded']} style={{ lineColor: tc.unavailableLine, lineWidth: 1.2, lineDasharray: [2, 2] }} />
             <LineLayer id="cells-selected-casing" filter={['==', ['get', 'cell'], selectedCell ?? '']} style={{ lineColor: tc.selectedCasing, lineWidth: 7 }} />
             <LineLayer id="cells-selected" filter={['==', ['get', 'cell'], selectedCell ?? '']} style={{ lineColor: tc.selectedLine, lineWidth: 3 }} />
+          </ShapeSource>
+        ) : null}
+        {layers.lost?.features.length ? (
+          <ShapeSource
+            id="lost"
+            shape={layers.lost}
+            onPress={(e) => {
+              onFeature();
+              const c = e.features[0]?.properties?.cell;
+              if (c && onPressCell) onPressCell(String(c));
+            }}>
+            <FillLayer id="lost-hit" style={{ fillColor: tc.mineFill, fillOpacity: ['case', ['==', ['get', 'selected'], true], 0.6, 0.01] }} />
+            <LineLayer id="lost-line" filter={['!=', ['get', 'selected'], true]}
+              style={{ lineColor: tc.mineLine, lineWidth: ['case', ['==', ['get', 'reclaimable'], true], 2.4, 1.4], lineOpacity: ['case', ['==', ['get', 'reclaimable'], true], 1, 0.45], lineDasharray: [1.4, 1.1] }} />
+            <LineLayer id="lost-selected-casing" filter={['==', ['get', 'selected'], true]} style={{ lineColor: tc.selectedCasing, lineWidth: 6 }} />
+            <LineLayer id="lost-selected-line" filter={['==', ['get', 'selected'], true]} style={{ lineColor: tc.selectedLine, lineWidth: 2.6 }} />
           </ShapeSource>
         ) : null}
         <ShapeSource

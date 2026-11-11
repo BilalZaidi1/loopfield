@@ -53,7 +53,7 @@ const ITALIC: Partial<Record<TypeVariant, true>> = { hero: true, display: true, 
  * Text
  * ---------------------------------------------------------------------------------------------- */
 
-export function Txt({ variant = 'body', color, style, children, numberOfLines, accessibilityRole, accessibilityLabel, align, tabular, selectable }: {
+export function Txt({ variant = 'body', color, style, children, numberOfLines, accessibilityRole, accessibilityLabel, align, tabular, selectable, adjustsFontSizeToFit, minimumFontScale }: {
   variant?: TypeVariant;
   color?: keyof Palette;
   style?: StyleProp<TextStyle>;
@@ -64,6 +64,9 @@ export function Txt({ variant = 'body', color, style, children, numberOfLines, a
   align?: 'left' | 'center' | 'right';
   tabular?: boolean;
   selectable?: boolean;
+  /** Shrink slightly instead of truncating when a short label meets a narrow column. */
+  adjustsFontSizeToFit?: boolean;
+  minimumFontScale?: number;
 }) {
   const { palette: p } = useTheme();
   const block = useBlock();
@@ -79,6 +82,8 @@ export function Txt({ variant = 'body', color, style, children, numberOfLines, a
     <Text
       style={[base, { color: tone }, rest, font, align ? { textAlign: align } : null, tabular ? { fontVariant: ['tabular-nums'] } : null]}
       numberOfLines={numberOfLines}
+      adjustsFontSizeToFit={adjustsFontSizeToFit}
+      minimumFontScale={minimumFontScale}
       selectable={selectable}
       accessibilityRole={accessibilityRole ?? (variant === 'title' || variant === 'display' || variant === 'headline' || variant === 'heading' ? 'header' : undefined)}
       accessibilityLabel={accessibilityLabel}
@@ -145,6 +150,10 @@ export function Button({ label, onPress, variant = 'primary', disabled, loading,
   };
   const c = colors[v];
   const height = size === 'lg' ? 58 : size === 'sm' ? 40 : TOUCH;
+  // Arrow buttons reserve an equal slot on both sides so the label sits on the button's centre line,
+  // the same axis as any plain button stacked above or below it.
+  const dot = height - 12;
+  const pad = size === 'sm' ? spacing.lg : spacing.xxl;
   const off = Boolean(disabled || loading);
   return (
     <PressableScale
@@ -157,22 +166,29 @@ export function Button({ label, onPress, variant = 'primary', disabled, loading,
       accessibilityState={{ disabled: off, busy: Boolean(loading) }}
       style={[
         styles.button,
-        { minHeight: height, backgroundColor: c.bg, borderColor: c.border ?? c.bg, borderWidth: c.border ? 1.5 : 0, opacity: disabled ? 0.45 : 1, paddingLeft: size === 'sm' ? spacing.lg : spacing.xxl, paddingRight: arrow ? 6 : size === 'sm' ? spacing.lg : spacing.xxl },
+        { minHeight: height, backgroundColor: c.bg, borderColor: c.border ?? c.bg, borderWidth: c.border ? 1.5 : 0, opacity: disabled ? 0.45 : 1, paddingLeft: arrow ? 6 : pad, paddingRight: arrow ? 6 : pad },
         style
       ]}>
       {loading ? (
         <ActivityIndicator color={c.fg} />
+      ) : arrow ? (
+        <>
+          <View style={{ width: dot, height: dot, alignItems: 'center', justifyContent: 'center' }}>
+            {icon ? <Icon name={icon} color={c.fg} size={size === 'sm' ? 18 : 20} /> : null}
+          </View>
+          <Txt variant={size === 'sm' ? 'label' : 'bodyStrong'} style={{ color: c.fg, flex: 1, textAlign: 'center', fontWeight: '700' }} numberOfLines={2}>
+            {label}
+          </Txt>
+          <View style={{ width: dot, height: dot, borderRadius: radius.pill, backgroundColor: c.dot, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="arrow-right" color={c.dotFg} size={size === 'lg' ? 22 : 18} strokeWidth={2.4} />
+          </View>
+        </>
       ) : (
         <>
           {icon ? <Icon name={icon} color={c.fg} size={size === 'sm' ? 18 : 20} /> : null}
-          <Txt variant={size === 'sm' ? 'label' : 'bodyStrong'} style={{ color: c.fg, flexShrink: 1, flexGrow: arrow ? 1 : 0, textAlign: 'center', fontWeight: '700' }} numberOfLines={2}>
+          <Txt variant={size === 'sm' ? 'label' : 'bodyStrong'} style={{ color: c.fg, flexShrink: 1, textAlign: 'center', fontWeight: '700' }} numberOfLines={2}>
             {label}
           </Txt>
-          {arrow ? (
-            <View style={{ width: height - 12, height: height - 12, borderRadius: radius.pill, backgroundColor: c.dot, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="arrow-right" color={c.dotFg} size={size === 'lg' ? 22 : 18} strokeWidth={2.4} />
-            </View>
-          ) : null}
         </>
       )}
     </PressableScale>

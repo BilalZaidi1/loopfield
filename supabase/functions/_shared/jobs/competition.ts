@@ -4,6 +4,7 @@ import {
   decide,
   encodePolyline,
   evaluateLoop,
+  evaluateMovement,
   evaluateSpeedAttempt,
   isDuplicateCourse,
   isUsable,
@@ -16,13 +17,31 @@ import {
   type ReasonCode
 } from '../core/index.ts';
 import { candidateCells, cellRecords, visitedCells } from '../h3cells.ts';
-import { loadEvidence } from './evidence.ts';
+import { loadEvidence, type Evidence } from './evidence.ts';
 import { NonRetryableError, type JobContext, type JobHandler } from './context.ts';
 import { pgArray } from '../clients.ts';
 
 const str = (v: unknown, name: string): string => {
   if (typeof v !== 'string' || !v) throw new NonRetryableError(`payload.${name} missing`);
   return v;
+};
+
+/**
+ * Movement points from server-verified distance (public or private runs alike). The database awards
+ * each run once and applies the daily cap; mocked evidence verifies 0 m and earns nothing.
+ */
+async function awardMovement(ctx: JobContext, ev: Evidence) {
+  const m = evaluateMovement(ev.samples, ev.events);
+  await ctx.sql`select internal.award_movement_points(${ev.activityId}::uuid, ${m.verifiedDistanceM}, ${m.ruleVersion}, ${pgArray(m.reasons)}::text[])`;
+  ctx.log('movement evaluated', { activityId: ev.activityId, decision: m.decision, verifiedM: m.verifiedDistanceM, reasons: m.reasons });
+}
+
+/** Backfill for runs recorded before movement points existed (skips runs without evidence). */
+export const awardMovementJob: JobHandler = async (payload, ctx) => {
+  const activityId = str(payload.activity_id, 'activity_id');
+  const [a] = await ctx.sql`select status, deleted_at, raw_evidence_purged_at from public.activities where id = ${activityId}`;
+  if (!a || a.deleted_at || a.raw_evidence_purged_at || a.status !== 'processed') return;
+  await awardMovement(ctx, await loadEvidence(ctx, activityId));
 };
 
 /** Canonical server summary + private exploration (independent of competitive outcomes). */
@@ -43,6 +62,7 @@ export const reconcileActivity: JobHandler = async (payload, ctx) => {
     const cells = visitedCells(usable, TERRITORY_RULES.explorationResolution.value);
     await ctx.sql`select internal.record_exploration(${ev.activityId}::uuid, ${ev.userId}::uuid, ${pgArray(cells)}::bigint[], ${ev.startedAt})`;
   }
+  await awardMovement(ctx, ev);
 };
 
 async function setClaimOutcome(ctx: JobContext, claimId: string, status: string, reasons: ReasonCode[], extra: { completedAt?: number | null; lengthM?: number } = {}) {

@@ -68,7 +68,7 @@ export default function SignUp() {
         footer={
           <>
             <Button label="Go to log in" size="lg" arrow onPress={() => router.replace('/sign-in')} />
-            <Button label="Send the email again" variant="ghost" onPress={() => void resend()} loading={busy} />
+            <Button label="Send the email again" variant="ghost" size="lg" onPress={() => void resend()} loading={busy} />
           </>
         }>
         <View style={{ alignItems: 'flex-start', gap: spacing.lg, marginTop: spacing.xxxl }}>
@@ -92,7 +92,7 @@ export default function SignUp() {
       footer={
         <>
           <Button label="Create account" size="lg" arrow onPress={submit} loading={busy} disabled={!emailOk || !pwOk || !adult || !terms || busy} hint={blocker} />
-          <Button label="I already have an account" variant="ghost" onPress={() => router.replace('/sign-in')} />
+          <Button label="I already have an account" variant="ghost" size="lg" onPress={() => router.replace('/sign-in')} />
         </>
       }>
       <IconButton icon="arrow-left" label="Back" onPress={() => (router.canGoBack() ? router.back() : router.replace('/welcome'))} />

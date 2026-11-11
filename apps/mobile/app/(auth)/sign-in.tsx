@@ -76,12 +76,12 @@ export default function SignIn() {
         mode === 'password' ? (
           <>
             <Button label="Log in" size="lg" arrow onPress={signIn} loading={busy} disabled={!email.trim() || !password || busy} />
-            <Button label="New here? Create an account" variant="ghost" onPress={() => router.replace('/sign-up')} />
+            <Button label="New here? Create an account" variant="ghost" size="lg" onPress={() => router.replace('/sign-up')} />
           </>
         ) : (
           <>
             <Button label="Send reset link" size="lg" arrow onPress={recover} loading={busy} disabled={!email.trim() || busy} />
-            <Button label="Back to log in" variant="ghost" onPress={() => switchMode('password')} />
+            <Button label="Back to log in" variant="ghost" size="lg" onPress={() => switchMode('password')} />
           </>
         )
       }>

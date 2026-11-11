@@ -5,6 +5,7 @@ import { friendlyError } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { fmtDistance, fmtDuration, fmtPace, splitValue } from '@/lib/format';
 import { Badge, Banner, BigNumber, Button, Card, EmptyState, Screen, StatLine, Txt } from '@/components/ui';
+import { RunPointsCard } from '@/features/movement/Reclaim';
 import { Icon } from '@/components/icons';
 import { Celebration } from '@/features/run/Celebration';
 import { LandCard, TitleCards } from '@/features/results/ResultCards';
@@ -84,6 +85,7 @@ export default function RunSummary() {
       {uploaded ? (
         <>
           {detail.error ? <Banner tone="danger" text={friendlyError(detail.error)} action={{ label: 'Retry', onPress: () => void detail.refetch() }} /> : null}
+          <RunPointsCard activityId={id} />
           <LandCard claim={detail.data?.claim ?? null} territoryRequested={territoryRequested} />
           <TitleCards attempts={detail.data?.attempts ?? []} context={detail.data?.title_context ?? []} />
         </>

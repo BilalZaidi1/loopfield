@@ -5,11 +5,11 @@
 -- The development region boundary is an approximate rectangle around central Karachi chosen only
 -- because it is the founder's location; the launch city remains an open decision (PRD §1, §20).
 
-insert into public.regions (id, slug, name, timezone, geom, status, exclusion_review_status, exclusion_set_version)
+insert into public.regions (id, slug, name, timezone, geom, status, exclusion_review_status, exclusion_set_version, country_code)
 values (
   '00000000-0000-4000-8000-000000000001', 'dev-karachi', 'Development region (Karachi test area)', 'Asia/Karachi',
   extensions.st_multi(extensions.st_makeenvelope(66.95, 24.80, 67.15, 24.98, 4326))::extensions.geography,
-  'active', 'reviewed', 'dev-exclusions-1'
+  'active', 'reviewed', 'dev-exclusions-1', 'PK'
 ) on conflict (id) do nothing;
 
 insert into public.districts (id, region_id, slug, name, geom) values

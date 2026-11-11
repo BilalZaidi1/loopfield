@@ -91,6 +91,10 @@ export function safePushPreview(kind: string, actorName: string | null): { title
       return { title: 'Daily territory update', body: 'Your land changed today. Open to see the details.' };
     case 'title_digest':
       return { title: 'Route title update', body: 'A route title you hold or chased changed.' };
+    case 'badge_earned':
+      return { title: 'Badge earned', body: 'You completed a challenge. Open to see your new badge.' };
+    case 'points_refunded':
+      return { title: 'Points refunded', body: 'A run that took your ground was ruled invalid, so your points are back.' };
     case 'appeal_decided':
       return { title: 'Review complete', body: 'A decision on your request is ready.' };
     case 'export_ready':

@@ -260,6 +260,46 @@ export type Database = {
           },
         ]
       }
+      challenges: {
+        Row: {
+          active: boolean
+          category: string
+          description: string
+          id: string
+          metric: string
+          sort: number
+          target: number
+          tier: string
+          title: string
+          unit: string
+        }
+        ComputedFields: never
+        Insert: {
+          active?: boolean
+          category: string
+          description: string
+          id: string
+          metric: string
+          sort: number
+          target: number
+          tier: string
+          title: string
+          unit: string
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          description?: string
+          id?: string
+          metric?: string
+          sort?: number
+          target?: number
+          tier?: string
+          title?: string
+          unit?: string
+        }
+        Relationships: []
+      }
       club_memberships: {
         Row: {
           club_id: string
@@ -1144,8 +1184,9 @@ export type Database = {
       }
       loop_claims: {
         Row: {
-          activity_id: string
+          activity_id: string | null
           algorithm_version: string | null
+          basis_claim_id: string | null
           boundary_band_m: number | null
           competition_id: string
           completed_at: string | null
@@ -1158,6 +1199,7 @@ export type Database = {
           invalidated_at: string | null
           invalidation_reason: string | null
           length_m: number | null
+          points_spent: number | null
           polygon: unknown
           provisional_until: string | null
           publish_after: string | null
@@ -1165,17 +1207,22 @@ export type Database = {
           raw_area_m2: number | null
           reasons: string[]
           received_at: string
+          reclaim_request_id: string | null
+          refunded_at: string | null
           rule_version: string
           season_id: string | null
+          source: string
           status: string
+          undone_claim_id: string | null
           updated_at: string
           user_id: string
           validated_at: string | null
         }
         ComputedFields: never
         Insert: {
-          activity_id: string
+          activity_id?: string | null
           algorithm_version?: string | null
+          basis_claim_id?: string | null
           boundary_band_m?: number | null
           competition_id: string
           completed_at?: string | null
@@ -1188,6 +1235,7 @@ export type Database = {
           invalidated_at?: string | null
           invalidation_reason?: string | null
           length_m?: number | null
+          points_spent?: number | null
           polygon?: unknown
           provisional_until?: string | null
           publish_after?: string | null
@@ -1195,16 +1243,21 @@ export type Database = {
           raw_area_m2?: number | null
           reasons?: string[]
           received_at: string
+          reclaim_request_id?: string | null
+          refunded_at?: string | null
           rule_version: string
           season_id?: string | null
+          source?: string
           status?: string
+          undone_claim_id?: string | null
           updated_at?: string
           user_id: string
           validated_at?: string | null
         }
         Update: {
-          activity_id?: string
+          activity_id?: string | null
           algorithm_version?: string | null
+          basis_claim_id?: string | null
           boundary_band_m?: number | null
           competition_id?: string
           completed_at?: string | null
@@ -1217,6 +1270,7 @@ export type Database = {
           invalidated_at?: string | null
           invalidation_reason?: string | null
           length_m?: number | null
+          points_spent?: number | null
           polygon?: unknown
           provisional_until?: string | null
           publish_after?: string | null
@@ -1224,9 +1278,13 @@ export type Database = {
           raw_area_m2?: number | null
           reasons?: string[]
           received_at?: string
+          reclaim_request_id?: string | null
+          refunded_at?: string | null
           rule_version?: string
           season_id?: string | null
+          source?: string
           status?: string
+          undone_claim_id?: string | null
           updated_at?: string
           user_id?: string
           validated_at?: string | null
@@ -1820,6 +1878,7 @@ export type Database = {
       }
       regions: {
         Row: {
+          country_code: string | null
           created_at: string
           exclusion_review_status: string
           exclusion_set_version: string | null
@@ -1832,6 +1891,7 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          country_code?: string | null
           created_at?: string
           exclusion_review_status?: string
           exclusion_set_version?: string | null
@@ -1843,6 +1903,7 @@ export type Database = {
           timezone: string
         }
         Update: {
+          country_code?: string | null
           created_at?: string
           exclusion_review_status?: string
           exclusion_set_version?: string | null
@@ -2304,7 +2365,47 @@ export type Database = {
     }
     Functions: {
       accept_club_email_invite: { Args: { p_token: string }; Returns: string }
+      achievement_leaderboard: {
+        Args: { p_club?: string; p_limit?: number; p_scope?: string }
+        Returns: {
+          avatar_path: string
+          badges: number
+          categories: number
+          display_name: string
+          handle: string
+          hidden: boolean
+          is_me: boolean
+          rank: number
+          score: number
+          top_tier: string
+          total: number
+          user_id: string
+        }[]
+      }
+      achievement_profile: {
+        Args: { p_user: string }
+        Returns: {
+          badges: number
+          categories: number
+          earned: Json
+          global_rank: number
+          ranked_runners: number
+          score: number
+          visible: boolean
+        }[]
+      }
       activity_detail: { Args: { p_activity: string }; Returns: Json }
+      activity_movement: {
+        Args: { p_activity: string }
+        Returns: {
+          capped: boolean
+          points: number
+          processed: boolean
+          reasons: string[]
+          removed: boolean
+          verified_distance_m: number
+        }[]
+      }
       add_comment: { Args: { p_body: string; p_post: string }; Returns: string }
       badge_counts: { Args: Record<PropertyKey, never>; Returns: Json }
       block_user: { Args: { p_target: string }; Returns: undefined }
@@ -2464,6 +2565,21 @@ export type Database = {
         Args: { p_muted: boolean; p_target: string }
         Returns: undefined
       }
+      my_challenges: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          category: string
+          completed_at: string
+          description: string
+          id: string
+          progress: number
+          sort: number
+          target: number
+          tier: string
+          title: string
+          unit: string
+        }[]
+      }
       my_claim_cells: {
         Args: { p_claim: string }
         Returns: {
@@ -2482,6 +2598,52 @@ export type Database = {
           visibility: string
         }[]
       }
+      my_lost_cells: {
+        Args: {
+          p_competition: string
+          p_max_lat?: number
+          p_max_lng?: number
+          p_min_lat?: number
+          p_min_lng?: number
+          p_season: string
+        }
+        Returns: {
+          blocked_reason: string
+          cell: string
+          controller_key: string
+          controller_name: string
+          cost: number
+          lost_on: string
+          reclaimable: boolean
+        }[]
+      }
+      my_movement: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          balance: number
+          cost_per_cell: number
+          daily_cap: number
+          earned_7d: number
+          earned_today: number
+          earned_total: number
+          points_per_km: number
+          spent_total: number
+          verified_distance_m: number
+        }[]
+      }
+      my_movement_history: {
+        Args: { p_limit?: number }
+        Returns: {
+          activity_id: string
+          amount: number
+          cells: number
+          kind: string
+          note: string
+          occurred_at: string
+          request_id: string
+          verified_distance_m: number
+        }[]
+      }
       my_staff_roles: { Args: Record<PropertyKey, never>; Returns: string[] }
       my_territory_events: {
         Args: { p_limit?: number }
@@ -2496,6 +2658,7 @@ export type Database = {
           provisional: boolean
           reason: string
           season_id: string
+          source: string
         }[]
       }
       my_territory_summary: {
@@ -2660,6 +2823,19 @@ export type Database = {
         }
         Returns: string
       }
+      reclaim_cells: {
+        Args: {
+          p_cells: string[]
+          p_competition: string
+          p_request: string
+          p_season: string
+        }
+        Returns: Json
+      }
+      refresh_my_achievements: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       remove_club_member: {
         Args: { p_club: string; p_user: string }
         Returns: undefined
@@ -2762,14 +2938,19 @@ export type Database = {
       territory_cell_detail: {
         Args: { p_cell: string; p_competition: string; p_season: string }
         Returns: {
+          blocked_reason: string
           cell: string
           claim_cells: number
           controlled_since: string
           controller_handle: string
           controller_name: string
+          held_by: string
           is_me: boolean
           my_claim_id: string
+          reclaim_cost: number
+          reclaimable: boolean
           status: string
+          was_mine: boolean
         }[]
       }
       territory_leaderboard: {

@@ -82,6 +82,39 @@ export const SPEED_RULES = {
   duplicateRouteMaxHausdorffMeters: p(30, 'PRD §6 duplicate routes — materially equivalent geometry')
 } as const;
 
+export const MOVEMENT_RULES_VERSION = 'movement-2026.11.0-proposed';
+
+/**
+ * Movement points (new in this release, outside PRD v1.2): verified distance from any run, public or
+ * private, earns points that can only be spent reclaiming land the runner lost to another runner's loop.
+ * Verification reuses the competitive evidence rules; nothing here is inferred or reconstructed.
+ */
+export const MOVEMENT_RULES = {
+  version: MOVEMENT_RULES_VERSION,
+  /** Distance across a recording gap longer than this is not counted (unrecorded movement is never reconstructed). */
+  maxCountedGapSeconds: p(10, 'Same ten-second gap rule as competitive intervals (PRD §6)'),
+  /** Implied speed between fixes above which the segment is a GPS jump and is not counted. */
+  maxJumpSpeedMetersPerSecond: p(12, 'Same as TERRITORY_RULES.maxJumpSpeedMetersPerSecond'),
+  /** Sustained speed above this for at least `vehicleSustainedSeconds` is treated as a vehicle and not counted. */
+  vehicleSpeedMetersPerSecond: p(6.5, 'Same as TERRITORY_RULES.suspiciousSustainedSpeedMetersPerSecond (PRD §12)'),
+  vehicleSustainedSeconds: p(60, 'Same as TERRITORY_RULES.suspiciousSustainedSeconds'),
+  minSamples: p(30, 'Same as TERRITORY_RULES.minSamples'),
+  /** Runs with less verified distance than this earn nothing. */
+  minVerifiedDistanceMeters: p(200, 'Implementation default: ignores accidental starts'),
+  /** Defaults mirrored into app_config by migration; the database values are authoritative. */
+  pointsPerKm: p(10, 'Implementation default: 1 point per 100 m'),
+  dailyPointsCap: p(400, 'Implementation default: 40 km per UTC day, limits farming'),
+  /** Reclaim cost per cell = ceil(average cell area in m² / 1000 × this), at least 1 (3 points at resolution 11). */
+  reclaimPointsPer1000SquareMeters: p(1, 'Implementation default: running a loop stays far cheaper per cell than points'),
+  maxCellsPerReclaim: p(200, 'Processing bound per reclaim request')
+} as const;
+
+/** Achievement ranking (independent of movement points). Mirrored into app_config; the database is authoritative. */
+export const ACHIEVEMENT_RULES = {
+  tierPoints: p({ bronze: 10, silver: 25, gold: 60, platinum: 150 } as const, 'Implementation default'),
+  categoryBonus: p(25, 'Implementation default: rewards breadth across challenge categories')
+} as const;
+
 export const SEASON_RULES = {
   seasonLengthDays: p(28, 'PRD §6 Use 28-day seasons'),
   lateUploadWindowHours: p(24, 'PRD §6 Accept ranked uploads received within 24 hours of completion'),
