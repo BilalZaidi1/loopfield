@@ -17,6 +17,8 @@ Everything below needs a person: an account owner's credentials, a dashboard wit
 | A8b | ~~Expo project → GitHub → base directory `apps/mobile`~~ | Done 5 Nov; Expo workflows (pilot and Expo Go updates) read `apps/mobile/.eas/workflows` | Over-the-air updates, Expo Go preview |
 | A9b | Optional social sign-in: Supabase dashboard → Authentication → Providers → enable Google (OAuth client from Google Cloud) and/or Apple (Services ID, key). Add `loopfield://auth/callback` and `https://loopfield.expo.app/auth/callback` to the redirect URLs | Provider accounts and client secrets | "Continue with Google/Apple" buttons appear automatically once a provider is on; age and terms are still confirmed in profile setup. Before an App Store release with Google sign-in, Apple requires Sign in with Apple as well |
 | A9 | Push credentials (FCM for Android, APNs key for iOS) and, for iOS, the paid Apple Developer Program. The Expo project and GitHub link already exist and the Android `pilot` build works | Google/Apple developer accounts | Push notifications; any iPhone build |
+| A10 | Supabase dashboard → Authentication → enable leaked-password protection (checks new passwords against HaveIBeenPwned). Reported by the security advisor | Auth setting; no tool here changes it | Stronger sign-up passwords |
+| A11 | Review the movement-points and reclaim economy before testers rely on it: points per km, daily cap, cost per area, request limits and the `reclaim_enabled` switch are rows in `app_config` (see `DECISIONS.md`) and change without a release | Product decision; the values are proposed defaults | Fair point earning and reclaim prices |
 
 ## B. Before any external pilot
 

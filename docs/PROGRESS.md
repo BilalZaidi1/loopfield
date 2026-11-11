@@ -2,6 +2,15 @@
 
 Working file kept current so work survives context limits. Newest first.
 
+## 11 Nov 2026: movement points, reclaiming, challenges and global ranking
+
+* Requested 6 Nov, outside PRD v1.2 (traced as MP1–MP3, RC1–RC4, AC1–AC3, UI1 in `TRACEABILITY.md`; rules and numbers in `DECISIONS.md`).
+* Backend (migration `20261106000100`): points ledger and balances from server-verified distance of every run (public or private), daily cap, revocation and reinstatement with run outcomes, self-healing sweep; lost-cell queries and `reclaim_cells` (one transaction, request ids, rate limit, eligibility re-checked, reclaims applied as one-cell claims so newest-wins and replay still hold, published at once, refunds and withdrawals on invalidation); 24 challenges in six categories with automatic tiered badges, score and ranking with everyone, country, region, friends and club scopes and privacy rules.
+* App: points pill, lost-cell layer, reclaim mode and list flow with a receipt and confirmation on the Map; points screen; challenges and badges; global ranking; profile achievements; points on run summaries; badge and refund notifications; Help sections.
+* Also fixed: native maps drew no cells at all, because server cell ids are decimal text (see `VERIFICATION.md`).
+* Visual review in a browser found eleven layout and wording defects, all fixed (`VERIFICATION.md`).
+* Deployed 11 Nov from `116add2`: backend to `loopfield-dev` through the Deploy backend workflow (`deploy/dev`), then the pilot update (group `c890905a…`, runtime `d0d57d9…`, reaches the replacement APK), the Expo Go preview (group `2908f0c4…`) and the web preview (`loopfield.expo.app`, deployment `q63gw1nq33`).
+
 ## 6 Nov 2026: frontend redesign
 
 * New design system (`docs/DESIGN.md`): semantic light and dark tokens, module colours, Figtree type scale loaded as JS assets, motion that respects Reduce Motion, new icon set, rebuilt component library, one stack header with a real "Back" label, a tab bar with a raised Record button and a sidebar on wide screens, animated splash.
