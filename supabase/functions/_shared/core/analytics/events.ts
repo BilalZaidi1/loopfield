@@ -59,7 +59,7 @@ export const EVENT_SCHEMA = {
   claim_explained: { result_type: oneOf('land', 'title', 'both', 'none'), viewed: bool },
   next_run_completed: { cohort_week: version, elapsed_days: smallInt },
   route_proposed: { outcome: oneOf('submitted', 'duplicate_linked', 'withdrawn') },
-  appeal_submitted: { object_type: oneOf('loop_claim', 'speed_attempt', 'post', 'comment', 'account_action', 'route_proposal') },
+  appeal_submitted: { object_type: oneOf('loop_claim', 'speed_attempt', 'post', 'comment', 'account_action', 'route_proposal', 'activity') },
   appeal_resolved: { reason_category: version, resolution: oneOf('upheld', 'overturned', 'withdrawn'), handling_bucket: oneOf('<1d', '1-2d', '2-7d', '>7d') },
   social_action: {
     action: oneOf('post_created', 'post_deleted', 'comment_created', 'reaction_added', 'reaction_removed', 'follow_requested', 'follow_approved', 'unfollowed', 'muted', 'blocked', 'reported', 'mention_sent'),
@@ -67,6 +67,12 @@ export const EVENT_SCHEMA = {
     outcome: oneOf('ok', 'failed', 'blocked_by_policy')
   },
   message_action: { action: oneOf('conversation_started', 'message_sent', 'message_deleted', 'conversation_muted', 'reported'), outcome: oneOf('ok', 'failed', 'not_allowed') },
+  event_action: {
+    action: oneOf('joined', 'left', 'created', 'cancelled', 'standings_viewed', 'shown_on_map'),
+    event_type: oneOf('territory', 'distance'),
+    team_mode: oneOf('individual', 'club'),
+    host: oneOf('operator', 'club')
+  },
   club_action: { action: oneOf('joined', 'left', 'requested', 'invite_accepted', 'invite_declined', 'created', 'member_removed', 'announcement_pinned'), club_kind: oneOf('club', 'community'), visibility: oneOf('public', 'private') },
   feed_viewed: { feed: oneOf('following', 'discover', 'club'), page: smallInt },
   health_viewed: { screen: oneOf('dashboard', 'metric_detail', 'zones', 'connections', 'goals'), session_count: smallInt },

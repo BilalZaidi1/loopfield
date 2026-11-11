@@ -35,7 +35,7 @@ export default function ClubRankings() {
     queryKey: ['club_route_titles', comp?.id, season.data?.id],
     enabled: Boolean(comp && season.data && view === 'routes'),
     queryFn: async () => {
-      const { data, error } = await supabase().from('courses').select('id, name').eq('region_id', comp!.region_id).eq('status', 'active').order('name').limit(30);
+      const { data, error } = await supabase().from('courses').select('id, name').eq('region_id', comp!.region_id ?? '').eq('status', 'active').order('name').limit(30);
       if (error) throw error;
       const details = await Promise.all((data ?? []).map((c) => rpc<{ course_id: string; name: string; champion_name: string | null; benchmark_ms: number | null; i_am_champion: boolean } | null>('speed_route_detail', { p_course: c.id, p_competition: comp!.id, p_season: season.data!.id })));
       return details.filter((d): d is NonNullable<typeof d> => Boolean(d));

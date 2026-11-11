@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@/lib/api';
-import { useCompetition } from '@/state/competition';
+import { useCompetition, type Competition, type Season } from '@/state/competition';
 
 export interface TerritorySummary {
   published_area_m2: number;
@@ -17,9 +17,24 @@ export interface LeaderRow {
   is_me: boolean;
 }
 
-/** Your published land in the selected competition season (same cache as the profile screen). */
-export function useMyTerritorySummary() {
-  const { competition, season } = useCompetition();
+/**
+ * Which land a number is about:
+ * - `home`: what you hold now (the all-time map, or your club's race when you record for a club),
+ * - `race`: the season race you record for (starts fresh every season),
+ * - `layer`: whatever the map is showing.
+ */
+export type TerritoryScope = 'home' | 'race' | 'layer';
+
+export function useScopedCompetition(scope: TerritoryScope): { competition: Competition | null; season: Season | null } {
+  const c = useCompetition();
+  if (scope === 'race') return { competition: c.competition, season: c.season };
+  if (scope === 'layer') return { competition: c.layer, season: c.layerSeason };
+  return { competition: c.home, season: c.homeSeason };
+}
+
+/** Your published land in one layer (same cache as the profile screen). */
+export function useMyTerritorySummary(scope: TerritoryScope = 'home') {
+  const { competition, season } = useScopedCompetition(scope);
   return useQuery({
     queryKey: ['my_territory_summary', competition?.id, season?.id],
     enabled: Boolean(competition && season),
@@ -27,13 +42,17 @@ export function useMyTerritorySummary() {
   });
 }
 
-/** Published controlled-area ranking; `district` null = whole competition. Shares the leaderboard screen's cache. */
-export function useLeaderboard(district: string | null = null, limit = 100) {
-  const { competition, season } = useCompetition();
+/** Published controlled-area ranking in one layer; `district` null = the whole region. Shares the leaderboard screen's cache. */
+export function useLeaderboard(district: string | null = null, limit = 100, scope: TerritoryScope = 'home') {
+  const { competition, season } = useScopedCompetition(scope);
+  return useLeaderboardFor(competition?.id ?? null, season?.id ?? null, district, limit);
+}
+
+export function useLeaderboardFor(competitionId: string | null, seasonId: string | null, district: string | null = null, limit = 100) {
   return useQuery({
-    queryKey: ['territory_leaderboard', competition?.id, season?.id, district ?? 'all'],
-    enabled: Boolean(competition && season),
-    queryFn: () => rpc<LeaderRow[]>('territory_leaderboard', { p_competition: competition!.id, p_season: season!.id, p_district: district, p_limit: limit })
+    queryKey: ['territory_leaderboard', competitionId, seasonId, district ?? 'all'],
+    enabled: Boolean(competitionId && seasonId),
+    queryFn: () => rpc<LeaderRow[]>('territory_leaderboard', { p_competition: competitionId, p_season: seasonId, p_district: district, p_limit: limit })
   });
 }
 

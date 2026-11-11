@@ -30,7 +30,8 @@ function entryText(e: MovementEntry, units: 'metric' | 'imperial'): { title: str
 export default function Points() {
   const p = usePalette();
   const units = useUnits();
-  const { competition, season } = useCompetition();
+  // Reclaiming works on the land held now (the all-time map, or a club race).
+  const { home: competition, homeSeason: season } = useCompetition();
   const movement = useMovement();
   const history = useMovementHistory();
   const [reclaim, setReclaim] = useState(false);
@@ -64,7 +65,7 @@ export default function Points() {
                 ['route', `Every verified run earns ${m.points_per_km} points per kilometre, public or private. Private runs stay private: they earn points but never post, claim land or appear on a map.`],
                 ['shield', 'Only distance the server can verify counts: no mocked locations, no gaps or pauses, no stretches at vehicle speed.'],
                 ['calendar', `You can earn up to ${m.daily_cap} points a day.`],
-                ['hexagon', `Spend points to reclaim cells you held this season and lost to another runner's loop: ${m.cost_per_cell} points a cell. Points can't buy ground you never held.`],
+                ['hexagon', `Spend points to reclaim cells you held and lost to another runner's loop: ${m.cost_per_cell} points a cell. Points can't buy ground you never held.`],
                 ['refresh', 'If the run that took your cell is later ruled invalid, the points you spent come back.'],
                 ['eye-off', 'Only you can see your balance. Points never affect your global ranking.']
               ].map(([icon, text]) => (

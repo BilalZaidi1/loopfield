@@ -16,6 +16,7 @@ import { useSignedUrl } from '@/features/social/media';
 import { PostCard, useFeed } from '@/features/social/PostCard';
 import { useProfileCard } from '@/features/social/profile';
 import { useCompetition } from '@/state/competition';
+import { useMyTerritorySummary } from '@/features/territory/useTerritoryStats';
 import { useSession, useUnits } from '@/state/session';
 import { spacing, usePalette } from '@/theme/tokens';
 
@@ -25,14 +26,13 @@ export default function MyProfile() {
   const { gutter, contentMax } = useLayout();
   const units = useUnits();
   const { userId, profile, roles } = useSession();
-  const { competition, season } = useCompetition();
+  const { competition, season, home, homeSeason } = useCompetition();
   const card = useProfileCard(userId ?? undefined);
   const avatar = useSignedUrl('avatars', profile?.avatar_path);
-  const land = useQuery({
-    queryKey: ['my_territory_summary', competition?.id, season?.id],
-    enabled: Boolean(competition && season),
-    queryFn: async () => (await rpc<{ published_area_m2: number; published_cells: number; provisional_cells: number }[]>('my_territory_summary', { p_competition: competition!.id, p_season: season!.id }))[0] ?? null
-  });
+  // Held now (the all-time map, or the club race you record for) and this season's race, side by side.
+  const land = useMyTerritorySummary('home');
+  const raceLand = useMyTerritorySummary('race');
+  const separateRace = Boolean(home && competition && home.id !== competition.id);
   const titles = useQuery({ queryKey: ['my_titles'], queryFn: () => rpc<{ course_id: string; course_name: string; benchmark_ms: number; competition_id: string }[]>('my_titles') });
   const clubs = useMyClubs();
   const posts = useFeed('profile_posts', { p_profile: userId }, Boolean(userId));
@@ -42,6 +42,7 @@ export default function MyProfile() {
   if (!profile) return <Screen><LoadingState variant="cards" /></Screen>;
   const activeClubs = (clubs.data ?? []).filter((c) => c.state === 'active');
   const area = land.data ? splitValue(fmtArea(land.data.published_area_m2, units)) : null;
+  const raceArea = raceLand.data ? fmtArea(raceLand.data.published_area_m2, units) : null;
 
   const header = (
     <View style={{ gap: spacing.lg, marginBottom: spacing.sm }}>
@@ -92,23 +93,26 @@ export default function MyProfile() {
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
           <StatTile icon="bolt" bg={p.greenSoft} fg={p.greenText} value={(movement.data?.balance ?? 0).toLocaleString()} label="Movement points" caption="To spend"
             onPress={() => router.push('/points')} accessibilityLabel={`${movement.data?.balance ?? 0} movement points. Open points`} />
-          <StatTile icon="hexagon" bg={p.primarySoft} fg={p.primary} value={area ? area.value : '0'} label={area ? `${area.unit} of land` : 'Land'} caption={season ? `Season ${season.number}` : 'No season'}
-            onPress={() => router.push('/map')} accessibilityLabel={area ? `Land this season: ${area.value} ${area.unit}` : 'No land this season yet'} />
-          <StatTile icon="crown" bg={p.orangeSoft} fg={p.orangeText} value={String(titles.data?.length ?? 0)} label={titles.data?.length === 1 ? 'Route title' : 'Route titles'} caption="Held now"
+          <StatTile icon="hexagon" bg={p.primarySoft} fg={p.primary} value={area ? area.value : '0'} label={area ? `${area.unit} of land` : 'Land'} caption="Held now"
+            onPress={() => router.push('/map')} accessibilityLabel={area ? `Land held now: ${area.value} ${area.unit}` : 'No land held yet'} />
+          <StatTile icon="crown" bg={p.orangeSoft} fg={p.orangeText} value={String(titles.data?.length ?? 0)} label={titles.data?.length === 1 ? 'Route title' : 'Route titles'} caption={season ? `Season ${season.number}` : 'This season'}
             onPress={() => router.push('/seasons')} accessibilityLabel={`${titles.data?.length ?? 0} route titles held`} />
         </View>
       </Section>
       <Card tone="violet" accessibilityLabel="Your land">
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <Icon name="hexagon" color="#FFFFFF" size={22} />
-          <Txt variant="heading" style={{ flex: 1 }} numberOfLines={1}>{`Land${competition ? ` · ${competition.name}` : ''}`}</Txt>
+          <Txt variant="heading" style={{ flex: 1 }} numberOfLines={1}>{home ? (home.kind === 'permanent' ? 'Land held now' : `Land · ${home.name}`) : 'Land'}</Txt>
         </View>
         {land.data && area ? (
           <>
             <BigNumber value={area.value} unit={area.unit} size={60} />
             <Txt color="textMuted">{`${land.data.published_cells} published cells${land.data.provisional_cells ? ` · ${land.data.provisional_cells} provisional` : ''}`}</Txt>
           </>
-        ) : <Txt>{season ? 'No land this season yet. Close an eligible loop to claim some.' : 'No active season.'}</Txt>}
+        ) : <Txt>{homeSeason ? 'No land yet. Close an eligible loop to claim some.' : 'No active season.'}</Txt>}
+        {separateRace && season ? (
+          <Txt color="textMuted">{`Season ${season.number} race: ${raceArea ?? '0'} so far. The race starts fresh every season; land held now stays until someone takes it.`}</Txt>
+        ) : null}
         <Button label="Open the map" arrow onPress={() => router.push('/map')} />
       </Card>
       <Section title="Route titles" icon="crown">

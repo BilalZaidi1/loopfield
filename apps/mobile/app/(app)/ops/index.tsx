@@ -22,6 +22,7 @@ export default function OpsHome() {
         <Section title="System" icon="settings">
           <ListGroup>
             <Row icon="settings" title="Switches, regions, exclusions and jobs" onPress={() => router.push('/ops/system')} />
+            <Row icon="calendar" title="Seasons and events" subtitle="Race season dates, automatic length, events" onPress={() => router.push('/ops/seasons')} />
           </ListGroup>
         </Section>
       ) : null}

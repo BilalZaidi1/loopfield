@@ -3,7 +3,7 @@ import type { Database } from './database.types';
 import { supabase } from './supabase';
 
 export class ApiError extends Error {
-  constructor(public code: string, message: string, public status?: number) {
+  constructor(public code: string, message: string, public status?: number, public details?: string) {
     super(message);
   }
 }
@@ -35,11 +35,27 @@ const FRIENDLY: Record<string, string> = {
   too_many_cells: 'Choose at most 200 cells at a time.',
   reclaim_conflict: 'The map changed while you were reclaiming. Nothing was charged; please try again.',
   set_city: 'Set your city in your profile to see regional rankings.',
-  no_country: 'Country rankings are not available for your area yet.'
+  no_country: 'Country rankings are not available for your area yet.',
+  event_finished: 'This event has finished.',
+  event_needs_territory: 'Turn on territory in Privacy settings to join territory events.',
+  members_only: 'This challenge is for club members.',
+  club_needed: 'Choose a club you belong to.',
+  club_locked: 'You run for the same club until the event ends.',
+  region_needed: 'Territory challenges need the club\'s area set first.',
+  region_unavailable: 'Competition in that area is not available.',
+  name_length: 'Use 3 to 60 characters for the name.'
 };
 
+/** Server messages that are a key (for example `event_window`) may carry their own explanation. */
+const KEY_LIKE = /^[a-z][a-z0-9_]*$/;
+
 export function friendlyError(err: unknown): string {
-  if (err instanceof ApiError) return FRIENDLY[err.code] ?? FRIENDLY[err.message] ?? err.message;
+  if (err instanceof ApiError) {
+    const known = FRIENDLY[err.code] ?? FRIENDLY[err.message];
+    if (known) return known;
+    if (err.details && KEY_LIKE.test(err.message) && err.details.length < 200) return err.details;
+    return err.message;
+  }
   const e = err as { code?: string; message?: string };
   if (e?.code === '42501') return FRIENDLY.forbidden!;
   if (e?.code === 'P0429') return FRIENDLY.rate_limited!;
@@ -57,7 +73,7 @@ export type RpcName = keyof Database['public']['Functions'];
 export async function rpc<T>(fn: RpcName, args: Record<string, unknown> = {}): Promise<T> {
   const { data, error } = await supabase().rpc(fn, args as never);
   if (error) {
-    const err = new ApiError(error.code ?? 'rpc_error', error.message);
+    const err = new ApiError(error.code ?? 'rpc_error', error.message, undefined, error.details ?? undefined);
     (err as unknown as { code: string }).code = error.code ?? 'rpc_error';
     throw err;
   }

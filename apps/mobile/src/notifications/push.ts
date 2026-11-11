@@ -98,6 +98,8 @@ export function routeForNotification(n: { kind: string; object_type: string | nu
       return '/proposals';
     case 'course':
       return { pathname: '/routes/[id]', params: { id } };
+    case 'competition':
+      return { pathname: '/events/[id]', params: { id } };
   }
   return '/notifications';
 }

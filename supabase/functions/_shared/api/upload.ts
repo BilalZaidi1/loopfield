@@ -174,7 +174,12 @@ export async function finalizeActivity(sql: Sql, blobs: BlobStore, env: ServerEn
       on conflict (activity_id) do update set received_at = excluded.received_at returning id`;
     receipt.territoryClaimId = claim!.id;
     receipt.competitive.territory = reasons.length ? reasons : 'queued';
-    if (!reasons.length) await sql`select internal.enqueue_job('territory', 'evaluate_loop', ${sql.json({ claim_id: claim!.id })}::jsonb, ${'loop:' + claim!.id})`;
+    if (!reasons.length) {
+      // The same loop also counts on the region's all-time map and in territory events the runner joined
+      // (claims derived from this one, evaluated in the same job). Club races stay inside their club.
+      await sql`select internal.derive_layer_claims(${claim!.id}::uuid)`;
+      await sql`select internal.enqueue_job('territory', 'evaluate_loop', ${sql.json({ claim_id: claim!.id })}::jsonb, ${'loop:' + claim!.id})`;
+    }
   }
   if (ticket.modes.speed && ticket.courseVersionId) {
     const reasons = [...shared, ...timing('speed_start')];

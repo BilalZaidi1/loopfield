@@ -13,7 +13,8 @@ import { GoButton } from '@/features/run/GoButton';
 import { TopBar } from '@/components/TopBar';
 import { activeSession, type RunMode } from '@/recording/db';
 import { createSession, discardRun, ensureLocationPermission, startRun } from '@/recording/recorder';
-import { useCompetition } from '@/state/competition';
+import { useCompetition, type Competition, type Season } from '@/state/competition';
+import { useEvents, type EventRow } from '@/features/events/api';
 import { useSession, useUnits } from '@/state/session';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 
@@ -53,6 +54,15 @@ interface CourseOption {
   length_m: number;
 }
 
+/** Where a competitive run counts, in one sentence (the server decides the result after upload). */
+function countsFor(c: Competition, season: Season | null, territory: boolean, landEvents: EventRow[]): string {
+  if (c.kind === 'club') return `Counts in ${c.name} only: club races stay inside the club.`;
+  const race = season ? `the season ${season.number} race` : 'the season race';
+  if (!territory) return `Route titles count in ${race}.`;
+  const events = landEvents.length ? (landEvents.length === 1 ? ` and in ${landEvents[0]!.name}` : ` and in ${landEvents.length} events you joined`) : '';
+  return `A loop counts on the all-time map, in ${race}${events}.`;
+}
+
 /** S20 Pre-run — Private, Territory or Speed mode; GPS status, competition, consent and optional capture. */
 export default function PreRun() {
   const p = usePalette();
@@ -60,6 +70,7 @@ export default function PreRun() {
   const units = useUnits();
   const { userId, settings } = useSession();
   const { competition, season } = useCompetition();
+  const events = useEvents('current');
   const [inProgress, setInProgress] = useState(() => activeSession());
   const [mode, setMode] = useState<RunMode>(params.course ? 'speed' : 'private');
   const [captureNow, setCaptureNow] = useState(true);
@@ -80,6 +91,9 @@ export default function PreRun() {
   });
 
   const wantsTerritory = mode === 'territory' || mode === 'territory_speed';
+  const joinedEvents = (events.data ?? []).filter((e) => e.joined && e.phase === 'live');
+  const landEvents = joinedEvents.filter((e) => e.event_type === 'territory' && e.region_id === competition?.region_id);
+  const distanceEvents = joinedEvents.filter((e) => e.event_type === 'distance');
   const wantsSpeed = mode === 'speed' || mode === 'territory_speed';
   const blockers: string[] = [];
   if (BROWSER) blockers.push('Runs are recorded in the Loopfield phone app. The browser version shows everything else.');
@@ -225,7 +239,8 @@ export default function PreRun() {
             )}
           </>
         ) : null}
-        {mode !== 'private' && competition ? <Txt variant="caption">Competition: {competition.name}{season ? ` · season ${season.number}` : ''}. Results are checked on the server after upload; anything shown during the run is only a preview.</Txt> : null}
+        {mode !== 'private' && competition ? <Txt variant="caption">{`${countsFor(competition, season, wantsTerritory, landEvents)} Results are checked on the server after upload; anything shown during the run is only a preview.`}</Txt> : null}
+        {distanceEvents.length ? <Txt variant="caption">{`Your verified distance also counts in ${distanceEvents.length === 1 ? distanceEvents[0]!.name : `${distanceEvents.length} distance events`}.`}</Txt> : null}
       </Card>
       <ArrowLink label="How loops and titles work" onPress={() => router.push('/help')} />
     </Screen>

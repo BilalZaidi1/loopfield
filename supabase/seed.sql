@@ -35,3 +35,14 @@ values ('00000000-0000-4000-8000-000000000041', '00000000-0000-4000-8000-0000000
         date_trunc('day', now()) - interval '1 day', date_trunc('day', now()) + interval '27 days', 'active', 11, 10,
         'territory-2026.11.0-proposed', 'speed-2026.11.0-proposed', 'dev-exclusions-1')
 on conflict (id) do nothing;
+
+-- The region's all-time map: who holds each piece of ground now (one season that never ends).
+insert into public.competitions (id, kind, region_id, name)
+values ('00000000-0000-4000-8000-000000000032', 'permanent', '00000000-0000-4000-8000-000000000001', 'All-time map')
+on conflict do nothing;
+
+insert into public.seasons (id, competition_id, number, starts_at, ends_at, status, grid_resolution, boundary_band_m, territory_rules_version, speed_rules_version, exclusion_set_version)
+select '00000000-0000-4000-8000-000000000042', c.id, 1, timestamptz '2020-01-01 00:00:00+00', timestamptz '9999-12-31 00:00:00+00', 'active', 11, 10,
+       'territory-2026.11.0-proposed', 'speed-2026.11.0-proposed', 'dev-exclusions-1'
+  from public.competitions c where c.region_id = '00000000-0000-4000-8000-000000000001' and c.kind = 'permanent'
+on conflict do nothing;

@@ -17,7 +17,7 @@ import { useMovement } from '@/features/movement/api';
 import { localDayKey, thisWeekByDay, useActivities } from '@/features/results/useActivities';
 import { daysLeft, useLeaderboard, useMyTerritorySummary } from '@/features/territory/useTerritoryStats';
 import { getGoals } from '@/health/cache';
-import { useCompetition } from '@/state/competition';
+import { layerTitle, useCompetition } from '@/state/competition';
 import { useNow } from '@/lib/useNow';
 import { useSession, useUnits } from '@/state/session';
 import { useLayout } from '@/theme/layout';
@@ -196,13 +196,13 @@ function WeekCard({ acts }: { acts: ReturnType<typeof useActivities> }) {
   );
 }
 
-/** Your published land, rank and season clock in the selected competition. */
+/** The land you hold now (all-time map), your place on it, and this season's race clock. */
 function GroundCard() {
   const units = useUnits();
   const { settings } = useSession();
-  const { competition, season, loading } = useCompetition();
-  const summary = useMyTerritorySummary();
-  const board = useLeaderboard(null, 100);
+  const { competition, season, home, homeSeason, loading } = useCompetition();
+  const summary = useMyTerritorySummary('home');
+  const board = useLeaderboard(null, 100, 'home');
   const me = board.data?.find((r) => r.is_me);
   const left = daysLeft(season?.ends_at);
   const participating = Boolean(settings?.territory_competition_enabled);
@@ -217,16 +217,16 @@ function GroundCard() {
   }
   const s = summary.data;
   return (
-    <Card tone="orange" onPress={() => router.push('/map')} accessibilityLabel={`${competition.name}. Open the map`} style={{ flex: 1 }}>
+    <Card tone="orange" onPress={() => router.push('/map')} accessibilityLabel={`${home ? layerTitle(home, homeSeason) : competition.name}. Open the map`} style={{ flex: 1 }}>
       <View style={{ gap: spacing.sm }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <Icon name="hexagon" color="#121318" size={22} />
-          <Txt variant="heading" style={{ flex: 1 }} numberOfLines={2}>{competition.name}</Txt>
+          <Txt variant="heading" style={{ flex: 1 }} numberOfLines={2}>{home ? layerTitle(home, homeSeason) : competition.name}</Txt>
           <Icon name="arrow-right" color="#121318" size={22} />
         </View>
-        {season ? <Badge icon="calendar" label={left === 0 ? `Season ${season.number} · last day` : `Season ${season.number} · ${left} days left`} /> : null}
+        {season ? <Badge icon="calendar" label={left === 0 ? `Season ${season.number} race · last day` : `Season ${season.number} race · ${left} days left`} /> : null}
       </View>
-      {!season ? (
+      {!homeSeason ? (
         <Txt>No active season right now. Land opens again when the next season starts.</Txt>
       ) : !participating ? (
         <>
@@ -243,7 +243,7 @@ function GroundCard() {
             <BigNumber value={splitValue(fmtArea(s?.published_area_m2 ?? 0, units)).value} unit={splitValue(fmtArea(s?.published_area_m2 ?? 0, units)).unit} size={56} />
             <Txt color="textMuted">
               {`${s?.published_cells ?? 0} cells`}
-              {me ? ` · #${me.rank} in the competition` : ' · not ranked yet'}
+              {me ? ` · #${me.rank} ${home?.kind === 'permanent' ? 'on the all-time map' : 'in the club race'}` : ' · not ranked yet'}
             </Txt>
           </View>
           {s?.provisional_cells ? <Badge icon="clock" label={`${s.provisional_cells} more cells publishing soon`} /> : null}
@@ -254,7 +254,6 @@ function GroundCard() {
   );
 }
 
-/** Top of the season's land ranking, plus your own row when you are further down. */
 /** The challenge closest to completion, plus my movement points: what one more run would move. */
 function NextBadgeCard() {
   const p = usePalette();
@@ -293,10 +292,11 @@ function NextBadgeCard() {
   );
 }
 
+/** Top of this season's race, plus your own row when you are further down. */
 function TopRunners() {
   const units = useUnits();
   const { season } = useCompetition();
-  const board = useLeaderboard(null, 100);
+  const board = useLeaderboard(null, 100, 'race');
   if (!season || !board.data?.length) return null;
   const top = board.data.slice(0, 3);
   const me = board.data.find((r) => r.is_me);

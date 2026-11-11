@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { ActivitySummary } from '@loopfield/core';
 import { rpc } from '@/lib/api';
 import { recordingDb } from '@/recording/db';
-import type { AttemptJson, ClaimJson } from './ResultCards';
+import type { AttemptJson, ClaimJson, LayerResult } from './ResultCards';
 
 export interface ActivityJson {
   id: string;
@@ -37,6 +37,8 @@ export interface ActivityJson {
 export interface ActivityDetail {
   activity: ActivityJson;
   claim: ClaimJson | null;
+  /** What the same loop did on the all-time map, in the season race and in joined events. */
+  layers?: LayerResult[];
   attempts: AttemptJson[];
   title_context: { attempt_id: string; benchmark_ms: number; champion_is_me: boolean }[];
   proposals: { id: string; status: string; name: string }[];

@@ -70,17 +70,23 @@ export default function Notifications() {
         <ListGroup>
           {list.data.map((n) => {
             const base = safePushPreview(n.kind, n.actor?.display_name ?? null);
-            const d = (n.data ?? {}) as { title?: string; tier?: string; points?: number };
-            // In the app (not in push), name the badge or the refund so the row says what happened.
+            const d = (n.data ?? {}) as { title?: string; tier?: string; points?: number; name?: string; rank?: number; club_rank?: number; club_name?: string };
+            // In the app (not in push), name the badge, refund or event so the row says what happened.
             const preview = n.kind === 'badge_earned' && d.title
               ? { title: `Badge earned: ${d.title}`, body: `${d.tier ? `${d.tier[0]!.toUpperCase()}${d.tier.slice(1)} badge` : 'New badge'} added to your collection` }
               : n.kind === 'points_refunded' && d.points
                 ? { title: `${d.points} points refunded`, body: base.body }
-                : base;
+                : n.kind === 'event_finished' && d.name
+                  ? { title: `${d.name}: results`, body: d.rank ? `You finished #${d.rank}${d.club_rank ? `; your club finished #${d.club_rank}` : ''}.` : 'The event has finished. See the final standings.' }
+                  : (n.kind === 'event_starting' || n.kind === 'event_cancelled') && d.name
+                    ? { title: d.name, body: base.body }
+                    : n.kind === 'club_challenge' && d.name
+                      ? { title: `New challenge: ${d.name}`, body: d.club_name ? `${n.actor?.display_name ?? 'An organiser'} set it for ${d.club_name}` : base.body }
+                      : base;
             return (
               <Row
                 key={n.id}
-                icon={n.kind === 'badge_earned' ? 'trophy' : n.kind === 'points_refunded' ? 'bolt' : CATEGORY_ICON[n.category] ?? 'bell'}
+                icon={n.kind === 'badge_earned' ? 'trophy' : n.kind === 'points_refunded' ? 'bolt' : n.object_type === 'competition' ? 'flag' : CATEGORY_ICON[n.category] ?? 'bell'}
                 title={preview.title}
                 subtitle={`${preview.body} · ${fmtRelative(n.created_at)}`}
                 highlight={!n.read_at}

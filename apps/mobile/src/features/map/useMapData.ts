@@ -18,9 +18,9 @@ export interface RouteInView {
   i_am_champion: boolean;
 }
 
-/** Bounded viewport query of published cells; the server rejects oversized boxes (zoom in). */
+/** Bounded viewport query of published cells in the layer the map shows; the server rejects oversized boxes (zoom in). */
 export function useTerritoryViewport(bounds: Bounds | null) {
-  const { competition, season } = useCompetition();
+  const { layer: competition, layerSeason: season } = useCompetition();
   const b = bounds ? roundBounds(bounds) : null;
   const tooLarge = b ? boundsArea(b) > MAX_VIEWPORT_DEG2 : false;
   const q = useQuery({
@@ -42,7 +42,8 @@ export function useTerritoryViewport(bounds: Bounds | null) {
 }
 
 export function useExclusions(bounds: Bounds | null) {
-  const { competition } = useCompetition();
+  const { layer, competition: race } = useCompetition();
+  const competition = layer?.region_id ? layer : race;
   const b = bounds ? roundBounds(bounds) : null;
   const tooLarge = b ? boundsArea(b) > MAX_VIEWPORT_DEG2 : false;
   return useQuery({
@@ -63,6 +64,7 @@ export function useExclusions(bounds: Bounds | null) {
   });
 }
 
+/** Speed routes and their titles belong to the race the runner records for. */
 export function useRoutesInView(bounds: Bounds | null) {
   const { competition, season } = useCompetition();
   const b = bounds ? roundBounds(bounds) : null;

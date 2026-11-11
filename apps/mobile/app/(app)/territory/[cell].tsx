@@ -11,7 +11,7 @@ import { Avatar, Badge, Banner, Button, Card, EmptyState, ErrorState, ListGroup,
 import { Icon } from '@/components/icons';
 import { MapCanvas } from '@/features/map/MapCanvas';
 import { reasonText } from '@/features/results/ResultCards';
-import { useCompetition } from '@/state/competition';
+import { layerTitle, useCompetition } from '@/state/competition';
 import { useUnits } from '@/state/session';
 import { cellCenter, plainCellsToFeatures } from '@/territory/h3';
 import { spacing, useTheme } from '@/theme/tokens';
@@ -57,7 +57,7 @@ export default function TerritoryDetail() {
   const p = t.palette;
   const units = useUnits();
   const { cell } = useLocalSearchParams<{ cell: string }>();
-  const { competition, season } = useCompetition();
+  const { layer: competition, layerSeason: season } = useCompetition();
   const detail = useQuery({
     queryKey: ['territory_cell_detail', competition?.id, season?.id, cell],
     enabled: Boolean(competition && season),
@@ -81,7 +81,7 @@ export default function TerritoryDetail() {
       <MapCanvas height={220} center={center} zoom={16} layers={{ cells: fc }} selectedCell={cell} accessibilityLabel="Map of the selected cell" />
       {!d || !d.status ? (
         <Card tone="soft">
-          <Txt variant="label" color="textMuted">{`${competition.name} · season ${season.number}`}</Txt>
+          <Txt variant="label" color="textMuted">{layerTitle(competition, season)}</Txt>
           <Txt variant="headline">Unclaimed</Txt>
           <Txt>A complete eligible loop that fully encloses this cell would claim it.</Txt>
         </Card>
@@ -97,7 +97,7 @@ export default function TerritoryDetail() {
         </Card>
       ) : d.is_me ? (
         <Card tone="violet">
-          <Txt variant="label" color="textMuted">{`${competition.name} · season ${season.number}`}</Txt>
+          <Txt variant="label" color="textMuted">{layerTitle(competition, season)}</Txt>
           <Txt variant="display" style={{ fontSize: 36, lineHeight: 40 }}>Your ground</Txt>
           <Txt>{`Held since ${fmtDate(d.controlled_since)}.`}</Txt>
           {d.held_by === 'reclaim' ? <Badge icon="bolt" label="Reclaimed with movement points" /> : d.claim_cells ? <Badge icon="hexagon" label={`Your claiming loop awarded ${d.claim_cells} cells`} /> : null}
@@ -107,7 +107,7 @@ export default function TerritoryDetail() {
         </Card>
       ) : (
         <Card>
-          <Txt variant="label" color="textMuted">{`${competition.name} · season ${season.number}`}</Txt>
+          <Txt variant="label" color="textMuted">{layerTitle(competition, season)}</Txt>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
             <Avatar name={d.controller_name ?? 'A runner'} size={48} ring={t.territory.rivalHues[0]} />
             <View style={{ flex: 1 }}>
@@ -123,14 +123,14 @@ export default function TerritoryDetail() {
         flow.done ? (
           <Card><ReclaimDone result={flow.done} onDone={() => { flow.reset(); void detail.refetch(); }} /></Card>
         ) : (
-          <Card tone="soft" accessibilityLabel={d.reclaimable ? `This was yours. Reclaim it for ${d.reclaim_cost} points` : 'This was yours earlier this season'}>
+          <Card tone="soft" accessibilityLabel={d.reclaimable ? `This was yours. Reclaim it for ${d.reclaim_cost} points` : 'This was yours earlier'}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
               <Icon name="hexagon" color={p.primary} size={22} />
               <Txt variant="heading" style={{ flex: 1 }}>This was yours</Txt>
             </View>
             {d.reclaimable && d.reclaim_cost ? (
               <>
-                <Txt color="textMuted">You held this cell earlier this season. Reclaim it with movement points and it is yours again straight away.</Txt>
+                <Txt color="textMuted">You held this cell earlier. Reclaim it with movement points and it is yours again straight away.</Txt>
                 <ReclaimReceipt cells={1} costPerCell={d.reclaim_cost} total={d.reclaim_cost} balance={movement.data?.balance ?? 0} remaining={(movement.data?.balance ?? 0) - d.reclaim_cost} />
                 {flow.error ? <Banner tone="danger" text={friendlyError(flow.error)} /> : null}
                 <Button label={`Reclaim for ${d.reclaim_cost} points`} size="lg" arrow icon="bolt" loading={flow.busy}
@@ -138,7 +138,7 @@ export default function TerritoryDetail() {
                   onPress={() => flow.start([d.cell], d.reclaim_cost!, movement.data?.balance ?? 0)} />
               </>
             ) : (
-              <Txt color="textMuted">{BLOCKED[d.blocked_reason ?? ''] ?? 'You held this cell earlier this season.'}</Txt>
+              <Txt color="textMuted">{BLOCKED[d.blocked_reason ?? ''] ?? 'You held this cell earlier.'}</Txt>
             )}
           </Card>
         )

@@ -89,51 +89,74 @@ async function setClaimOutcome(ctx: JobContext, claimId: string, status: string,
      where id = ${claimId} and status = 'processing'`;
 }
 
-/** Territory branch: pre-validation, H3 candidates, PostGIS evaluation, transactional apply. */
+/**
+ * Territory branch: pre-validation, H3 candidates, PostGIS evaluation, transactional apply.
+ * One run's loop is evaluated once and decided for each layer it counts in: its race claim (the
+ * primary, which carries the review trail) and the claims derived from it (the all-time map, territory
+ * events), each against its own season window. `reviewed` re-evaluates after a reviewer cleared the
+ * movement signals of a held run.
+ */
 export const evaluateLoopJob: JobHandler = async (payload, ctx) => {
-  const claimId = str(payload.claim_id, 'claim_id');
-  const [claim] = await ctx.sql`
-    select lc.id, lc.activity_id, lc.status, lc.season_id, s.grid_resolution, s.starts_at, s.ends_at
-      from public.loop_claims lc left join public.seasons s on s.id = lc.season_id where lc.id = ${claimId}`;
-  if (!claim || claim.status !== 'processing') return; // idempotent
-  const ev = await loadEvidence(ctx, claim.activity_id);
+  const requested = str(payload.claim_id, 'claim_id');
+  const reviewed = payload.reviewed === true;
+  const claims = await ctx.sql`
+    with root as (select coalesce(parent_claim_id, id) as id from public.loop_claims where id = ${requested})
+    select lc.id, lc.parent_claim_id, lc.activity_id, lc.status, lc.season_id, s.grid_resolution, s.starts_at, s.ends_at
+      from public.loop_claims lc join root on lc.id = root.id or lc.parent_claim_id = root.id
+      left join public.seasons s on s.id = lc.season_id
+     order by lc.parent_claim_id nulls first, lc.id`;
+  const primary = claims.find((c) => !c.parent_claim_id);
+  const pending = claims.filter((c) => c.status === 'processing');
+  if (!primary || !pending.length) return; // idempotent
+  const ev = await loadEvidence(ctx, primary.activity_id);
   const integrity = await integrityRules(ctx);
   const result = evaluateLoop(ev.samples, ev.events, TERRITORY_RULES, integrity);
-  const reasons = [...result.reasons];
-  if (result.completedAt && result.startedAt && claim.starts_at && claim.ends_at) {
-    const inSeason = (t: number) => t >= new Date(claim.starts_at).getTime() && t < new Date(claim.ends_at).getTime();
-    if (!inSeason(result.startedAt) || !inSeason(result.completedAt)) reasons.push('season_boundary');
-  }
-  const decision = decide(reasons);
-  if (decision !== 'eligible') {
-    await setClaimOutcome(ctx, claimId, decision, reasons, { completedAt: result.completedAt, lengthM: result.lengthM });
-    const signals = reasons.filter((r) => SPEED_SIGNALS.includes(r));
-    if (decision === 'pending_review' || signals.length) {
-      // Audit trail: every loop held for review, and every loop that moved unlike a runner even when other
-      // problems already stop it from counting.
-      await ctx.sql`insert into public.integrity_cases (kind, object_id, subject_user_id, opened_by, hold_from_competition, signals)
-                    values ('loop_claim', ${claimId}, ${ev.userId}, 'system', ${decision === 'pending_review'},
-                            ${ctx.sql.json({ reasons, rule_version: integrity.version } as never)}::jsonb)`;
-    }
-    ctx.log('loop not eligible', { claimId, reasons });
-    return;
-  }
-  await ctx.sql`update public.loop_claims set completed_at = ${new Date(result.completedAt!)}, length_m = ${result.lengthM}, algorithm_version = ${result.ruleVersion} where id = ${claimId}`;
-  const resolution = Number(claim.grid_resolution ?? TERRITORY_RULES.gridResolution.value);
-  const candidates = candidateCells(result.ring, resolution, TERRITORY_RULES.maxCandidateCells.value);
-  const records = cellRecords(candidates, resolution);
-  const decIds = records.map((r) => r.cell);
-  const existing = new Set<string>(
-    (await ctx.sql`select cell::text as cell from internal.territory_cells where cell = any(${pgArray(decIds)}::bigint[])`).map((r) => r.cell as string)
-  );
-  const missing = records.filter((r) => !existing.has(r.cell));
-  for (let i = 0; i < missing.length; i += 1500) {
-    await ctx.sql`select internal.upsert_cells(${ctx.sql.json(missing.slice(i, i + 1500) as never)}::jsonb)`;
-  }
+  const base = reviewed ? result.reasons.filter((r) => !SPEED_SIGNALS.includes(r)) : [...result.reasons];
   const ring = result.ring.map((p) => [p.lng, p.lat]);
-  const [evaluated] = await ctx.sql`select status from internal.evaluate_claim_geometry(${claimId}::uuid, ${ctx.sql.json(ring as never)}::jsonb, ${pgArray(decIds)}::bigint[])`;
-  if (evaluated?.status === 'eligible') await ctx.sql`select internal.apply_claim(${claimId}::uuid)`;
-  ctx.log('loop evaluated', { claimId, status: evaluated?.status, candidates: decIds.length });
+  const cellsByResolution = new Map<number, string[]>();
+  const candidatesFor = async (resolution: number): Promise<string[]> => {
+    const known = cellsByResolution.get(resolution);
+    if (known) return known;
+    const records = cellRecords(candidateCells(result.ring, resolution, TERRITORY_RULES.maxCandidateCells.value), resolution);
+    const decIds = records.map((r) => r.cell);
+    const existing = new Set<string>(
+      (await ctx.sql`select cell::text as cell from internal.territory_cells where cell = any(${pgArray(decIds)}::bigint[])`).map((r) => r.cell as string)
+    );
+    const missing = records.filter((r) => !existing.has(r.cell));
+    for (let i = 0; i < missing.length; i += 1500) {
+      await ctx.sql`select internal.upsert_cells(${ctx.sql.json(missing.slice(i, i + 1500) as never)}::jsonb)`;
+    }
+    cellsByResolution.set(resolution, decIds);
+    return decIds;
+  };
+
+  for (const claim of pending) {
+    const isPrimary = !claim.parent_claim_id;
+    const reasons = [...base];
+    if (result.completedAt && result.startedAt && claim.starts_at && claim.ends_at) {
+      const inSeason = (t: number) => t >= new Date(claim.starts_at).getTime() && t < new Date(claim.ends_at).getTime();
+      if (!inSeason(result.startedAt) || !inSeason(result.completedAt)) reasons.push('season_boundary');
+    }
+    const decision = decide(reasons);
+    if (decision !== 'eligible') {
+      await setClaimOutcome(ctx, claim.id, decision, reasons, { completedAt: result.completedAt, lengthM: result.lengthM });
+      const signals = reasons.filter((r) => SPEED_SIGNALS.includes(r));
+      if (isPrimary && (decision === 'pending_review' || signals.length)) {
+        // Audit trail on the race claim (its layers follow it): every loop held for review, and every loop
+        // that moved unlike a runner even when other problems already stop it from counting.
+        await ctx.sql`insert into public.integrity_cases (kind, object_id, subject_user_id, opened_by, hold_from_competition, signals)
+                      values ('loop_claim', ${claim.id}, ${ev.userId}, 'system', ${decision === 'pending_review'},
+                              ${ctx.sql.json({ reasons, rule_version: integrity.version } as never)}::jsonb)`;
+      }
+      ctx.log('loop not eligible', { claimId: claim.id, layer: isPrimary ? 'race' : 'derived', reasons });
+      continue;
+    }
+    await ctx.sql`update public.loop_claims set completed_at = ${new Date(result.completedAt!)}, length_m = ${result.lengthM}, algorithm_version = ${result.ruleVersion} where id = ${claim.id}`;
+    const decIds = await candidatesFor(Number(claim.grid_resolution ?? TERRITORY_RULES.gridResolution.value));
+    const [evaluated] = await ctx.sql`select status from internal.evaluate_claim_geometry(${claim.id}::uuid, ${ctx.sql.json(ring as never)}::jsonb, ${pgArray(decIds)}::bigint[])`;
+    if (evaluated?.status === 'eligible') await ctx.sql`select internal.apply_claim(${claim.id}::uuid)`;
+    ctx.log('loop evaluated', { claimId: claim.id, layer: isPrimary ? 'race' : 'derived', status: evaluated?.status, candidates: decIds.length });
+  }
 };
 
 export async function loadCourse(ctx: JobContext, courseVersionId: string): Promise<{ geometry: CourseGeometry; status: string; courseStatus: string } | null> {

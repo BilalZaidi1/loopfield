@@ -10,6 +10,8 @@ import { useLayout } from '@/theme/layout';
 import { PostCard, useFeed, type PostJson } from '@/features/social/PostCard';
 import { useClub, useMembershipActions, type ClubDetail } from '@/features/clubs/api';
 import { useCompetition } from '@/state/competition';
+import { EventCard } from '@/features/events/EventCard';
+import { useClubEvents } from '@/features/events/api';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 
 /** S29 Invitation or join request — identity, visibility, rules and Accept / Request / Join / Decline. */
@@ -51,6 +53,20 @@ function ActionTile({ icon, label, onPress, count }: { icon: IconName; label: st
       <Txt variant="label" numberOfLines={2} align="center">{label}</Txt>
       {count ? <View style={[styles.count, { backgroundColor: p.orange }]}><Txt variant="micro" style={{ color: '#121318' }}>{String(count)}</Txt></View> : null}
     </PressableScale>
+  );
+}
+
+/** The club's challenges (members only): running and upcoming ones, and a way for organisers to add one. */
+function ClubChallenges({ clubId, organizer }: { clubId: string; organizer: boolean }) {
+  const events = useClubEvents(clubId);
+  const current = (events.data ?? []).filter((e) => e.phase === 'live' || e.phase === 'upcoming' || e.phase === 'finishing');
+  if (!organizer && !current.length) return null;
+  return (
+    <Section title="Challenges" icon="flag">
+      {current.map((e) => <EventCard key={e.id} event={e} />)}
+      {!current.length ? <Txt color="textMuted">No challenge running. Set one for your members: a distance goal or a land race.</Txt> : null}
+      {organizer ? <Button label="Create a challenge" variant="secondary" icon="plus" onPress={() => router.push({ pathname: '/events/new', params: { club: clubId } })} /> : null}
+    </Section>
   );
 }
 
@@ -114,10 +130,11 @@ export default function ClubHome() {
             <Icon name="hexagon" color="#121318" size={22} />
             <Txt variant="heading" style={{ flex: 1 }}>Club territory season</Txt>
           </View>
-          <Txt color="textMuted">{`Land and route titles in ${clubCompetition.name} are separate from the public map.`}</Txt>
+          <Txt color="textMuted">{`Land and route titles in ${clubCompetition.name} are separate from the all-time map and the public race.`}</Txt>
           <Button label="Open club map" arrow onPress={() => { select(clubCompetition.id); router.push('/map'); }} />
         </Card>
       ) : null}
+      {member ? <ClubChallenges clubId={c.id} organizer={organizer} /> : null}
       {member && pins.data?.length ? (
         <Section title="Announcements" icon="bell">
           {pins.data.slice(0, 3).map((post) => <PostCard key={post.id} post={post} />)}

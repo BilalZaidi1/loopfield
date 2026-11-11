@@ -13,8 +13,7 @@ import { Icon, type IconName } from '@/components/icons';
 import { MapCanvas, mapAvailability, type MapHandle } from '@/features/map/MapCanvas';
 import { useInitialCenter } from '@/features/map/useInitialCenter';
 import { routesToFeatures, useExclusions, useRoutesInView, useTerritoryViewport, type RouteInView } from '@/features/map/useMapData';
-import { daysLeft } from '@/features/territory/useTerritoryStats';
-import { useCompetition } from '@/state/competition';
+import { layerSubtitle, layerTitle, useCompetition, type Competition } from '@/state/competition';
 import { useSession, useUnits } from '@/state/session';
 import { boundsAround, cellsToFeatures, gridFeatures, lostToFeatures, resolutionOf, summarizeCells, type Bounds, type ViewportCell } from '@/territory/h3';
 import { useLostCells, useMovement, useReclaimQuote, type LostCell } from '@/features/movement/api';
@@ -43,7 +42,8 @@ export default function TerritoryMap() {
   const insets = useSafeAreaInsets();
   const { isWide } = useLayout();
   const { settings } = useSession();
-  const { competitions, competition, season, select, loading } = useCompetition();
+  const { layers, layer, layerSeason, competition, select, loading } = useCompetition();
+  const inEvent = layer?.kind === 'event';
   const center = useInitialCenter();
   const available = mapAvailability().ok;
   const [bounds, setBounds] = useState<Bounds | null>(null);
@@ -75,16 +75,16 @@ export default function TerritoryMap() {
   const participating = Boolean(settings?.territory_competition_enabled);
   const selectedCell = selected?.kind === 'cell' ? (cells.data ?? []).find((c) => c.cell === selected.id) ?? null : null;
   const selectedRoute = selected?.kind === 'route' ? (routes.data ?? []).find((r) => r.course_id === selected.id) ?? null : null;
-  const left = daysLeft(season?.ends_at);
 
-  // Ground I held this season and lost to another runner: in view on the map, the whole season otherwise.
-  const lost = useLostCells(competition?.id, season?.id, available ? bounds : 'all', Boolean(competition && season));
+  // Ground I held and lost to another runner (in this layer): in view on the map, the whole layer otherwise.
+  // Events never offer reclaiming: their standings are only what runners ran.
+  const lost = useLostCells(layer?.id, layerSeason?.id, available ? bounds : 'all', Boolean(layer && layerSeason && !inEvent));
   const movement = useMovement();
   const lostByCell = useMemo(() => new Map((lost.data ?? []).map((c) => [c.cell, c])), [lost.data]);
   const lostFc = useMemo(() => (available && lost.data?.length ? lostToFeatures(lost.data, picked) : undefined), [available, lost.data, picked]);
   const reclaimable = (lost.data ?? []).filter((c) => c.reclaimable).length;
   const quote = useReclaimQuote(picked, lost.data, movement.data?.balance);
-  const flow = useReclaimFlow(competition?.id, season?.id);
+  const flow = useReclaimFlow(layer?.id, layerSeason?.id);
   const endReclaim = () => {
     flow.reset();
     setPicked(new Set());
@@ -148,14 +148,14 @@ export default function TerritoryMap() {
           <Pressable
             onPress={() => setSheet('competition')}
             accessibilityRole="button"
-            accessibilityLabel={competition ? `${competition.name}${season ? `, season ${season.number}, ${left} days left` : ', no active season'}. Change competition or see the season` : 'Competition'}
+            accessibilityLabel={layer ? `Map shows ${layerTitle(layer, layerSeason)}. ${layerSubtitle(layer, layerSeason)}. Change what the map shows` : 'What the map shows'}
             style={({ pressed }) => [styles.chip, { backgroundColor: p.surface, opacity: pressed ? 0.85 : 1 }, t.elevation.floating]}>
-            <View style={[styles.chipIcon, { backgroundColor: t.blocks.orange.bg }]}>
-              <Icon name="trophy" color="#121318" size={18} />
+            <View style={[styles.chipIcon, { backgroundColor: t.blocks[LAYER_TONE[layer?.kind ?? 'permanent']].bg }]}>
+              <Icon name={LAYER_ICON[layer?.kind ?? 'permanent']} color={layer?.kind === 'permanent' || !layer ? '#FFFFFF' : '#121318'} size={18} />
             </View>
             <View style={{ flex: 1 }}>
-              <Txt variant="bodyStrong" numberOfLines={1}>{competition?.name ?? (loading ? 'Loading competitions…' : 'No competition nearby')}</Txt>
-              <Txt variant="caption" numberOfLines={1}>{season ? (left === 0 ? `Season ${season.number} · last day` : `Season ${season.number} · ${left} days left`) : competition ? 'No active season' : 'Private runs still record'}</Txt>
+              <Txt variant="bodyStrong" numberOfLines={1}>{layer ? layerTitle(layer, layerSeason) : loading ? 'Loading the map…' : 'No competition nearby'}</Txt>
+              <Txt variant="caption" numberOfLines={1}>{layer ? layerSubtitle(layer, layerSeason) : 'Private runs still record'}</Txt>
             </View>
             <Icon name="chevron-down" color={p.textMuted} size={20} />
           </Pressable>
@@ -227,7 +227,7 @@ export default function TerritoryMap() {
           <>
             <InView summary={summary} loading={cells.isFetching && !cells.data} available={available} expanded={expanded} onToggle={() => setExpanded(!expanded)} />
             {lost.data?.length ? (
-              <LostCallout count={lost.data.length} reclaimable={reclaimable} cost={lost.data.find((c) => c.reclaimable)?.cost ?? null} balance={movement.data?.balance ?? null} scope={available ? 'in view' : 'this season'} onPress={() => startReclaim()} />
+              <LostCallout count={lost.data.length} reclaimable={reclaimable} cost={lost.data.find((c) => c.reclaimable)?.cost ?? null} balance={movement.data?.balance ?? null} scope={available ? 'in view' : layer?.kind === 'permanent' ? 'so far' : 'this season'} onPress={() => startReclaim()} />
             ) : null}
           </>
         )}
@@ -235,6 +235,7 @@ export default function TerritoryMap() {
           <ScrollView style={{ maxHeight: 340 }} contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.sm }}>
             {cells.tooLarge ? <Banner tone="info" text="Zoom in to load territory for this area." /> : null}
             {cells.error ? <Banner tone="danger" text="Territory could not be loaded for this view." action={{ label: 'Retry', onPress: () => void cells.refetch() }} /> : null}
+            {inEvent ? <Banner tone="info" text="Event land: only runners in this event, only runs since it started. It never changes the all-time map." action={{ label: 'Standings', onPress: () => router.push({ pathname: '/events/[id]', params: { id: layer!.id } }) }} /> : null}
             {!participating && competition ? (
               <Banner tone="info" text="You are viewing the map without taking part. Turn on territory in Privacy settings to claim land." action={{ label: 'Privacy', onPress: () => router.push('/settings/privacy') }} />
             ) : null}
@@ -256,7 +257,8 @@ export default function TerritoryMap() {
             ) : null}
             <View>
               <Row icon="bolt" title="Movement points" subtitle={movement.data ? `${movement.data.balance.toLocaleString()} points · earned on every verified run` : 'Earned on every verified run'} onPress={() => router.push('/points')} />
-              <Row icon="medal" title="Leaderboard" subtitle="Published land this season" onPress={() => router.push('/leaderboard')} />
+              <Row icon="medal" title="Leaderboard" subtitle="Who holds the most land, all-time and this season" onPress={() => router.push('/leaderboard')} />
+              <Row icon="flag" title="Events" subtitle="Challenges with their own standings" onPress={() => router.push('/events')} />
               <Row icon="route" title="Speed routes" subtitle="Approved routes and their title holders" onPress={() => router.push('/routes')} />
               <Row icon="compass" title="My exploration" subtitle="Private record of where you have run" onPress={() => router.push('/exploration')} />
             </View>
@@ -266,21 +268,19 @@ export default function TerritoryMap() {
         {reclaiming ? null : <Button label="Start a run" size="lg" arrow icon="record" onPress={() => router.push('/record')} />}
       </Animated.View>
 
-      <ReclaimSheet visible={listOpen} onClose={() => setListOpen(false)} competitionId={competition?.id} seasonId={season?.id} />
+      <ReclaimSheet visible={listOpen} onClose={() => setListOpen(false)} competitionId={layer?.id} seasonId={layerSeason?.id} />
 
       <Sheet visible={sheet === 'legend'} title="Map key" onClose={() => setSheet(null)}>
         <Legend />
       </Sheet>
-      <Sheet visible={sheet === 'competition'} title="Competition" onClose={() => setSheet(null)}>
-        {competitions.length ? (
+      <Sheet visible={sheet === 'competition'} title="What the map shows" onClose={() => setSheet(null)}>
+        {layers.length ? (
           <View>
-            {competitions.map((c) => (
-              <Row
+            {layers.map((c) => (
+              <LayerRow
                 key={c.id}
-                icon={c.kind === 'club' ? 'clubs' : 'globe'}
-                title={c.name}
-                subtitle={c.kind === 'club' ? 'Club competition' : 'Public competition'}
-                right={c.id === competition?.id ? <Icon name="check" color={p.primary} size={22} /> : undefined}
+                layer={c}
+                selected={c.id === layer?.id}
                 onPress={() => {
                   select(c.id);
                   setSelected(null);
@@ -294,18 +294,34 @@ export default function TerritoryMap() {
         ) : (
           <Txt color="textMuted">No competition is available in your area yet. You can still record private runs.</Txt>
         )}
-        {season ? <Txt variant="caption">{`Season ${season.number} runs ${fmtDate(season.starts_at)} to ${fmtDate(season.ends_at)}.`}</Txt> : null}
-        <Button
-          label="Season history"
-          variant="secondary"
-          icon="calendar"
-          onPress={() => {
-            setSheet(null);
-            router.push('/seasons');
-          }}
-        />
+        <Txt variant="caption">Every loop you run for the public race counts on the all-time map, in this season&apos;s race and in territory events you joined. Club races stay inside their club.</Txt>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Button label="Events" variant="secondary" icon="flag" style={{ flex: 1 }} onPress={() => { setSheet(null); router.push('/events'); }} />
+          <Button label="Seasons" variant="secondary" icon="calendar" style={{ flex: 1 }} onPress={() => { setSheet(null); router.push('/seasons'); }} />
+        </View>
       </Sheet>
     </View>
+  );
+}
+
+const LAYER_ICON: Record<Competition['kind'], IconName> = { permanent: 'globe', public: 'trophy', event: 'flag', club: 'clubs' };
+const LAYER_TONE: Record<Competition['kind'], 'blue' | 'orange' | 'violet' | 'green'> = { permanent: 'blue', public: 'orange', event: 'violet', club: 'green' };
+
+function LayerRow({ layer, selected, onPress }: { layer: Competition; selected: boolean; onPress: () => void }) {
+  const t = useTheme();
+  const { layerSeason, season } = useCompetition();
+  const s = layer.kind === 'public' ? season : selected ? layerSeason : null;
+  const title = layerTitle(layer, s);
+  const subtitle = layerSubtitle(layer, s);
+  return (
+    <Row
+      icon={LAYER_ICON[layer.kind]}
+      title={title}
+      subtitle={subtitle}
+      right={selected ? <Icon name="check" color={t.palette.primary} size={22} /> : undefined}
+      onPress={onPress}
+      accessibilityLabel={`${title}. ${subtitle}${selected ? '. Shown now' : ''}`}
+    />
   );
 }
 
@@ -475,9 +491,9 @@ function Legend() {
   const t = useTheme();
   const tc = t.territory;
   const items: { swatch: ReactNode; title: string; body: string }[] = [
-    { swatch: <Swatch color={tc.mineFill} />, title: 'Your ground', body: 'Cells you hold this season, outlined with a glow.' },
+    { swatch: <Swatch color={tc.mineFill} />, title: 'Your ground', body: 'Cells you hold on the layer shown (the all-time map unless you pick a race or an event), outlined with a glow.' },
     { swatch: <View style={{ flexDirection: 'row' }}><Swatch color={tc.rivalHues[0]!} /><Swatch color={tc.rivalHues[1]!} /></View>, title: 'Rival ground', body: 'Held by other runners. Each runner keeps one colour so you can tell them apart.' },
-    { swatch: <LostSwatch />, title: 'Was yours', body: 'Ground you held this season that another runner\'s loop took. Tap it to reclaim it with movement points.' },
+    { swatch: <LostSwatch />, title: 'Was yours', body: 'Ground you held that another runner\'s loop took. Tap it to reclaim it with movement points (not in events).' },
     { swatch: <LostSwatch faded />, title: 'Taken back with points', body: 'A runner reclaimed it from you with points. Only a run can win it back.' },
     { swatch: <Swatch color={tc.unavailableFill} dashed />, title: 'Unavailable', body: 'Private, restricted or unsafe areas. They are never awarded.' },
     { swatch: <LegendIcon icon="hexagon" color={t.palette.primary} />, title: 'Unclaimed', body: 'No marking means nobody holds it. Only an eligible loop can claim it; the faint grid shows the cell shapes.' },

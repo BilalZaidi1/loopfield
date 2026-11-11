@@ -96,7 +96,7 @@ export default function ActivityDetailScreen() {
           <Txt variant="caption">From {PLATFORM_LABEL}, on this phone only. Never uploaded or shared, and never used for competition.</Txt>
         </Card>
       ) : null}
-      <LandCard claim={detail.data.claim} territoryRequested={Boolean(a.modes?.territory)} />
+      <LandCard claim={detail.data.claim} territoryRequested={Boolean(a.modes?.territory)} layers={detail.data.layers} />
       <TitleCards attempts={detail.data.attempts} context={detail.data.title_context} />
       {detail.data.proposals.length ? (
         <Section title="Route proposals from this run" icon="route">

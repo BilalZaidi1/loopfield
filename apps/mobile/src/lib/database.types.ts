@@ -544,37 +544,87 @@ export type Database = {
       }
       competitions: {
         Row: {
+          archived_at: string | null
+          cancelled_at: string | null
           club_id: string | null
           created_at: string
+          created_by: string | null
+          description: string | null
+          ends_at: string | null
+          event_type: string | null
+          host_club_id: string | null
           id: string
           kind: string
           name: string
-          region_id: string
+          region_id: string | null
+          season_length_days: number
+          starts_at: string | null
           status: string
+          target_m: number | null
+          team_mode: string
+          visibility: string
         }
         ComputedFields: never
         Insert: {
+          archived_at?: string | null
+          cancelled_at?: string | null
           club_id?: string | null
           created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at?: string | null
+          event_type?: string | null
+          host_club_id?: string | null
           id?: string
           kind: string
           name: string
-          region_id: string
+          region_id?: string | null
+          season_length_days?: number
+          starts_at?: string | null
           status?: string
+          target_m?: number | null
+          team_mode?: string
+          visibility?: string
         }
         Update: {
+          archived_at?: string | null
+          cancelled_at?: string | null
           club_id?: string | null
           created_at?: string
+          created_by?: string | null
+          description?: string | null
+          ends_at?: string | null
+          event_type?: string | null
+          host_club_id?: string | null
           id?: string
           kind?: string
           name?: string
-          region_id?: string
+          region_id?: string | null
+          season_length_days?: number
+          starts_at?: string | null
           status?: string
+          target_m?: number | null
+          team_mode?: string
+          visibility?: string
         }
         Relationships: [
           {
             foreignKeyName: "competitions_club_fk"
             columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "competitions_host_club_id_fkey"
+            columns: ["host_club_id"]
             isOneToOne: false
             referencedRelation: "clubs"
             referencedColumns: ["id"]
@@ -1005,6 +1055,56 @@ export type Database = {
           },
         ]
       }
+      event_participants: {
+        Row: {
+          club_id: string | null
+          competition_id: string
+          joined_at: string
+          left_at: string | null
+          reminded_at: string | null
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          club_id?: string | null
+          competition_id: string
+          joined_at?: string
+          left_at?: string | null
+          reminded_at?: string | null
+          user_id: string
+        }
+        Update: {
+          club_id?: string | null
+          competition_id?: string
+          joined_at?: string
+          left_at?: string | null
+          reminded_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_participants_club_id_fkey"
+            columns: ["club_id"]
+            isOneToOne: false
+            referencedRelation: "clubs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_participants_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_participants_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exclusion_zones: {
         Row: {
           active: boolean
@@ -1211,6 +1311,7 @@ export type Database = {
           invalidated_at: string | null
           invalidation_reason: string | null
           length_m: number | null
+          parent_claim_id: string | null
           points_spent: number | null
           polygon: unknown
           provisional_until: string | null
@@ -1247,6 +1348,7 @@ export type Database = {
           invalidated_at?: string | null
           invalidation_reason?: string | null
           length_m?: number | null
+          parent_claim_id?: string | null
           points_spent?: number | null
           polygon?: unknown
           provisional_until?: string | null
@@ -1282,6 +1384,7 @@ export type Database = {
           invalidated_at?: string | null
           invalidation_reason?: string | null
           length_m?: number | null
+          parent_claim_id?: string | null
           points_spent?: number | null
           polygon?: unknown
           provisional_until?: string | null
@@ -1314,6 +1417,13 @@ export type Database = {
             columns: ["competition_id"]
             isOneToOne: false
             referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loop_claims_parent_claim_id_fkey"
+            columns: ["parent_claim_id"]
+            isOneToOne: false
+            referencedRelation: "loop_claims"
             referencedColumns: ["id"]
           },
           {
@@ -2425,6 +2535,7 @@ export type Database = {
         Args: { p_competition: string }
         Returns: boolean
       }
+      cancel_event: { Args: { p_event: string }; Returns: undefined }
       club_detail: { Args: { p_club: string }; Returns: Json }
       club_feed: {
         Args: {
@@ -2482,6 +2593,18 @@ export type Database = {
         }
         Returns: string
       }
+      create_club_event: {
+        Args: {
+          p_club: string
+          p_description: string
+          p_ends_at: string
+          p_event_type: string
+          p_name: string
+          p_starts_at: string
+          p_target_m?: number
+        }
+        Returns: string
+      }
       create_post: {
         Args: {
           p_activity?: string
@@ -2527,6 +2650,20 @@ export type Database = {
           visibility: string
         }[]
       }
+      event_standings: {
+        Args: { p_event: string; p_limit?: number }
+        Returns: {
+          avatar_path: string
+          display_name: string
+          entrant_id: string
+          entrant_kind: string
+          handle: string
+          is_me: boolean
+          members: number
+          rank: number
+          value: number
+        }[]
+      }
       exclusions_viewport: {
         Args: {
           p_max_lat: number
@@ -2567,7 +2704,37 @@ export type Database = {
         Returns: undefined
       }
       join_club: { Args: { p_club: string }; Returns: string }
+      join_event: {
+        Args: { p_club?: string; p_event: string }
+        Returns: undefined
+      }
       leave_club: { Args: { p_club: string }; Returns: undefined }
+      leave_event: { Args: { p_event: string }; Returns: undefined }
+      list_events: {
+        Args: { p_club?: string; p_event?: string; p_scope?: string }
+        Returns: {
+          can_manage: boolean
+          description: string
+          ends_at: string
+          event_type: string
+          host_avatar_path: string
+          host_club_id: string
+          host_club_name: string
+          id: string
+          joined: boolean
+          my_club_id: string
+          name: string
+          participants: number
+          phase: string
+          region_id: string
+          region_name: string
+          season_id: string
+          starts_at: string
+          target_m: number
+          team_mode: string
+          visibility: string
+        }[]
+      }
       mark_notifications_read: {
         Args: { p_ids?: string[] }
         Returns: undefined
@@ -2702,6 +2869,19 @@ export type Database = {
         }
         Returns: string
       }
+      ops_create_event: {
+        Args: {
+          p_description: string
+          p_ends_at: string
+          p_event_type: string
+          p_name: string
+          p_region: string
+          p_starts_at: string
+          p_target_m?: number
+          p_team_mode: string
+        }
+        Returns: string
+      }
       ops_dead_jobs: {
         Args: { p_limit?: number }
         Returns: {
@@ -2781,6 +2961,10 @@ export type Database = {
           score_founding_run: boolean
         }[]
       }
+      ops_schedule_season: {
+        Args: { p_competition: string; p_ends_at: string; p_starts_at: string }
+        Returns: string
+      }
       ops_set_course_status: {
         Args: { p_course: string; p_reason: string; p_status: string }
         Returns: undefined
@@ -2791,6 +2975,14 @@ export type Database = {
       }
       ops_set_region_review: {
         Args: { p_region: string; p_set_version: string; p_status: string }
+        Returns: undefined
+      }
+      ops_set_season_dates: {
+        Args: { p_ends_at: string; p_season: string; p_starts_at: string }
+        Returns: undefined
+      }
+      ops_set_season_length: {
+        Args: { p_competition: string; p_days: number }
         Returns: undefined
       }
       ops_set_switch: {

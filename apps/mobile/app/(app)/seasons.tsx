@@ -29,8 +29,8 @@ export default function Seasons() {
   return (
     <Screen onRefresh={() => { void seasons.refetch(); void titles.refetch(); }} refreshing={seasons.isRefetching}>
       <Stack.Screen options={{ title: 'Season history' }} />
-      <Txt color="textMuted">Land resets each 28-day season; past standings are kept here. Route titles are tracked separately.</Txt>
-      <Section title={competition ? competition.name : 'Territory'} icon="hexagon">
+      <Txt color="textMuted">Each season is a race that starts fresh; past race standings are kept here. The all-time map keeps its land whatever the season, and route titles are tracked separately.</Txt>
+      <Section title={competition ? (competition.kind === 'public' ? 'Season races' : competition.name) : 'Territory'} icon="hexagon">
         {seasons.isLoading ? <LoadingState /> : seasons.error ? <ErrorState error={seasons.error} onRetry={() => void seasons.refetch()} /> : seasons.data?.length ? (
           <View style={{ gap: spacing.md }}>
             {seasons.data.map((s) => (
@@ -38,7 +38,7 @@ export default function Seasons() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
                   <Medal label={String(s.number)} tone={s.status === 'active' ? 'orange' : 'violet'} size={52} earned={Boolean(s.my_area_m2)} />
                   <View style={{ flex: 1, gap: 2 }}>
-                    <Txt variant="headline">{`Season ${s.number}`}</Txt>
+                    <Txt variant="headline">{`Season ${s.number} race`}</Txt>
                     <Txt variant="caption">{`${fmtDate(s.starts_at)} – ${fmtDate(s.ends_at)} · ${s.participants} runners with land`}</Txt>
                   </View>
                 </View>

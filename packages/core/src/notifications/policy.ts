@@ -98,6 +98,14 @@ export function safePushPreview(kind: string, actorName: string | null): { title
       return { title: 'Review complete', body: 'A decision on your request is ready.' };
     case 'export_ready':
       return { title: 'Export ready', body: 'Your data export is ready to download.' };
+    case 'event_starting':
+      return { title: 'Event starts soon', body: 'An event you joined starts within a day.' };
+    case 'event_finished':
+      return { title: 'Event results', body: 'An event you took part in has finished. See where you placed.' };
+    case 'event_cancelled':
+      return { title: 'Event cancelled', body: 'An event you joined was cancelled.' };
+    case 'club_challenge':
+      return { title: 'New club challenge', body: `${who} set a challenge for your club` };
     default:
       return { title: 'Loopfield', body: 'You have a new update' };
   }

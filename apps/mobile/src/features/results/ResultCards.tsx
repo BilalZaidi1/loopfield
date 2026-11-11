@@ -25,6 +25,27 @@ export interface ClaimJson {
   polygon: GeoJSON.Polygon | null;
 }
 
+/** What the run's loop did in one layer (activity_detail.layers): the all-time map, the season race, an event. */
+export interface LayerResult {
+  claim_id: string;
+  competition_id: string;
+  season_id: string | null;
+  kind: 'public' | 'club' | 'permanent' | 'event';
+  name: string;
+  status: ClaimJson['status'];
+  reasons: string[];
+  cells: number;
+  area_m2: number;
+  published: boolean;
+  /** Cells that changed hands to you (from nobody or from another runner). */
+  gained_cells: number;
+  /** Cells you already held there, refreshed by this loop. */
+  kept_cells: number;
+  /** Of the gained cells, how many were another runner's, and how many runners that was. */
+  taken_cells: number;
+  rivals: number;
+}
+
 export interface AttemptJson {
   id: string;
   status: 'processing' | 'eligible' | 'pending_review' | 'unranked' | 'invalid' | 'withdrawn';
@@ -90,7 +111,36 @@ export function IntegrityCard({ activity }: { activity: ActivityJson | null | un
   );
 }
 
-export function LandCard({ claim, territoryRequested }: { claim: ClaimJson | null; territoryRequested: boolean }) {
+const LAYER_LABEL = (l: LayerResult) => (l.kind === 'permanent' ? 'All-time map' : l.kind === 'public' ? 'Season race' : l.name);
+
+/** "+12 cells, 4 taken from 2 runners" / "12 cells you already held" for one layer. */
+export function layerOutcome(l: LayerResult): string {
+  if (l.status !== 'eligible') {
+    if (l.reasons.includes('season_boundary')) return l.kind === 'event' ? 'Not counted: the run crossed the event\'s start or end' : 'Not counted: the run crossed the season\'s start or end';
+    return STATUS_LABEL[l.status]?.label ?? l.status;
+  }
+  if (!l.gained_cells && l.kept_cells) return `${l.kept_cells} ${l.kept_cells === 1 ? 'cell' : 'cells'} you already held`;
+  const gained = `+${l.gained_cells} ${l.gained_cells === 1 ? 'cell' : 'cells'}`;
+  const taken = l.taken_cells ? `, ${l.taken_cells} taken from ${l.rivals} ${l.rivals === 1 ? 'runner' : 'runners'}` : '';
+  const kept = l.kept_cells ? `, ${l.kept_cells} kept` : '';
+  return gained + taken + kept;
+}
+
+/** The same loop in each layer it counted in (shown under the land result when there is more than one). */
+function LayerLines({ layers }: { layers: LayerResult[] }) {
+  return (
+    <View style={{ gap: spacing.xs }} accessibilityRole="summary" accessibilityLabel={layers.map((l) => `${LAYER_LABEL(l)}: ${layerOutcome(l)}`).join('. ')}>
+      {layers.map((l) => (
+        <View key={l.claim_id} style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'baseline' }}>
+          <Txt variant="label" numberOfLines={1} style={{ flexShrink: 0, maxWidth: '45%' }}>{LAYER_LABEL(l)}</Txt>
+          <Txt variant="caption" style={{ flex: 1 }}>{layerOutcome(l)}</Txt>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export function LandCard({ claim, territoryRequested, layers = [] }: { claim: ClaimJson | null; territoryRequested: boolean; layers?: LayerResult[] }) {
   const { palette: p } = useTheme();
   const units = useUnits();
   const now = useNow();
@@ -124,6 +174,7 @@ export function LandCard({ claim, territoryRequested }: { claim: ClaimJson | nul
         <>
           <BigNumber value={area.value} unit={area.unit} size={64} />
           <Txt color="textMuted">{`${claim.eligible_cell_count ?? 0} cells. The newest eligible completed loop takes overlapping cells, so another runner can take them back.`}</Txt>
+          {layers.length > 1 ? <LayerLines layers={layers} /> : null}
           {pendingPublication ? <Badge icon="clock" label={`On the public map after ${fmtDate(claim.publish_after, { dateStyle: 'medium', timeStyle: 'short' })}`} /> : null}
           {partial ? <Txt variant="caption">Only cells fully inside your loop after the edge uncertainty band, and outside unavailable areas, count, so part of the enclosed area was not claimed.</Txt> : null}
           <Button label="See it on the map" arrow onPress={() => router.push('/map')} />
