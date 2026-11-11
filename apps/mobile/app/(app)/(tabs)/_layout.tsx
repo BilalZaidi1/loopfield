@@ -12,7 +12,7 @@ const TABS: { name: string; title: string }[] = [
   { name: 'map', title: 'Map' },
   { name: 'record', title: 'Record' },
   { name: 'progress', title: 'Progress' },
-  { name: 'clubs', title: 'Clubs' }
+  { name: 'clubs', title: 'Community' }
 ];
 
 export default function TabsLayout() {

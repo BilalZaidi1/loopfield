@@ -87,6 +87,7 @@ export const BUCKETS = {
   uploads: 'media-uploads',
   media: 'post-media',
   avatars: 'avatars',
+  clubMedia: 'club-media',
   exports: 'exports'
 } as const;
 

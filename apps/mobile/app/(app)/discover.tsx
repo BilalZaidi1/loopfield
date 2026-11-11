@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@/lib/api';
 import { Avatar, Badge, Button, Chip, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, TextField, Txt } from '@/components/ui';
 import { spacing } from '@/theme/tokens';
-import { ClubMonogram, clubTone } from '@/features/clubs/ClubBits';
+import { ClubLogo } from '@/features/clubs/ClubBits';
 import type { DiscoverClub } from '@/features/clubs/api';
 import { useSignedUrl } from '@/features/social/media';
 import { useRelationshipActions } from '@/features/social/profile';
@@ -60,7 +60,7 @@ export default function Discover() {
       <Section title="Communities and clubs" icon="clubs">
         {clubs.isLoading ? <LoadingState /> : clubs.data?.length ? (
           <ListGroup>
-            {clubs.data.map((c) => <Row key={c.id} leading={<ClubMonogram name={c.name} tone={clubTone(c.id)} size={44} />} title={c.name} subtitle={`${c.kind === 'club' ? 'Club' : 'Community'} · ${c.member_count} members`} onPress={() => router.push({ pathname: '/club/[id]', params: { id: c.id } })} />)}
+            {clubs.data.map((c) => <Row key={c.id} leading={<ClubLogo club={c} size={44} />} title={c.name} subtitle={`Community · ${c.member_count} members`} onPress={() => router.push({ pathname: '/club/[id]', params: { id: c.id } })} />)}
           </ListGroup>
         ) : <EmptyState icon="clubs" title="No public groups found" />}
       </Section>

@@ -5,6 +5,7 @@ import { Icon } from '@/components/icons';
 import { fmtDistance } from '@/lib/format';
 import { useUnits } from '@/state/session';
 import { radius, spacing, useTheme } from '@/theme/tokens';
+import { ClubLogo } from '@/features/clubs/ClubBits';
 import { phaseText, type EventRow } from './api';
 
 /** One event in a list: what it is scored on, where, when, and whether you joined. */
@@ -23,7 +24,12 @@ export function EventCard({ event: e }: { event: EventRow }) {
         </View>
         <View style={{ flex: 1, gap: 2 }}>
           <Txt variant="headline" numberOfLines={1}>{e.name}</Txt>
-          <Txt variant="caption" numberOfLines={1}>{`${kind} · ${e.host_club_name ?? where}`}</Txt>
+          {e.host_club_id && e.host_club_name ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
+              <ClubLogo club={{ id: e.host_club_id, name: e.host_club_name, avatar_path: e.host_avatar_path }} size={18} />
+              <Txt variant="caption" numberOfLines={1} style={{ flexShrink: 1 }}>{`${e.host_club_name} · ${kind}`}</Txt>
+            </View>
+          ) : <Txt variant="caption" numberOfLines={1}>{`${kind} · ${where}`}</Txt>}
         </View>
         <Icon name="chevron-right" color={p.textSubtle} size={20} />
       </View>

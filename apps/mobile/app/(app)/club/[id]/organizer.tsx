@@ -1,11 +1,18 @@
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Alert, useWindowDimensions, View } from 'react-native';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError, rpc } from '@/lib/api';
-import { Avatar, Banner, Button, Card, EmptyState, ListGroup, LoadingState, Row, Screen, Section, Segmented, TextField, Txt } from '@/components/ui';
+import { Avatar, Banner, Button, Card, ChipGroup, confirm, EmptyState, ListGroup, LoadingState, Row, Screen, Section, Segmented, TextField, Txt } from '@/components/ui';
 import { spacing } from '@/theme/tokens';
-import { useClub, type ClubDetail } from '@/features/clubs/api';
+import { useLayout } from '@/theme/layout';
+import { fmtDate } from '@/lib/format';
+import { useSession } from '@/state/session';
+import { prepareImage, uploadToBucket } from '@/features/social/media';
+import { ARTWORKS, ClubCover, ClubLogo } from '@/features/clubs/ClubBits';
+import { useClub, useClubAdmin, type ClubArtwork, type ClubDetail } from '@/features/clubs/api';
 import { useFeed } from '@/features/social/PostCard';
 
 interface Pending {
@@ -14,7 +21,11 @@ interface Pending {
   display_name: string;
 }
 
-/** S33 Organizer controls — posting permissions, membership requests, announcements and content moderation. */
+/**
+ * S33 Manage a community or group (owner and admins): join requests, branding with a preview before
+ * saving, name and description, who can see and join it, announcements and moderation; for the owner,
+ * handing ownership to a member (who must accept) and deleting it.
+ */
 export default function Organizer() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const qc = useQueryClient();
@@ -30,12 +41,16 @@ export default function Organizer() {
   const run = useMutation({ mutationFn: (fn: () => Promise<unknown>) => fn(), onSuccess: refresh, onError: (e) => Alert.alert('Not changed', friendlyError(e)) });
 
   if (club.isLoading) return <LoadingState />;
-  if (!c || (c.my_role !== 'owner' && c.my_role !== 'organizer')) return <Screen><EmptyState title="Organizers only" /></Screen>;
+  if (!c || (c.my_role !== 'owner' && c.my_role !== 'organizer')) return <Screen><EmptyState title="Admins only" /></Screen>;
   const posts = feed.data?.pages.flat() ?? [];
+  const group = c.kind === 'group';
+  const owner = c.my_role === 'owner';
 
   return (
     <Screen>
-      <Stack.Screen options={{ title: 'Organizer tools' }} />
+      <Stack.Screen options={{ title: `Manage ${group ? 'group' : 'community'}` }} />
+      <BrandingEditor key={`b-${c.id}`} club={c} />
+      {!group ? (
       <Section title={`Join requests (${requests.data?.length ?? 0})`} icon="user">
         {requests.data?.length ? (
           <ListGroup>
@@ -51,7 +66,10 @@ export default function Organizer() {
           </ListGroup>
         ) : <Txt color="textMuted">No pending requests.</Txt>}
       </Section>
+      ) : null}
       <ClubSettingsForm key={c.id} club={c} saving={run.isPending} onSave={(v) => run.mutate(() => rpc('update_club', { p_club: id, ...v }))} />
+      {owner && !group ? <VisibilityForm key={`v-${c.id}`} club={c} /> : null}
+      {!group ? (
       <Section title="Announcements and moderation" icon="bell">
         <Txt variant="caption">Pin announcements so members see them first. Removing a post from the group records your reason; the author can ask for a review.</Txt>
         {posts.length === 0 ? <Txt color="textMuted">No posts yet.</Txt> : null}
@@ -67,9 +85,9 @@ export default function Organizer() {
                 size="sm"
                 label="Remove"
                 onPress={() =>
-                  Alert.alert('Remove from group?', 'The author is told the post was removed by an organizer.', [
+                  Alert.alert('Remove this post?', 'The author is told an admin removed it and can ask for a review.', [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Remove', style: 'destructive', onPress: () => run.mutate(() => rpc('club_remove_post', { p_club: id, p_post: post.id, p_reason: 'Removed by an organizer for breaking group rules' })) }
+                    { text: 'Remove', style: 'destructive', onPress: () => run.mutate(() => rpc('club_remove_post', { p_club: id, p_post: post.id, p_reason: 'Removed by an admin for breaking the community rules' })) }
                   ])
                 }
               />
@@ -77,28 +95,155 @@ export default function Organizer() {
           </Card>
         ))}
       </Section>
+      ) : null}
       {run.isSuccess ? <Banner tone="success" text="Saved." /> : null}
+      {owner ? <OwnershipSection club={c} /> : null}
+      {owner ? <DeleteSection club={c} /> : null}
     </Screen>
   );
 }
 
-function ClubSettingsForm({ club, saving, onSave }: { club: ClubDetail; saving: boolean; onSave: (v: { p_description: string; p_rules: string; p_posting_policy: string; p_join_policy: string }) => void }) {
+/** Logo and cover (photo or artwork), previewed exactly as members will see them, saved only on confirm. */
+function BrandingEditor({ club }: { club: ClubDetail }) {
+  const { width } = useWindowDimensions();
+  const { gutter, contentMax } = useLayout();
+  const admin = useClubAdmin(club);
+  const [logo, setLogo] = useState<{ uri: string } | null>(null);
+  const [cover, setCover] = useState<{ uri: string } | null>(null);
+  const [artwork, setArtwork] = useState<ClubArtwork | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dirty = Boolean(logo || cover || artwork);
+  const coverWidth = Math.min(contentMax, width) - gutter * 2;
+  const pick = async (aspect: [number, number]) => {
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect, quality: 0.9, exif: false });
+    return res.canceled || !res.assets[0] ? null : (await prepareImage(res.assets[0].uri)).uri;
+  };
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      let logoPath: string | null = null;
+      let coverPath: string | null = null;
+      if (logo) {
+        logoPath = `${club.id}/logo-${Date.now()}.jpg`;
+        await uploadToBucket('club-media', logoPath, logo.uri);
+      }
+      if (cover) {
+        coverPath = `${club.id}/cover-${Date.now()}.jpg`;
+        await uploadToBucket('club-media', coverPath, cover.uri);
+      }
+      await admin.branding.mutateAsync({ logoPath, coverPath, artwork, clearCover: Boolean(artwork && !cover) });
+      setLogo(null);
+      setCover(null);
+      setArtwork(null);
+    } catch (e) {
+      setError(friendlyError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Section title="Look" icon="image">
+      <View>
+        <ClubCover club={club} width={coverWidth} height={club.kind === 'group' ? 104 : 148} override={cover || artwork ? { uri: cover?.uri ?? null, artwork } : null} />
+        <View style={{ marginTop: -32, marginLeft: spacing.lg, alignSelf: 'flex-start' }}>
+          {logo ? <Image source={{ uri: logo.uri }} style={{ width: 64, height: 64, borderRadius: 20 }} accessibilityLabel="New logo preview" accessible /> : <ClubLogo club={club} size={64} />}
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
+        <Button label={club.kind === 'group' ? 'Choose picture' : 'Choose logo'} size="sm" variant="secondary" icon="camera" onPress={() => void pick([1, 1]).then((uri) => uri && setLogo({ uri }))} />
+        {club.kind === 'community' ? <Button label="Choose cover photo" size="sm" variant="secondary" icon="image" onPress={() => void pick([5, 2]).then((uri) => { if (uri) { setCover({ uri }); setArtwork(null); } })} /> : null}
+      </View>
+      <ChipGroup<ClubArtwork | 'none'> label="Or use artwork" value={artwork ?? 'none'} onChange={(v) => { setArtwork(v === 'none' ? null : v); if (v !== 'none') setCover(null); }} scroll
+        options={[{ value: 'none', label: club.cover_path || club.artwork ? 'Keep current' : 'None' }, ...ARTWORKS.map((a) => ({ value: a.id, label: a.label }))]} />
+      {error ? <Banner tone="danger" text={error} /> : null}
+      {dirty ? (
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <Button label="Save the new look" arrow style={{ flex: 1 }} loading={busy} onPress={() => void save()} />
+          <Button label="Discard" variant="ghost" onPress={() => { setLogo(null); setCover(null); setArtwork(null); }} />
+        </View>
+      ) : <Txt variant="caption">Shown on the page, in lists, rankings, posts, invitations and challenge cards. Photos are re-encoded on your phone (location data removed) before upload.</Txt>}
+    </Section>
+  );
+}
+
+/** Community visibility (owner): anyone, members only, and how people join. */
+function VisibilityForm({ club }: { club: ClubDetail }) {
+  const admin = useClubAdmin(club);
+  const [visibility, setVisibility] = useState<'public' | 'private'>(club.visibility);
+  const [join, setJoin] = useState<'open' | 'request' | 'invite_only'>(club.join_policy);
+  const changed = visibility !== club.visibility || join !== club.join_policy;
+  return (
+    <Section title="Who can see and join" icon="eye">
+      <Segmented label="Who can see it" value={visibility} onChange={(v) => { setVisibility(v); if (v === 'private' && join === 'open') setJoin('request'); }} options={[{ value: 'public', label: 'Anyone' }, { value: 'private', label: 'Members only' }]} />
+      <Segmented label="How people join" value={join} onChange={setJoin} options={[...(visibility === 'public' ? [{ value: 'open' as const, label: 'Open' }] : []), { value: 'request', label: 'Request' }, { value: 'invite_only', label: 'Invite only' }]} />
+      {admin.visibility.error ? <Banner tone="danger" text={friendlyError(admin.visibility.error)} /> : null}
+      {changed ? <Button label="Save" loading={admin.visibility.isPending} onPress={() => admin.visibility.mutate({ visibility, joinPolicy: join })} /> : null}
+    </Section>
+  );
+}
+
+/** Hand ownership to an active member: they accept or decline; until then nothing changes. */
+function OwnershipSection({ club }: { club: ClubDetail }) {
+  const admin = useClubAdmin(club);
+  const members = useQuery({ queryKey: ['club_members', club.id, 'active'], queryFn: () => rpc<Pending[]>('club_members', { p_club: club.id, p_state: 'active', p_limit: 200 }) });
+  const { userId } = useSession();
+  const offer = club.ownership_offer;
+  const others = (members.data ?? []).filter((m) => m.user_id !== userId);
+  return (
+    <Section title="Ownership" icon="crown">
+      {offer && !offer.to_me ? (
+        <Card tone="soft">
+          <Txt>{`Waiting for ${offer.to?.display_name ?? 'the member'} to accept ownership (until ${fmtDate(offer.expires_at)}).`}</Txt>
+          <Button label="Withdraw the offer" variant="ghost" loading={admin.cancelOffer.isPending} onPress={() => admin.cancelOffer.mutate()} />
+        </Card>
+      ) : others.length ? (
+        <>
+          <Txt color="textMuted">Choose who takes over. They are asked first; once they accept you stay on as an admin.</Txt>
+          <ListGroup>
+            {others.slice(0, 30).map((m) => (
+              <Row key={m.user_id} leading={<Avatar name={m.display_name} size={36} />} title={m.display_name} subtitle={`@${m.handle}`}
+                onPress={() => confirm(`Offer ownership to ${m.display_name}?`, 'They become the owner when they accept. You stay as an admin.', 'Offer', () => admin.offer.mutate(m.user_id), false)} />
+            ))}
+          </ListGroup>
+        </>
+      ) : <Txt color="textMuted">There is nobody else to hand ownership to yet.</Txt>}
+      {admin.offer.error ? <Banner tone="danger" text={friendlyError(admin.offer.error)} /> : null}
+      <Txt variant="caption">{"To leave, hand ownership over first. If the owner's account is deleted or removed, the longest-serving admin takes over automatically (or the longest-serving member)."}</Txt>
+    </Section>
+  );
+}
+
+/** Delete, after typing the name, with what happens to everything spelled out first. */
+function DeleteSection({ club }: { club: ClubDetail }) {
+  const admin = useClubAdmin(club);
+  const [name, setName] = useState('');
+  const what = club.kind === 'group' ? 'group' : 'community';
+  return (
+    <Section title={`Delete ${what}`} icon="trash">
+      <Txt color="textMuted">{`Deleting removes every member, takes its posts out of all feeds, ends its members' race, cancels running challenges${club.kind === 'group' ? ', deletes the group chat' : ''} and deletes its logo and cover. Members are told. Runs, land on the all-time map and everyone's own posts elsewhere are not affected. This cannot be undone.`}</Txt>
+      <TextField label={`Type "${club.name}" to confirm`} value={name} onChangeText={setName} autoCapitalize="none" />
+      {admin.remove.error ? <Banner tone="danger" text={friendlyError(admin.remove.error)} /> : null}
+      <Button label={`Delete ${what}`} variant="danger" loading={admin.remove.isPending} disabled={name.trim().toLowerCase() !== club.name.trim().toLowerCase()}
+        onPress={() => admin.remove.mutate(name, { onSuccess: () => router.replace('/clubs') })} />
+    </Section>
+  );
+}
+
+function ClubSettingsForm({ club, saving, onSave }: { club: ClubDetail; saving: boolean; onSave: (v: { p_name: string; p_description: string; p_rules: string | null; p_posting_policy: string }) => void }) {
+  const [name, setName] = useState(club.name);
   const [description, setDescription] = useState(club.description ?? '');
   const [rules, setRules] = useState(club.rules ?? '');
   const [posting, setPosting] = useState<'members' | 'organizers'>(club.posting_policy);
-  const [joinPolicy, setJoinPolicy] = useState<'open' | 'request' | 'invite_only'>(club.join_policy);
+  const group = club.kind === 'group';
   return (
-    <Section title="Group settings" icon="settings">
+    <Section title="Name and details" icon="edit">
+      <TextField label="Name" value={name} onChangeText={setName} maxLength={60} />
       <TextField label="Description" value={description} onChangeText={setDescription} multiline maxLength={1000} />
-      <TextField label="Rules" value={rules} onChangeText={setRules} multiline maxLength={2000} />
-      <Segmented label="Who can post" value={posting} onChange={setPosting} options={[{ value: 'members', label: 'All members' }, { value: 'organizers', label: 'Organizers only' }]} />
-      <Segmented
-        label="How people join"
-        value={joinPolicy}
-        onChange={setJoinPolicy}
-        options={[...(club.visibility === 'public' ? [{ value: 'open' as const, label: 'Open' }] : []), { value: 'request', label: 'Request' }, { value: 'invite_only', label: 'Invite only' }]}
-      />
-      <Button label="Save settings" onPress={() => onSave({ p_description: description, p_rules: rules, p_posting_policy: posting, p_join_policy: joinPolicy })} loading={saving} />
+      {!group ? <TextField label="Rules" value={rules} onChangeText={setRules} multiline maxLength={2000} /> : null}
+      {!group ? <Segmented label="Who can post" value={posting} onChange={setPosting} options={[{ value: 'members', label: 'All members' }, { value: 'organizers', label: 'Admins only' }]} /> : null}
+      <Button label="Save" onPress={() => onSave({ p_name: name.trim(), p_description: description, p_rules: group ? null : rules, p_posting_policy: posting })} loading={saving} disabled={name.trim().length < 3} />
     </Section>
   );
 }

@@ -212,7 +212,7 @@ reset role;
 
 -- Club challenges are for members, who hear about them
 insert into public.clubs (id, kind, name, visibility, join_policy, created_by)
-values ('a7c00000-0000-4000-8000-0000000000c1', 'club', 'Harbour Striders', 'private', 'request', 'a7500000-0000-4000-8000-000000000005');
+values ('a7c00000-0000-4000-8000-0000000000c1', 'community', 'Harbour Striders', 'private', 'request', 'a7500000-0000-4000-8000-000000000005');
 insert into public.club_memberships (club_id, user_id, role, state) values
   ('a7c00000-0000-4000-8000-0000000000c1', 'a7500000-0000-4000-8000-000000000005', 'owner', 'active'),
   ('a7c00000-0000-4000-8000-0000000000c1', 'a7200000-0000-4000-8000-000000000002', 'member', 'active');

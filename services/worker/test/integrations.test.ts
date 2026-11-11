@@ -65,6 +65,9 @@ describe('Stream Chat: server-side channels, webhook notifications, blocks and r
       },
       async getContext() {
         return [{ id: 'prev', text: 'earlier', user_id: 'x', created_at: '' }];
+      },
+      async syncGroup(channelId) {
+        created.push(channelId);
       }
     };
   };

@@ -13,6 +13,9 @@ export interface Integrations {
     deactivateUser(userId: string): Promise<void>;
     deleteUser(userId: string): Promise<void>;
     deleteMessage(messageId: string): Promise<void>;
+    /** Creates the group's channel if needed and makes its members exactly `members` (backend-managed). */
+    syncGroup(channelId: string, name: string, members: { id: string; name: string }[]): Promise<void>;
+    deleteGroup(channelId: string): Promise<void>;
   } | null;
   revenuecat: { getSubscriber(appUserId: string): Promise<unknown>; deleteSubscriber(appUserId: string): Promise<void> } | null;
   auth: { deleteUser(userId: string): Promise<void>; getEmail(userId: string): Promise<string | null> };

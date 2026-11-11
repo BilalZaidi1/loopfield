@@ -2,6 +2,7 @@ import { dmChannelId, SOCIAL_RULES } from '../core/index.ts';
 import type { Sql } from '../clients.ts';
 import type { ServerEnv } from '../env.ts';
 import { HttpError, isUuid } from '../http.ts';
+import { syncGroupChannelWith } from '../stream.ts';
 
 /** Server-side Stream operations used by the chat endpoint; injected for tests. */
 export interface ChatServer {
@@ -11,6 +12,27 @@ export interface ChatServer {
   createChannel(channelId: string, creator: string, other: string): Promise<void>;
   getMessage(messageId: string): Promise<{ id: string; text: string; user_id: string; channel_id: string; created_at: string } | null>;
   getContext(channelId: string, messageId: string, around: number): Promise<Array<{ id: string; text: string; user_id: string; created_at: string }>>;
+  /** Creates the group channel if needed and sets its members (backend-managed). */
+  syncGroup(channelId: string, name: string, members: { id: string; name: string }[]): Promise<void>;
+}
+
+/** Stream channel id for a group (kept in step with stream.ts). */
+export const groupChannel = (clubId: string) => `grp-${clubId}`;
+
+/** Opens a group's chat for one of its active members (the channel follows the group's membership). */
+export async function openGroupChat(sql: Sql, chat: ChatServer, userId: string, clubId: string) {
+  if (!isUuid(clubId)) throw new HttpError(400, 'invalid_group');
+  if (!(await messagingEnabled(sql))) throw new HttpError(503, 'messaging_suspended');
+  const [c] = await sql`
+    select c.name, c.kind, c.status, m.state from public.clubs c
+      left join public.club_memberships m on m.club_id = c.id and m.user_id = ${userId}
+     where c.id = ${clubId}`;
+  if (!c || c.kind !== 'group' || c.status !== 'active' || c.state !== 'active') throw new HttpError(403, 'forbidden');
+  const members = await sql`
+    select p.id, p.display_name from public.club_memberships m join public.profiles p on p.id = m.user_id
+     where m.club_id = ${clubId} and m.state = 'active' and p.status = 'active' order by m.created_at`;
+  await chat.syncGroup(groupChannel(clubId), c.name as string, members.map((m) => ({ id: m.id as string, name: m.display_name as string })));
+  return { channelId: groupChannel(clubId), name: c.name as string };
 }
 
 async function messagingEnabled(sql: Sql): Promise<boolean> {
@@ -72,13 +94,20 @@ export async function startConversation(sql: Sql, chat: ChatServer, userId: stri
  */
 export async function reportMessage(sql: Sql, chat: ChatServer, userId: string, req: { channelId: string; messageId: string; category: string; details?: string }) {
   const [conv] = await sql`select id, member_a, member_b from public.conversations where channel_id = ${req.channelId}`;
-  if (!conv || (conv.member_a !== userId && conv.member_b !== userId)) throw new HttpError(403, 'forbidden');
+  const groupId = /^grp-([0-9a-f-]{36})$/.exec(req.channelId)?.[1] ?? null;
+  if (conv) {
+    if (conv.member_a !== userId && conv.member_b !== userId) throw new HttpError(403, 'forbidden');
+  } else if (groupId) {
+    const [m] = await sql`select 1 as ok from public.club_memberships m join public.clubs c on c.id = m.club_id
+                           where m.club_id = ${groupId} and m.user_id = ${userId} and m.state = 'active' and c.kind = 'group'`;
+    if (!m) throw new HttpError(403, 'forbidden');
+  } else throw new HttpError(403, 'forbidden');
   const [rl] = await sql`select internal.check_rate_limit(${userId}, 'report', 20, 86400) as allowed`;
   if (!rl?.allowed) throw new HttpError(429, 'rate_limited');
   const message = await chat.getMessage(req.messageId);
   if (!message || message.channel_id !== req.channelId) throw new HttpError(404, 'message_not_found');
-  const other = conv.member_a === userId ? conv.member_b : conv.member_a;
-  if (message.user_id !== other) throw new HttpError(400, 'can_only_report_received_messages');
+  const other = conv ? (conv.member_a === userId ? conv.member_b : conv.member_a) : message.user_id;
+  if (!other || other === userId || message.user_id !== other) throw new HttpError(400, 'can_only_report_received_messages');
   const context = await chat.getContext(req.channelId, req.messageId, 2);
   const [caseRow] = await sql`select internal.open_moderation_case('message', ${req.messageId}, ${req.category}, ${other}::uuid) as id`;
   await sql`insert into internal.moderation_evidence (case_id, evidence) values (${caseRow!.id}, ${sql.json({ reported: message, context, channel_id: req.channelId } as never)})`;
@@ -106,6 +135,9 @@ export function streamChatServer(env: ServerEnv, server: import('stream-chat').S
       const m = r.message;
       if (!m) return null;
       return { id: m.id, text: m.text ?? '', user_id: m.user?.id ?? '', channel_id: (m.cid ?? '').split(':')[1] ?? '', created_at: m.created_at ?? '' };
+    },
+    async syncGroup(channelId, name, members) {
+      await syncGroupChannelWith(server, channelId, name, members);
     },
     async getContext(channelId, messageId, around) {
       const ch = server.channel(channelType, channelId);

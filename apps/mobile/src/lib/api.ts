@@ -43,7 +43,9 @@ const FRIENDLY: Record<string, string> = {
   club_locked: 'You run for the same club until the event ends.',
   region_needed: 'Territory challenges need the club\'s area set first.',
   region_unavailable: 'Competition in that area is not available.',
-  name_length: 'Use 3 to 60 characters for the name.'
+  name_length: 'Use 3 to 60 characters for the name.',
+  owner_must_transfer: 'Choose a new owner first: offer ownership in Manage. Once they accept, you can leave.',
+  confirm_name: 'Type the name exactly to confirm.'
 };
 
 /** Server messages that are a key (for example `event_window`) may carry their own explanation. */

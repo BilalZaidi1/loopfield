@@ -116,14 +116,8 @@ export const deleteAccount: JobHandler = async (payload, ctx) => {
         break;
       }
       case 'social': {
-        // Clubs owned by the runner pass to the longest-standing organizer, otherwise member, otherwise archive.
-        const owned = await ctx.sql`select club_id from public.club_memberships where user_id = ${userId} and role = 'owner' and state = 'active'`;
-        for (const o of owned) {
-          const [next] = await ctx.sql`select user_id from public.club_memberships where club_id = ${o.club_id} and user_id <> ${userId} and state = 'active'
-                                        order by case role when 'organizer' then 0 else 1 end, created_at limit 1`;
-          if (next) await ctx.sql`update public.club_memberships set role = 'owner' where club_id = ${o.club_id} and user_id = ${next.user_id}`;
-          else await ctx.sql`update public.clubs set status = 'archived' where id = ${o.club_id}`;
-        }
+        // Communities and groups the runner owned pass on when their memberships are deleted below: the
+        // database hands each to the longest-serving admin, otherwise member, otherwise closes it (with clean-up).
         const posts = await ctx.sql`select id from public.posts where author_id = ${userId}`;
         for (const p of posts) {
           const media = await ctx.sql`select derivative_path, upload_path from public.post_media where post_id = ${p.id}`;

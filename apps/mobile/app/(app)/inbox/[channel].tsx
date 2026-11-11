@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { Banner, ErrorState, IconButton, LoadingState, PressableScale, TextField, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { reportMessage, useConversation, type UiMessage } from '@/chat/client';
+import { DM_CHANNEL_TYPE, GROUP_CHANNEL_TYPE, reportMessage, useConversation, type UiMessage } from '@/chat/client';
 import { setViewingChannel } from '@/notifications/push';
 import { useSession } from '@/state/session';
 import { radius, spacing, usePalette } from '@/theme/tokens';
@@ -20,9 +20,10 @@ export default function Conversation() {
   const p = usePalette();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();
-  const { channel, name, conversation } = useLocalSearchParams<{ channel: string; name?: string; conversation?: string }>();
+  const { channel, name, conversation, kind, title } = useLocalSearchParams<{ channel: string; name?: string; conversation?: string; kind?: 'group'; title?: string }>();
+  const isGroup = kind === 'group';
   const { userId } = useSession();
-  const chat = useConversation(userId, channel);
+  const chat = useConversation(userId, channel, isGroup ? GROUP_CHANNEL_TYPE : DM_CHANNEL_TYPE);
   const [text, setText] = useState('');
   const conv = useQuery({
     queryKey: ['conversation', channel],
@@ -99,7 +100,7 @@ export default function Conversation() {
   const frozen = chat.frozen || conv.data?.frozen;
   return (
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: p.bg }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-      <Stack.Screen options={{ title: name || 'Conversation', headerRight: () => <IconButton icon="more" label="Conversation options" onPress={more} /> }} />
+      <Stack.Screen options={{ title: (isGroup ? title : name) || (isGroup ? 'Group chat' : 'Conversation'), headerRight: isGroup ? undefined : () => <IconButton icon="more" label="Conversation options" onPress={more} /> }} />
       {chat.status === 'connecting' ? <LoadingState label="Connecting…" variant="spinner" /> : chat.status === 'error' ? <ErrorState error={chat.error} onRetry={() => void chat.retry()} title="Messages could not be loaded" /> : (
         <FlatList
           inverted
@@ -108,8 +109,9 @@ export default function Conversation() {
           contentContainerStyle={{ padding: spacing.lg, gap: spacing.sm }}
           onEndReached={() => void chat.loadOlder()}
           renderItem={({ item: m }) => (
-            <Pressable onLongPress={() => messageMenu(m)} onPress={() => messageMenu(m)} accessibilityRole="button" accessibilityLabel={`${m.mine ? 'You' : name || 'They'}: ${m.deleted ? 'message deleted' : m.text}. ${m.state === 'failed' ? 'Not sent.' : m.state === 'sending' ? 'Sending.' : ''}`} style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
+            <Pressable onLongPress={() => messageMenu(m)} onPress={() => messageMenu(m)} accessibilityRole="button" accessibilityLabel={`${m.mine ? 'You' : (isGroup ? m.author : name) || 'They'}: ${m.deleted ? 'message deleted' : m.text}. ${m.state === 'failed' ? 'Not sent.' : m.state === 'sending' ? 'Sending.' : ''}`} style={{ alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
               <View style={{ backgroundColor: m.deleted ? p.surfaceAlt : m.mine ? p.primaryFill : p.surface, borderRadius: radius.lg, borderBottomRightRadius: m.mine ? 6 : radius.lg, borderBottomLeftRadius: m.mine ? radius.lg : 6, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, opacity: m.state === 'failed' ? 0.6 : 1 }}>
+                {isGroup && !m.mine && m.author ? <Txt variant="micro" style={{ color: p.primary, marginBottom: 2 }}>{m.author}</Txt> : null}
                 <Txt style={{ color: m.deleted ? p.textMuted : m.mine ? p.primaryText : p.text }}>{m.deleted ? 'Message deleted' : m.text}</Txt>
               </View>
               <Txt variant="caption" style={{ textAlign: m.mine ? 'right' : 'left', marginTop: 2, color: m.state === 'failed' ? p.danger : p.textMuted }}>

@@ -43,11 +43,18 @@ export function testEnv() {
 }
 
 export interface FakeIntegrations extends Integrations {
-  calls: { push: unknown[]; email: Array<{ to: string; subject: string; text: string; tag: string }>; frozen: Array<[string, boolean]>; deletedUsers: string[] };
+  calls: {
+    push: unknown[];
+    email: Array<{ to: string; subject: string; text: string; tag: string }>;
+    frozen: Array<[string, boolean]>;
+    deletedUsers: string[];
+    groups: Map<string, { name: string; members: string[] }>;
+    deletedGroups: string[];
+  };
 }
 
 export function fakeIntegrations(sql: Sql): FakeIntegrations {
-  const calls: FakeIntegrations['calls'] = { push: [], email: [], frozen: [], deletedUsers: [] };
+  const calls: FakeIntegrations['calls'] = { push: [], email: [], frozen: [], deletedUsers: [], groups: new Map(), deletedGroups: [] };
   return {
     calls,
     async sendPush(messages) {
@@ -66,7 +73,14 @@ export function fakeIntegrations(sql: Sql): FakeIntegrations {
       async deleteUser(userId) {
         calls.deletedUsers.push(userId);
       },
-      async deleteMessage() {}
+      async deleteMessage() {},
+      async syncGroup(channelId, name, members) {
+        calls.groups.set(channelId, { name, members: members.map((m) => m.id) });
+      },
+      async deleteGroup(channelId) {
+        calls.deletedGroups.push(channelId);
+        calls.groups.delete(channelId);
+      }
     },
     revenuecat: null,
     auth: {
@@ -101,9 +115,10 @@ export async function grantConsent(sql: Sql, userId: string, kinds: Array<'terri
   }
 }
 
-export async function drain(ctx: JobContext, workerId = 'test-worker', rounds = 50) {
+/** Runs queued jobs until none are left (only `queues`, when given: test files share one database). */
+export async function drain(ctx: JobContext, workerId = 'test-worker', rounds = 50, queues?: string[]) {
   for (let i = 0; i < rounds; i++) {
-    const r = await runBatch(ctx, workerId, undefined, 20);
+    const r = await runBatch(ctx, workerId, queues, 20);
     if (r.claimed === 0) return;
   }
 }

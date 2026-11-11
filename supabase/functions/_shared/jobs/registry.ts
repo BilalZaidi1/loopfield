@@ -5,6 +5,7 @@ import { reconcileEntitlement } from './billing.ts';
 import { awardMovementJob, buildRouteProposal, evaluateAttemptJob, evaluateFoundingAttempt, evaluateLoopJob, reconcileActivity } from './competition.ts';
 import { NonRetryableError, type JobContext, type JobHandler, type JobRow } from './context.ts';
 import {
+  closeClub,
   clubInvitationEmailJob,
   configureStream,
   deactivateChatUser,
@@ -13,7 +14,8 @@ import {
   moderateMessage,
   processPostMedia,
   pushPending,
-  syncBlock
+  syncBlock,
+  syncGroupChat
 } from './social.ts';
 
 export const HANDLERS: Record<string, JobHandler> = {
@@ -37,7 +39,9 @@ export const HANDLERS: Record<string, JobHandler> = {
   delete_account: deleteAccount,
   purge_raw_evidence: purgeRawEvidence,
   reconcile_entitlement: reconcileEntitlement,
-  configure_stream: configureStream
+  configure_stream: configureStream,
+  sync_group_chat: syncGroupChat,
+  close_club: closeClub
 };
 
 export const ALL_QUEUES = ['territory', 'speed', 'publication', 'social', 'notifications', 'media', 'email', 'chat', 'account', 'billing', 'maintenance'];

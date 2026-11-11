@@ -79,7 +79,12 @@ export const EVENT_SCHEMA = {
     team_mode: oneOf('individual', 'club'),
     host: oneOf('operator', 'club')
   },
-  club_action: { action: oneOf('joined', 'left', 'requested', 'invite_accepted', 'invite_declined', 'created', 'member_removed', 'announcement_pinned'), club_kind: oneOf('club', 'community'), visibility: oneOf('public', 'private') },
+  club_action: {
+    action: oneOf('joined', 'left', 'requested', 'invite_accepted', 'invite_declined', 'created', 'member_removed', 'announcement_pinned',
+      'branding_saved', 'ownership_offered', 'ownership_accepted', 'ownership_declined', 'admin_added', 'admin_removed', 'deleted', 'chat_opened'),
+    club_kind: oneOf('community', 'group'),
+    visibility: oneOf('public', 'private')
+  },
   feed_viewed: { feed: oneOf('following', 'discover', 'club'), page: smallInt },
   health_viewed: { screen: oneOf('dashboard', 'metric_detail', 'zones', 'connections', 'goals'), session_count: smallInt },
   health_sync_status: { connector: oneOf('healthkit', 'health_connect'), result: oneOf('ok', 'partial', 'no_data', 'unavailable', 'error'), failure_category: oneOf('none', 'permission', 'platform_unavailable', 'timeout', 'unknown') },

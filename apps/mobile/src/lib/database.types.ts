@@ -476,10 +476,13 @@ export type Database = {
       }
       clubs: {
         Row: {
+          artwork: string | null
           avatar_path: string | null
           city_label: string | null
+          cover_path: string | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
           description: string | null
           district_id: string | null
           id: string
@@ -495,10 +498,13 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          artwork?: string | null
           avatar_path?: string | null
           city_label?: string | null
+          cover_path?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           description?: string | null
           district_id?: string | null
           id?: string
@@ -513,10 +519,13 @@ export type Database = {
           visibility: string
         }
         Update: {
+          artwork?: string | null
           avatar_path?: string | null
           city_label?: string | null
+          cover_path?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
           description?: string | null
           district_id?: string | null
           id?: string
@@ -2599,6 +2608,10 @@ export type Database = {
         Args: { p_competition: string }
         Returns: boolean
       }
+      cancel_club_ownership_offer: {
+        Args: { p_club: string }
+        Returns: undefined
+      }
       cancel_event: { Args: { p_event: string }; Returns: undefined }
       club_detail: { Args: { p_club: string }; Returns: Json }
       club_feed: {
@@ -2626,6 +2639,7 @@ export type Database = {
         Args: { p_club: string; p_post: string; p_reason: string }
         Returns: undefined
       }
+      club_stats: { Args: { p_club: string }; Returns: Json }
       connections: {
         Args: {
           p_before?: string
@@ -2703,11 +2717,17 @@ export type Database = {
         Returns: undefined
       }
       delete_activity: { Args: { p_activity: string }; Returns: undefined }
+      delete_club: {
+        Args: { p_club: string; p_confirm_name: string }
+        Returns: undefined
+      }
       delete_comment: { Args: { p_comment: string }; Returns: undefined }
       delete_post: { Args: { p_post: string }; Returns: undefined }
       discover_clubs: {
         Args: { p_district?: string; p_limit?: number; p_query?: string }
         Returns: {
+          artwork: string
+          avatar_path: string
           city_label: string
           id: string
           join_policy: string
@@ -2837,6 +2857,8 @@ export type Database = {
       my_clubs: {
         Args: Record<PropertyKey, never>
         Returns: {
+          artwork: string
+          avatar_path: string
           id: string
           kind: string
           member_count: number
@@ -2927,6 +2949,10 @@ export type Database = {
           season_id: string
           since: string
         }[]
+      }
+      offer_club_ownership: {
+        Args: { p_club: string; p_user: string }
+        Returns: undefined
       }
       ops_add_exclusion: {
         Args: {
@@ -3128,6 +3154,10 @@ export type Database = {
         Args: { p_accept: boolean; p_club: string }
         Returns: undefined
       }
+      respond_club_ownership: {
+        Args: { p_accept: boolean; p_club: string }
+        Returns: undefined
+      }
       respond_follow_request: {
         Args: { p_accept: boolean; p_follower: string }
         Returns: undefined
@@ -3157,8 +3187,22 @@ export type Database = {
           status: string
         }[]
       }
+      set_club_branding: {
+        Args: {
+          p_artwork?: string
+          p_clear_cover?: boolean
+          p_club: string
+          p_cover_path?: string
+          p_logo_path?: string
+        }
+        Returns: undefined
+      }
       set_club_role: {
         Args: { p_club: string; p_role: string; p_user: string }
+        Returns: undefined
+      }
+      set_club_visibility: {
+        Args: { p_club: string; p_join_policy: string; p_visibility: string }
         Returns: undefined
       }
       set_consent: {

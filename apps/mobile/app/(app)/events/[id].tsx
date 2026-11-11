@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { Avatar, Badge, Banner, Button, Card, confirm, EmptyState, ErrorState, ListGroup, LoadingState, ProgressBar, Row, Screen, Section, Sheet, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { useMyClubs } from '@/features/clubs/api';
+import { ClubLogo } from '@/features/clubs/ClubBits';
 import { phaseText, useCancelEvent, useEvent, useEventStandings, useJoinEvent, useLeaveEvent, type EventRow, type StandingRow } from '@/features/events/api';
 import { friendlyError } from '@/lib/api';
 import { track } from '@/lib/analytics';
@@ -55,9 +56,16 @@ export default function EventDetail() {
       <Card tone={e.event_type === 'territory' ? 'violet' : 'blue'}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
           <Icon name={e.event_type === 'territory' ? 'hexagon' : 'route'} color="#FFFFFF" size={22} />
-          <Txt variant="label" style={{ flex: 1 }}>{e.event_type === 'territory' ? 'Territory event' : 'Distance event'}{e.host_club_name ? ` · ${e.host_club_name}` : ''}</Txt>
+          <Txt variant="label" style={{ flex: 1 }}>{e.event_type === 'territory' ? 'Territory event' : 'Distance event'}</Txt>
         </View>
         <Txt variant="title">{e.name}</Txt>
+        {e.host_club_id && e.host_club_name ? (
+          <Pressable onPress={() => router.push({ pathname: '/club/[id]', params: { id: e.host_club_id! } })} accessibilityRole="link" accessibilityLabel={`Hosted by ${e.host_club_name}. Open it`}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, alignSelf: 'flex-start', minHeight: 36 }}>
+            <ClubLogo club={{ id: e.host_club_id, name: e.host_club_name, avatar_path: e.host_avatar_path }} size={28} inverted />
+            <Txt variant="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>{`Hosted by ${e.host_club_name}`}</Txt>
+          </Pressable>
+        ) : null}
         <Txt>{`${when(e.starts_at)} – ${when(e.ends_at)}`}</Txt>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
           <Badge icon={e.phase === 'live' ? 'pulse' : 'calendar'} label={phaseText(e)} />

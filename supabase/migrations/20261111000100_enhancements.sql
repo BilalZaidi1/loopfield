@@ -3,6 +3,7 @@
 --   2. The all-time map, season races and events: permanent ownership, separate season standings,
 --      isolated event standings (derived claims), operator season dates.
 --   3. Routes and territory on run cards, share cards and public activity pages.
+--   4. Communities and groups: branding, ownership transfer and succession, deletion, group chat sync.
 
 -- ---------------------------------------------------------------------------------------------
 -- 1. Movement integrity
@@ -1440,6 +1441,488 @@ begin
   return v_out;
 end $$;
 
+
+-- ---------------------------------------------------------------------------------------------
+-- 4. Communities and groups, branding, ownership
+-- ---------------------------------------------------------------------------------------------
+-- Two products. Communities: public, private or invite-only; a logo, a cover or artwork, a description and
+-- an area; an owner and admins ("organizer" in the data); announcements, races, challenges and stats.
+-- Groups: always private and by invitation; a name and an image; members added by the group; a group chat.
+-- Older "club" rows become communities (they carried the community features).
+alter table public.clubs drop constraint if exists clubs_kind_check;
+update public.clubs set kind = 'community' where kind = 'club';
+alter table public.clubs add constraint clubs_kind_check check (kind in ('community', 'group'));
+alter table public.clubs add column if not exists cover_path text;
+alter table public.clubs add column if not exists artwork text check (artwork in ('trail', 'tide', 'grid', 'peaks', 'dunes', 'city'));
+alter table public.clubs add column if not exists deleted_at timestamptz;
+alter table public.clubs drop constraint if exists clubs_group_shape;
+alter table public.clubs add constraint clubs_group_shape check (kind <> 'group' or (visibility = 'private' and join_policy = 'invite_only'));
+
+insert into public.app_config (key, value, description, is_public) values
+  ('group_max_members', '100'::jsonb, 'Most members a group can have (communities have no limit).', true)
+on conflict (key) do nothing;
+
+-- Groups stay small: a membership that would make a group bigger than the limit is refused.
+create or replace function internal.guard_group_size() returns trigger
+language plpgsql security definer set search_path = pg_catalog, public, internal as $$
+begin
+  if new.state = 'active' and (tg_op = 'INSERT' or old.state is distinct from 'active')
+     and exists (select 1 from public.clubs where id = new.club_id and kind = 'group')
+     and (select count(*) from public.club_memberships where club_id = new.club_id and state = 'active' and user_id <> new.user_id)
+         >= internal.config_int('group_max_members', 100) then
+    raise exception 'group_full' using errcode = 'P0409', detail = 'This group is full.';
+  end if;
+  return new;
+end $$;
+drop trigger if exists club_memberships_group_size on public.club_memberships;
+create trigger club_memberships_group_size before insert or update of state on public.club_memberships
+  for each row execute function internal.guard_group_size();
+
+create or replace function public.create_club(p_kind text, p_name text, p_visibility text, p_join_policy text, p_description text default null,
+  p_rules text default null, p_posting_policy text default 'members', p_region uuid default null, p_district uuid default null, p_city_label text default null)
+returns uuid
+language plpgsql security definer set search_path = pg_catalog, public, internal as $$
+declare
+  v_user uuid := internal.require_user();
+  v_kind text := case when p_kind = 'club' then 'community' else p_kind end; -- older app builds sent "club"
+  v_visibility text := p_visibility;
+  v_join text := p_join_policy;
+  v_club uuid;
+begin
+  perform internal.enforce_rate_limit(v_user::text, 'club_create', 5, 86400);
+  if v_kind not in ('community', 'group') then raise exception 'invalid kind' using errcode = '22023'; end if;
+  if v_kind = 'group' then
+    v_visibility := 'private';
+    v_join := 'invite_only';
+  end if;
+  insert into public.clubs (kind, name, description, rules, visibility, join_policy, posting_policy, region_id, district_id, city_label, created_by)
+  values (v_kind, btrim(p_name), p_description, p_rules, v_visibility, v_join, coalesce(p_posting_policy, 'members'), p_region, p_district, p_city_label, v_user)
+  returning id into v_club;
+  insert into public.club_memberships (club_id, user_id, role, state) values (v_club, v_user, 'owner', 'active');
+  if p_region is not null then
+    insert into public.competitions (kind, region_id, club_id, name) values ('club', p_region, v_club, btrim(p_name) || ' race');
+  end if;
+  perform internal.audit(v_user, 'organizer', 'club_created', 'club', v_club::text, jsonb_build_object('kind', v_kind));
+  return v_club;
+end $$;
+
+-- Community settings (groups keep private, invitation-only membership).
+create or replace function public.update_club(p_club uuid, p_name text default null, p_description text default null, p_rules text default null,
+  p_posting_policy text default null, p_join_policy text default null, p_city_label text default null) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := internal.require_user();
+  v_kind text;
+begin
+  if not authz.is_organizer(p_club, v_user) then raise exception 'organizers only' using errcode = '42501'; end if;
+  select kind into v_kind from public.clubs where id = p_club;
+  if p_name is not null and char_length(btrim(p_name)) not between 3 and 60 then raise exception 'name_length' using errcode = '22023'; end if;
+  update public.clubs set name = coalesce(btrim(p_name), name), description = coalesce(p_description, description), rules = coalesce(p_rules, rules),
+         posting_policy = coalesce(p_posting_policy, posting_policy),
+         join_policy = case when v_kind = 'group' then 'invite_only' else coalesce(p_join_policy, join_policy) end,
+         city_label = coalesce(p_city_label, city_label)
+   where id = p_club;
+  perform internal.audit(v_user, 'organizer', 'club_updated', 'club', p_club::text, '{}');
+end $$;
+
+-- Community visibility: public, private or invite-only (groups are always private).
+create or replace function public.set_club_visibility(p_club uuid, p_visibility text, p_join_policy text) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := internal.require_user();
+begin
+  if authz.club_role(p_club, v_user) is distinct from 'owner' then raise exception 'owner only' using errcode = '42501'; end if;
+  if exists (select 1 from public.clubs where id = p_club and kind = 'group') then raise exception 'groups are always private' using errcode = '22023'; end if;
+  if p_visibility not in ('public', 'private') or p_join_policy not in ('open', 'request', 'invite_only') or (p_visibility = 'private' and p_join_policy = 'open') then
+    raise exception 'visibility' using errcode = '22023', detail = 'A private community cannot be open to everyone.';
+  end if;
+  update public.clubs set visibility = p_visibility, join_policy = p_join_policy where id = p_club;
+  perform internal.audit(v_user, 'organizer', 'club_visibility_set', 'club', p_club::text, jsonb_build_object('visibility', p_visibility, 'join', p_join_policy));
+end $$;
+
+-- Branding: a logo, and a cover photo or one of the predefined artworks. Images live in the club's folder.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('club-media', 'club-media', false, 4194304, array['image/jpeg'])
+on conflict (id) do nothing;
+drop policy if exists club_media_select on storage.objects;
+create policy club_media_select on storage.objects for select to authenticated
+  using (bucket_id = 'club-media' and authz.can_view_club(((storage.foldername(name))[1])::uuid, auth.uid()));
+drop policy if exists club_media_insert on storage.objects;
+create policy club_media_insert on storage.objects for insert to authenticated
+  with check (bucket_id = 'club-media' and authz.is_organizer(((storage.foldername(name))[1])::uuid, auth.uid()));
+drop policy if exists club_media_update on storage.objects;
+create policy club_media_update on storage.objects for update to authenticated
+  using (bucket_id = 'club-media' and authz.is_organizer(((storage.foldername(name))[1])::uuid, auth.uid()))
+  with check (bucket_id = 'club-media' and authz.is_organizer(((storage.foldername(name))[1])::uuid, auth.uid()));
+drop policy if exists club_media_delete on storage.objects;
+create policy club_media_delete on storage.objects for delete to authenticated
+  using (bucket_id = 'club-media' and authz.is_organizer(((storage.foldername(name))[1])::uuid, auth.uid()));
+
+create or replace function public.set_club_branding(p_club uuid, p_logo_path text default null, p_cover_path text default null,
+  p_artwork text default null, p_clear_cover boolean default false) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := internal.require_user();
+begin
+  if not authz.is_organizer(p_club, v_user) then raise exception 'organizers only' using errcode = '42501'; end if;
+  if (p_logo_path is not null and p_logo_path not like p_club::text || '/%') or (p_cover_path is not null and p_cover_path not like p_club::text || '/%') then
+    raise exception 'image outside the club folder' using errcode = '22023';
+  end if;
+  if p_artwork is not null and p_artwork not in ('trail', 'tide', 'grid', 'peaks', 'dunes', 'city') then raise exception 'unknown artwork' using errcode = '22023'; end if;
+  update public.clubs
+     set avatar_path = coalesce(p_logo_path, avatar_path),
+         cover_path = case when p_clear_cover then null else coalesce(p_cover_path, cover_path) end,
+         artwork = case when p_artwork is not null then p_artwork when p_cover_path is not null then artwork else artwork end
+   where id = p_club;
+  perform internal.audit(v_user, 'organizer', 'club_branding_set', 'club', p_club::text,
+                         jsonb_build_object('logo', p_logo_path is not null, 'cover', p_cover_path is not null, 'artwork', p_artwork, 'cleared_cover', p_clear_cover));
+end $$;
+
+-- ---- Ownership: transfer with acceptance, succession, deletion -----------------------------------
+create table if not exists internal.club_ownership_offers (
+  club_id uuid primary key references public.clubs (id) on delete cascade,
+  from_user uuid not null references public.profiles (id) on delete cascade,
+  to_user uuid not null references public.profiles (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null default now() + interval '7 days'
+);
+
+/** The owner offers ownership to an active member; nothing changes until they accept. */
+create or replace function public.offer_club_ownership(p_club uuid, p_user uuid) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := internal.require_user();
+  v_name text;
+begin
+  if authz.club_role(p_club, v_user) is distinct from 'owner' then raise exception 'owner only' using errcode = '42501'; end if;
+  if p_user = v_user or not authz.is_active_member(p_club, p_user) or authz.is_blocked(v_user, p_user) then raise exception 'choose an active member' using errcode = '22023'; end if;
+  insert into internal.club_ownership_offers (club_id, from_user, to_user) values (p_club, v_user, p_user)
+  on conflict (club_id) do update set from_user = excluded.from_user, to_user = excluded.to_user, created_at = now(), expires_at = now() + interval '7 days';
+  select name into v_name from public.clubs where id = p_club;
+  perform internal.notify(p_user, 'club', 'club_ownership_offer', v_user, 'club', p_club::text, jsonb_build_object('club_name', v_name),
+                          'clubown:' || p_club || ':' || p_user || ':' || extract(epoch from now())::bigint);
+  perform internal.audit(v_user, 'organizer', 'ownership_offered', 'club', p_club::text, jsonb_build_object('to', p_user));
+end $$;
+
+create or replace function public.cancel_club_ownership_offer(p_club uuid) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := internal.require_user();
+begin
+  if authz.club_role(p_club, v_user) is distinct from 'owner' then raise exception 'owner only' using errcode = '42501'; end if;
+  delete from internal.club_ownership_offers where club_id = p_club;
+end $$;
+
+/** The member offered ownership accepts (becomes owner; the previous owner stays as an admin) or declines. */
+create or replace function public.respond_club_ownership(p_club uuid, p_accept boolean) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := internal.require_user();
+  o internal.club_ownership_offers;
+  v_name text;
+begin
+  select * into o from internal.club_ownership_offers where club_id = p_club and to_user = v_user for update;
+  if not found or o.expires_at < now() then raise exception 'no ownership offer' using errcode = 'P0409'; end if;
+  delete from internal.club_ownership_offers where club_id = p_club;
+  select name into v_name from public.clubs where id = p_club;
+  if p_accept then
+    if authz.club_role(p_club, o.from_user) is distinct from 'owner' or not authz.is_active_member(p_club, v_user) then
+      raise exception 'the offer is no longer valid' using errcode = 'P0409';
+    end if;
+    update public.club_memberships set role = 'organizer' where club_id = p_club and user_id = o.from_user;
+    update public.club_memberships set role = 'owner' where club_id = p_club and user_id = v_user;
+    perform internal.audit(v_user, 'organizer', 'ownership_accepted', 'club', p_club::text, jsonb_build_object('from', o.from_user));
+  end if;
+  perform internal.notify(o.from_user, 'club', case when p_accept then 'club_ownership_accepted' else 'club_ownership_declined' end, v_user, 'club', p_club::text,
+                          jsonb_build_object('club_name', v_name), 'clubownr:' || p_club || ':' || extract(epoch from now())::bigint);
+end $$;
+
+-- Owner-only role changes: admins ("organizer") and members; ownership moves only by offer and acceptance.
+create or replace function public.set_club_role(p_club uuid, p_user uuid, p_role text) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := internal.require_user();
+begin
+  if authz.club_role(p_club, v_user) is distinct from 'owner' then raise exception 'owner only' using errcode = '42501'; end if;
+  if p_role not in ('organizer', 'member') then raise exception 'invalid role' using errcode = '22023', detail = 'Offer ownership instead; the member accepts it.'; end if;
+  if p_user = v_user then raise exception 'not allowed' using errcode = '42501'; end if;
+  update public.club_memberships set role = p_role where club_id = p_club and user_id = p_user and state = 'active' and role <> 'owner';
+  if not found then raise exception 'not an active member'; end if;
+  perform internal.audit(v_user, 'organizer', 'role_changed', 'club', p_club::text, jsonb_build_object('user', p_user, 'role', p_role));
+end $$;
+
+/** Cancels an event before it ends: archived without results, runners told (shared by operators, hosts and club deletion). */
+create or replace function internal.cancel_event_row(p_event uuid, p_actor uuid) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal as $$
+declare
+  v_ev public.competitions;
+  p record;
+begin
+  select * into v_ev from public.competitions where id = p_event and kind = 'event' for update;
+  if not found or v_ev.status <> 'active' then return; end if;
+  update public.competitions set status = 'archived', archived_at = now(), cancelled_at = now() where id = p_event;
+  update public.seasons set status = 'settled', settled_at = now(), ends_at = greatest(starts_at + interval '1 second', least(ends_at, now()))
+   where competition_id = p_event and status in ('scheduled', 'active');
+  for p in select user_id from public.event_participants where competition_id = p_event and left_at is null loop
+    perform internal.notify(p.user_id, 'competitive', 'event_cancelled', p_actor, 'competition', p_event::text,
+                            jsonb_build_object('name', v_ev.name), 'event_cancel:' || p_event::text);
+  end loop;
+end $$;
+
+create or replace function public.cancel_event(p_event uuid) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := internal.require_user();
+  v_ev public.competitions;
+begin
+  select * into v_ev from public.competitions where id = p_event and kind = 'event';
+  if not found then raise exception 'event not found'; end if;
+  if not (authz.has_role(v_user, 'territory_operator') or (v_ev.host_club_id is not null and authz.is_organizer(v_ev.host_club_id, v_user))) then
+    raise exception 'not allowed' using errcode = '42501';
+  end if;
+  if v_ev.status <> 'active' or v_ev.ends_at <= now() then raise exception 'this event has already finished'; end if;
+  perform internal.cancel_event_row(p_event, v_user);
+  perform internal.audit(v_user, case when authz.has_role(v_user, 'territory_operator') then 'staff' else 'organizer' end, 'event_cancelled', 'competition', p_event::text, '{}');
+end $$;
+
+/**
+ * Closes a community or group: members leave, its posts leave every feed, its race ends, running challenges
+ * are cancelled, its chat and images are deleted. Kept as an archived record for the audit trail only.
+ */
+create or replace function internal.archive_club(p_club uuid, p_actor uuid, p_reason text) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal as $$
+declare
+  c public.clubs;
+  e record;
+begin
+  select * into c from public.clubs where id = p_club for update;
+  if not found or c.status = 'archived' then return; end if;
+  update public.clubs set status = 'archived', deleted_at = now(), description = null, rules = null, avatar_path = null, cover_path = null, artwork = null
+   where id = p_club;
+  delete from internal.club_ownership_offers where club_id = p_club;
+  update public.club_memberships set state = 'removed', role = 'member', decided_by = p_actor where club_id = p_club and state in ('active', 'invited', 'requested');
+  update public.posts set status = 'deleted' where club_id = p_club and status in ('published', 'processing');
+  delete from public.club_pins where club_id = p_club;
+  update public.competitions set status = 'archived', archived_at = now() where club_id = p_club and status = 'active';
+  for e in select id from public.competitions where host_club_id = p_club and kind = 'event' and status = 'active' loop
+    perform internal.cancel_event_row(e.id, p_actor);
+  end loop;
+  perform internal.enqueue_job('account', 'close_club', jsonb_build_object('club_id', p_club, 'kind', c.kind), 'closeclub:' || p_club::text);
+  perform internal.audit(p_actor, case when p_actor is null then 'system' else 'organizer' end, 'club_closed', 'club', p_club::text, jsonb_build_object('reason', p_reason));
+end $$;
+
+/** The owner deletes the community or group after typing its name; members are told what happened. */
+create or replace function public.delete_club(p_club uuid, p_confirm_name text) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := internal.require_user();
+  c public.clubs;
+  m record;
+begin
+  select * into c from public.clubs where id = p_club and status <> 'archived';
+  if not found or authz.club_role(p_club, v_user) is distinct from 'owner' then raise exception 'owner only' using errcode = '42501'; end if;
+  if lower(btrim(coalesce(p_confirm_name, ''))) <> lower(btrim(c.name)) then
+    raise exception 'confirm_name' using errcode = '22023', detail = 'Type the name exactly to confirm.';
+  end if;
+  for m in select user_id from public.club_memberships where club_id = p_club and state = 'active' and user_id <> v_user loop
+    perform internal.notify(m.user_id, 'club', 'club_deleted', v_user, 'club', p_club::text, jsonb_build_object('club_name', c.name, 'kind', c.kind), 'clubdel:' || p_club::text);
+  end loop;
+  perform internal.archive_club(p_club, v_user, 'deleted_by_owner');
+end $$;
+
+/**
+ * Makes sure an active community or group has an owner: when the owner leaves, is removed or deletes their
+ * account, the longest-serving admin takes over, otherwise the longest-serving member; with nobody left
+ * the club is closed. Runs at the end of the transaction (deferred), after any planned hand-over.
+ */
+create or replace function internal.ensure_club_owner(p_club uuid) returns uuid
+language plpgsql security definer set search_path = pg_catalog, public, internal as $$
+declare
+  c public.clubs;
+  v_next uuid;
+begin
+  select * into c from public.clubs where id = p_club for update;
+  if not found or c.status = 'archived' then return null; end if;
+  if exists (select 1 from public.club_memberships m join public.profiles p on p.id = m.user_id
+              where m.club_id = p_club and m.role = 'owner' and m.state = 'active' and p.status <> 'deleted') then
+    return null;
+  end if;
+  update public.club_memberships set role = 'member' where club_id = p_club and role = 'owner';
+  select m.user_id into v_next
+    from public.club_memberships m join public.profiles p on p.id = m.user_id
+   where m.club_id = p_club and m.state = 'active' and p.status = 'active'
+   order by case m.role when 'organizer' then 0 else 1 end, m.created_at, m.user_id
+   limit 1;
+  if v_next is null then
+    perform internal.archive_club(p_club, null, 'no_members_left');
+    return null;
+  end if;
+  update public.club_memberships set role = 'owner' where club_id = p_club and user_id = v_next;
+  delete from internal.club_ownership_offers where club_id = p_club;
+  perform internal.notify(v_next, 'club', 'club_ownership_received', null, 'club', p_club::text, jsonb_build_object('club_name', c.name), 'clubsucc:' || p_club || ':' || v_next);
+  perform internal.audit(null, 'system', 'owner_succession', 'club', p_club::text, jsonb_build_object('new_owner', v_next));
+  return v_next;
+end $$;
+
+create or replace function internal.on_owner_membership_change() returns trigger
+language plpgsql security definer set search_path = pg_catalog, public, internal as $$
+begin
+  perform internal.ensure_club_owner(old.club_id);
+  return null;
+end $$;
+drop trigger if exists club_memberships_owner_succession on public.club_memberships;
+create constraint trigger club_memberships_owner_succession after update or delete on public.club_memberships
+  deferrable initially deferred for each row when (old.role = 'owner' and old.state = 'active')
+  execute function internal.on_owner_membership_change();
+
+-- An owner with other members hands over first (offer, the member accepts, then they leave as an admin);
+-- an owner who is the only member closes it by leaving. Unexpected departures (account deletion, removal
+-- by moderators) go through ensure_club_owner instead.
+create or replace function public.leave_club(p_club uuid) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := internal.require_user();
+begin
+  if authz.club_role(p_club, v_user) = 'owner'
+     and exists (select 1 from public.club_memberships m join public.profiles p on p.id = m.user_id
+                  where m.club_id = p_club and m.state = 'active' and m.user_id <> v_user and p.status = 'active') then
+    raise exception 'owner_must_transfer' using errcode = 'P0409',
+      detail = 'Choose a new owner first: offer ownership in Manage. Once they accept, you can leave.';
+  end if;
+  update public.club_memberships set state = 'left', role = 'member' where club_id = p_club and user_id = v_user and state in ('active', 'requested', 'invited');
+end $$;
+
+-- Group chats follow membership: the backend adds and removes people (members cannot from the app).
+create or replace function internal.on_group_membership_change() returns trigger
+language plpgsql security definer set search_path = pg_catalog, public, internal as $$
+declare
+  v_club uuid := coalesce(new.club_id, old.club_id);
+begin
+  if exists (select 1 from public.clubs where id = v_club and kind = 'group') then
+    perform internal.enqueue_job('chat', 'sync_group_chat', jsonb_build_object('club_id', v_club), 'groupchat:' || v_club::text, now() + interval '5 seconds');
+  end if;
+  return null;
+end $$;
+drop trigger if exists club_memberships_group_chat on public.club_memberships;
+create trigger club_memberships_group_chat after insert or update of state or delete on public.club_memberships
+  for each row execute function internal.on_group_membership_change();
+
+-- Community and group details now carry the kind, branding and any pending ownership offer.
+create or replace function public.club_detail(p_club uuid) returns jsonb
+language plpgsql stable security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := auth.uid();
+  c public.clubs;
+  m public.club_memberships;
+  o internal.club_ownership_offers;
+begin
+  if not authz.can_view_club(p_club, v_user) then return null; end if;
+  select * into c from public.clubs where id = p_club;
+  select * into m from public.club_memberships where club_id = p_club and user_id = v_user;
+  select * into o from internal.club_ownership_offers where club_id = p_club and expires_at > now();
+  return jsonb_build_object(
+    'id', c.id, 'kind', c.kind, 'name', c.name, 'description', c.description, 'rules', c.rules,
+    'visibility', c.visibility, 'join_policy', c.join_policy, 'posting_policy', c.posting_policy,
+    'city_label', c.city_label, 'avatar_path', c.avatar_path, 'cover_path', c.cover_path, 'artwork', c.artwork, 'status', c.status,
+    'region_id', c.region_id,
+    'my_role', case when m.state = 'active' then m.role end, 'my_state', coalesce(m.state, 'none'),
+    'member_count', (select count(*) from public.club_memberships where club_id = p_club and state = 'active'),
+    'pending_requests', case when authz.is_organizer(p_club, v_user) then (select count(*) from public.club_memberships where club_id = p_club and state = 'requested') end,
+    'competition_id', (select id from public.competitions where club_id = p_club and status = 'active'),
+    'organizers', (select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'handle', p.handle, 'display_name', p.display_name, 'role', cm.role)), '[]'::jsonb)
+                     from public.club_memberships cm join public.profiles p on p.id = cm.user_id
+                    where cm.club_id = p_club and cm.state = 'active' and cm.role in ('owner', 'organizer') and p.status = 'active'),
+    'ownership_offer', case
+      when o.club_id is null then null
+      when o.to_user = v_user then jsonb_build_object('to_me', true, 'expires_at', o.expires_at)
+      when o.from_user = v_user then jsonb_build_object('to_me', false, 'expires_at', o.expires_at,
+                                     'to', (select jsonb_build_object('id', p.id, 'display_name', p.display_name) from public.profiles p where p.id = o.to_user))
+      else null end
+  );
+end $$;
+
+drop function if exists public.discover_clubs(uuid, text, integer);
+create function public.discover_clubs(p_district uuid default null, p_query text default null, p_limit integer default 30)
+returns table (id uuid, kind text, name text, city_label text, visibility text, join_policy text, member_count bigint, my_state text, avatar_path text, artwork text)
+language sql stable security definer set search_path = pg_catalog, public as $$
+  select c.id, c.kind, c.name, c.city_label, c.visibility, c.join_policy,
+         (select count(*) from public.club_memberships m where m.club_id = c.id and m.state = 'active'),
+         coalesce((select m.state from public.club_memberships m where m.club_id = c.id and m.user_id = auth.uid()), 'none'),
+         c.avatar_path, c.artwork
+    from public.clubs c
+   where auth.uid() is not null and c.status = 'active' and c.visibility = 'public' and c.kind = 'community'
+     and (p_district is null or c.district_id = p_district)
+     and (coalesce(p_query, '') = '' or c.name ilike '%' || replace(p_query, '%', '') || '%')
+   order by c.name limit least(p_limit, 50);
+$$;
+
+drop function if exists public.my_clubs();
+create function public.my_clubs()
+returns table (id uuid, kind text, name text, visibility text, role text, state text, member_count bigint, avatar_path text, artwork text)
+language sql stable security definer set search_path = pg_catalog, public as $$
+  select c.id, c.kind, c.name, c.visibility, m.role, m.state,
+         (select count(*) from public.club_memberships x where x.club_id = c.id and x.state = 'active'),
+         c.avatar_path, c.artwork
+    from public.club_memberships m join public.clubs c on c.id = m.club_id
+   where m.user_id = auth.uid() and m.state in ('active', 'invited', 'requested') and c.status <> 'archived'
+   order by m.state, c.name;
+$$;
+
+/** What a community or group has done lately (members only): runs, distance and land held now by its members. */
+create or replace function public.club_stats(p_club uuid) returns jsonb
+language plpgsql stable security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null or not authz.is_active_member(p_club, v_user) then return null; end if;
+  return (
+    with members as (select m.user_id from public.club_memberships m join public.profiles p on p.id = m.user_id
+                      where m.club_id = p_club and m.state = 'active' and p.status = 'active'),
+    week as (
+      select a.user_id, n.distance_m from public.activities a join members mb on mb.user_id = a.user_id
+       cross join lateral internal.run_movement_net(a.id) n
+       where a.deleted_at is null and a.status = 'processed' and a.started_at >= date_trunc('week', now())
+    ), held as (
+      select coalesce(sum(tc.area_m2), 0) as area from internal.cell_control_public cp
+        join public.competitions c on c.id = cp.competition_id and c.kind = 'permanent'
+        join internal.territory_cells tc on tc.cell = cp.cell
+        join members mb on mb.user_id = cp.controller_id
+       where cp.status = 'controlled'
+    )
+    select jsonb_build_object(
+      'members', (select count(*) from members),
+      'runs_this_week', (select count(*) from week where distance_m > 0),
+      'distance_this_week_m', round((select coalesce(sum(distance_m), 0) from week)::numeric),
+      'runners_this_week', (select count(distinct user_id) from week where distance_m > 0),
+      'land_held_m2', round((select area from held)::numeric, -1))
+  );
+end $$;
+
+-- Posts in a community show its name and logo.
+create or replace function internal.post_row_json(p public.posts, p_viewer uuid) returns jsonb
+language sql stable security definer set search_path = pg_catalog, public, authz as $$
+  select jsonb_build_object(
+    'id', p.id, 'audience', p.audience, 'body', p.body, 'status', p.status,
+    'author', jsonb_build_object('id', a.id, 'handle', a.handle, 'display_name', a.display_name, 'avatar_path', a.avatar_path),
+    'club', case when p.club_id is null then null else (select jsonb_build_object('id', c.id, 'name', c.name, 'kind', c.kind, 'avatar_path', c.avatar_path) from public.clubs c where c.id = p.club_id) end,
+    'shared_summary', p.shared_summary,
+    'shared_route', p.shared_route,
+    'shared_land', case when p.shared_land is not null
+                         and exists (select 1 from public.loop_claims lc where lc.id = (p.shared_land ->> 'claim_id')::uuid and lc.status = 'eligible')
+                        then p.shared_land - 'publish_after' end,
+    'route', case when p.route_course_id is null then null else (select jsonb_build_object('id', c.id, 'name', c.name) from public.courses c where c.id = p.route_course_id and c.status = 'active') end,
+    'comments_enabled', p.comments_enabled, 'is_announcement', p.is_announcement,
+    'published_at', coalesce(p.published_at, p.created_at), 'edited_at', p.edited_at,
+    'reaction_count', (select count(*) from public.reactions r where r.post_id = p.id and not authz.is_blocked(r.user_id, p_viewer)),
+    'i_reacted', exists (select 1 from public.reactions r where r.post_id = p.id and r.user_id = p_viewer),
+    'comment_count', (select count(*) from public.comments cm where cm.post_id = p.id and cm.status = 'visible' and not authz.is_blocked(cm.author_id, p_viewer)),
+    'media', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'path', m.derivative_path, 'alt', m.alt_text, 'width', m.width, 'height', m.height, 'status', m.status) order by m.position)
+                         from public.post_media m where m.post_id = p.id and (m.status = 'ready' or p.author_id = p_viewer)), '[]'::jsonb),
+    'is_mine', p.author_id = p_viewer
+  )
+  from public.profiles a where a.id = p.author_id;
+$$;
+
 -- ---------------------------------------------------------------------------------------------
 -- Grants for the RPCs added in this release (everything else stays closed)
 -- ---------------------------------------------------------------------------------------------
@@ -1449,7 +1932,9 @@ declare
   f text;
   rpc text[] := array['list_events', 'join_event', 'leave_event', 'event_standings', 'create_club_event', 'cancel_event',
                       'ops_create_event', 'ops_set_season_dates', 'ops_schedule_season', 'ops_set_season_length',
-                      'create_activity_link', 'revoke_activity_link', 'my_activity_link', 'public_activity', 'share_preview'];
+                      'create_activity_link', 'revoke_activity_link', 'my_activity_link', 'public_activity', 'share_preview',
+                      'set_club_visibility', 'set_club_branding', 'offer_club_ownership', 'cancel_club_ownership_offer',
+                      'respond_club_ownership', 'delete_club', 'club_stats', 'discover_clubs', 'my_clubs'];
 begin
   for f in
     select format('%I.%I(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))

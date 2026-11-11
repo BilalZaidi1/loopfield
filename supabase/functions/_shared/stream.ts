@@ -38,6 +38,13 @@ export const DM_CHANNEL_TYPE_CONFIG = {
   }
 } as const;
 
+/** Group chats: the same privacy defaults (no presence, read receipts or typing; backend pushes only). */
+export const GROUP_CHANNEL_TYPE = 'loopfield_group';
+export const GROUP_CHANNEL_TYPE_CONFIG = { ...DM_CHANNEL_TYPE_CONFIG, name: GROUP_CHANNEL_TYPE } as const;
+
+/** Stream channel id for a group (one per group, created and managed by the backend). */
+export const groupChannelId = (clubId: string) => `grp-${clubId}`;
+
 /**
  * App-level settings the privacy model depends on. Auth and permission checks must stay on (Stream lets
  * development apps disable them); only `message.new` webhooks are delivered, to the backend's safe
@@ -60,9 +67,11 @@ export interface StreamSetupReport {
 
 const sameSet = (a: readonly string[] = [], b: readonly string[] = []) => a.length === b.length && [...a].sort().join('|') === [...b].sort().join('|');
 
-function channelTypeDiff(current: Record<string, unknown> | null): string[] {
+type ChannelTypeConfig = typeof DM_CHANNEL_TYPE_CONFIG | typeof GROUP_CHANNEL_TYPE_CONFIG;
+
+function channelTypeDiff(current: Record<string, unknown> | null, config: ChannelTypeConfig = DM_CHANNEL_TYPE_CONFIG): string[] {
   if (!current) return ['channel type does not exist yet'];
-  const { name: _n, grants, ...flags } = DM_CHANNEL_TYPE_CONFIG;
+  const { name: _n, grants, ...flags } = config;
   const out: string[] = [];
   for (const [k, v] of Object.entries(flags)) if (current[k] !== v) out.push(`${k}: ${String(current[k])} -> ${String(v)}`);
   const currentGrants = (current.grants ?? {}) as Record<string, string[]>;
@@ -72,25 +81,31 @@ function channelTypeDiff(current: Record<string, unknown> | null): string[] {
   return out;
 }
 
+async function readChannelType(client: StreamChat, name: string): Promise<Record<string, unknown> | null> {
+  try {
+    return (await client.getChannelType(name)) as unknown as Record<string, unknown>;
+  } catch (err) {
+    if (!/not.?found|does not exist|404/i.test(String((err as Error).message))) throw err;
+    return null;
+  }
+}
+
 /**
  * Brings the Stream app to the configuration the privacy model depends on, then reads it back. Used by
  * scripts/setup-stream.ts (dry run by default) and by the `configure_stream` job, which runs server-side
  * with the function secrets so the keys never need to be copied anywhere else.
  */
 export async function ensureStreamConfiguration(client: StreamChat, opts: { apply: boolean; webhookUrl?: string }): Promise<StreamSetupReport> {
-  const { name: _n, grants, ...flags } = DM_CHANNEL_TYPE_CONFIG;
+  const { grants } = DM_CHANNEL_TYPE_CONFIG;
   const warnings: string[] = [];
   const catalogue = new Set(((await client.listPermissions()).permissions ?? []).map((p) => p.id).filter(Boolean) as string[]);
   const unknown = [...new Set(Object.values(grants).flat().filter((p) => !catalogue.has(p)))];
   if (unknown.length) throw new Error(`Unknown Stream permission id(s): ${unknown.join(', ')}; nothing was changed`);
 
-  let current: Record<string, unknown> | null = null;
-  try {
-    current = (await client.getChannelType(DM_CHANNEL_TYPE)) as unknown as Record<string, unknown>;
-  } catch (err) {
-    if (!/not.?found|does not exist|404/i.test(String((err as Error).message))) throw err;
-  }
-  const channelTypeChanges = channelTypeDiff(current);
+  // Direct messages and group chats share the same privacy defaults.
+  const configs: ChannelTypeConfig[] = [DM_CHANNEL_TYPE_CONFIG, GROUP_CHANNEL_TYPE_CONFIG];
+  const currents = await Promise.all(configs.map((c) => readChannelType(client, c.name)));
+  const channelTypeChanges = configs.flatMap((c, i) => channelTypeDiff(currents[i]!, c).map((d) => `${c.name}: ${d}`));
 
   const app = ((await client.getAppSettings()).app ?? {}) as Record<string, unknown>;
   const appChanges: Record<string, unknown> = {};
@@ -115,10 +130,13 @@ export async function ensureStreamConfiguration(client: StreamChat, opts: { appl
   let remaining: string[] = [];
   if (opts.apply) {
     const grantMap = grants as unknown as Record<string, string[]>;
-    if (!current) await client.createChannelType({ ...DM_CHANNEL_TYPE_CONFIG, grants: grantMap } as never);
-    else if (channelTypeChanges.length) await client.updateChannelType(DM_CHANNEL_TYPE, { ...flags, grants: grantMap } as never);
+    for (const [i, c] of configs.entries()) {
+      const { name: _cn, grants: _cg, ...cflags } = c;
+      if (!currents[i]) await client.createChannelType({ ...c, grants: grantMap } as never);
+      else if (channelTypeDiff(currents[i]!, c).length) await client.updateChannelType(c.name, { ...cflags, grants: grantMap } as never);
+    }
     if (Object.keys(appChanges).length) await client.updateAppSettings(appChanges as never);
-    remaining = channelTypeDiff((await client.getChannelType(DM_CHANNEL_TYPE)) as unknown as Record<string, unknown>);
+    for (const c of configs) remaining.push(...channelTypeDiff(await readChannelType(client, c.name), c).map((d) => `${c.name}: ${d}`));
   }
   return { channelTypeChanges, appChanges, warnings, applied: opts.apply, remaining };
 }
@@ -145,6 +163,34 @@ export async function upsertStreamUser(env: ServerEnv, user: { id: string; name:
 export async function createDmChannel(env: ServerEnv, channelId: string, creator: string, other: string): Promise<void> {
   const ch = streamServer(env).channel(DM_CHANNEL_TYPE, channelId, { members: [creator, other], created_by_id: creator } as never);
   await ch.create();
+}
+
+/** Creates the group channel if needed, then adds and removes members so they match the group exactly. */
+export async function syncGroupChannelWith(server: StreamChat, channelId: string, name: string, members: { id: string; name: string }[]): Promise<void> {
+  if (members.length) await server.upsertUsers(members.map((m) => ({ id: m.id, name: m.name })) as never);
+  const ids = members.map((m) => m.id);
+  const ch = server.channel(GROUP_CHANNEL_TYPE, channelId, { name, members: ids.slice(0, 100), created_by_id: ids[0] } as never);
+  await ch.create();
+  await ch.updatePartial({ set: { name } } as never);
+  const current = new Set<string>();
+  for (let offset = 0; ; offset += 100) {
+    const page = await ch.queryMembers({}, {}, { limit: 100, offset } as never);
+    for (const m of page.members) if (m.user_id) current.add(m.user_id);
+    if (page.members.length < 100) break;
+  }
+  const want = new Set(ids);
+  const add = ids.filter((m) => !current.has(m));
+  const remove = [...current].filter((m) => !want.has(m));
+  if (add.length) await ch.addMembers(add);
+  if (remove.length) await ch.removeMembers(remove);
+}
+
+export async function syncGroupChannel(env: ServerEnv, channelId: string, name: string, members: { id: string; name: string }[]): Promise<void> {
+  await syncGroupChannelWith(streamServer(env), channelId, name, members);
+}
+
+export async function deleteGroupChannel(env: ServerEnv, channelId: string): Promise<void> {
+  await streamServer(env).channel(GROUP_CHANNEL_TYPE, channelId).delete({ hard_delete: true } as never);
 }
 
 export async function setChannelFrozen(env: ServerEnv, channelId: string, frozen: boolean): Promise<void> {

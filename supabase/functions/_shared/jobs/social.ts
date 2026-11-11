@@ -3,7 +3,7 @@ import { dmChannelId, inQuietHours, jpegDimensions, safePushPreview, SOCIAL_RULE
 import { clubInvitationEmail, sha256Hex } from '../email.ts';
 import { NonRetryableError, type JobHandler } from './context.ts';
 import { pgArray } from '../clients.ts';
-import { ensureStreamConfiguration, streamServer } from '../stream.ts';
+import { ensureStreamConfiguration, groupChannelId, streamServer } from '../stream.ts';
 
 /** Strip metadata, validate and publish processed derivatives; originals never reach viewers (FR39). */
 export const processPostMedia: JobHandler = async (payload, ctx) => {
@@ -186,4 +186,34 @@ export const configureStream: JobHandler = async (payload, ctx) => {
   const report = await ensureStreamConfiguration(streamServer(ctx.env), { apply: true, webhookUrl });
   ctx.log('stream configuration applied', { ...report });
   if (report.remaining.length) throw new NonRetryableError(`Stream configuration still differs: ${report.remaining.join('; ')}`);
+};
+
+
+/** Group chat membership follows the group: the backend adds and removes people (members cannot from the app). */
+export const syncGroupChat: JobHandler = async (payload, ctx) => {
+  const clubId = String(payload.club_id ?? '');
+  const [club] = await ctx.sql`select id, name, kind, status from public.clubs where id = ${clubId}`;
+  if (!club || club.kind !== 'group') return;
+  const chat = ctx.integrations.chat;
+  if (!chat) {
+    ctx.log('chat not configured; group chat membership not synced', { clubId });
+    return;
+  }
+  if (club.status !== 'active') {
+    await chat.deleteGroup(groupChannelId(clubId));
+    return;
+  }
+  const members = await ctx.sql`
+    select p.id, p.display_name from public.club_memberships m join public.profiles p on p.id = m.user_id
+     where m.club_id = ${clubId} and m.state = 'active' and p.status = 'active' order by m.created_at`;
+  await chat.syncGroup(groupChannelId(clubId), club.name as string, members.map((m) => ({ id: m.id as string, name: m.display_name as string })));
+};
+
+/** After a community or group is closed: its images are deleted and a group's chat is removed. */
+export const closeClub: JobHandler = async (payload, ctx) => {
+  const clubId = String(payload.club_id ?? '');
+  if (!clubId) throw new NonRetryableError('payload.club_id missing');
+  const files = await ctx.blobs.list(BUCKETS.clubMedia, `${clubId}/`);
+  if (files.length) await ctx.blobs.remove(BUCKETS.clubMedia, files);
+  if (payload.kind === 'group' && ctx.integrations.chat) await ctx.integrations.chat.deleteGroup(groupChannelId(clubId));
 };

@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase';
  */
 const TTL = SOCIAL_RULES.mediaUrlTtlSeconds.value;
 
-export function useSignedUrl(bucket: 'post-media' | 'avatars', path: string | null | undefined) {
+export function useSignedUrl(bucket: 'post-media' | 'avatars' | 'club-media', path: string | null | undefined) {
   return useQuery({
     queryKey: ['signed', bucket, path],
     enabled: Boolean(path),
@@ -36,7 +36,7 @@ export async function prepareImage(uri: string): Promise<{ uri: string; width: n
   return { uri: out.uri, width: out.width, height: out.height };
 }
 
-export async function uploadToBucket(bucket: 'media-uploads' | 'avatars', path: string, fileUri: string): Promise<void> {
+export async function uploadToBucket(bucket: 'media-uploads' | 'avatars' | 'club-media', path: string, fileUri: string): Promise<void> {
   const res = await fetch(fileUri);
   const body = await res.arrayBuffer();
   if (body.byteLength > SOCIAL_RULES.maxOriginalImageBytes.value) throw new Error('This photo is larger than 10 MB.');

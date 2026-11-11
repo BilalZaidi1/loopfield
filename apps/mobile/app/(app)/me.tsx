@@ -6,12 +6,12 @@ import { rpc } from '@/lib/api';
 import { fmtArea, splitValue } from '@/lib/format';
 import { Avatar, BigNumber, Button, Card, EmptyState, IconButton, ListGroup, LoadingState, Row, Screen, Section, Txt } from '@/components/ui';
 import { Icon, type IconName } from '@/components/icons';
-import { ClubMonogram, clubTone } from '@/features/clubs/ClubBits';
+import { ClubLogo } from '@/features/clubs/ClubBits';
 import { BadgeStrip } from '@/features/achievements/Badges';
 import { useAchievementProfile, useMyChallenges } from '@/features/achievements/api';
 import { useMovement } from '@/features/movement/api';
 import { useLayout } from '@/theme/layout';
-import { useMyClubs } from '@/features/clubs/api';
+import { kindLabel, roleLabel, useMyClubs } from '@/features/clubs/api';
 import { useSignedUrl } from '@/features/social/media';
 import { PostCard, useFeed } from '@/features/social/PostCard';
 import { useProfileCard } from '@/features/social/profile';
@@ -125,7 +125,7 @@ export default function MyProfile() {
       <Section title="Clubs and communities" icon="clubs">
         {activeClubs.length ? (
           <ListGroup>
-            {activeClubs.map((c) => <Row key={c.id} leading={<ClubMonogram name={c.name} tone={clubTone(c.id)} size={40} />} title={c.name} subtitle={c.role !== 'member' ? (c.role === 'owner' ? 'Owner' : 'Organizer') : `${c.member_count} members`} onPress={() => router.push({ pathname: '/club/[id]', params: { id: c.id } })} />)}
+            {activeClubs.map((c) => <Row key={c.id} leading={<ClubLogo club={c} size={40} />} title={c.name} subtitle={`${kindLabel(c.kind)} · ${c.role !== 'member' ? roleLabel(c.role) : `${c.member_count} members`}`} onPress={() => router.push({ pathname: '/club/[id]', params: { id: c.id } })} />)}
           </ListGroup>
         ) : <Txt color="textMuted">None yet.</Txt>}
       </Section>

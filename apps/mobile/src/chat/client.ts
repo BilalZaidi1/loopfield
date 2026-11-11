@@ -18,6 +18,8 @@ interface ChatToken {
 }
 
 export const DM_CHANNEL_TYPE = 'loopfield_dm';
+/** Group chats: created and kept in step with the group's members by the backend. */
+export const GROUP_CHANNEL_TYPE = 'loopfield_group';
 
 let client: StreamChat | null = null;
 let connecting: Promise<StreamChat> | null = null;
@@ -63,6 +65,11 @@ export async function startConversation(targetId: string): Promise<{ conversatio
   }
 }
 
+/** Opens a group's chat (members only); the backend makes sure the channel and its members exist. */
+export async function openGroupChat(clubId: string): Promise<{ channelId: string; name: string }> {
+  return callFunction<{ channelId: string; name: string }>('chat/group', { clubId });
+}
+
 export async function reportMessage(channelId: string, messageId: string, category: string, details?: string): Promise<void> {
   await callFunction('chat/report', { channelId, messageId, category, details });
   track('message_action', { action: 'reported', outcome: 'ok' });
@@ -73,6 +80,8 @@ export interface UiMessage {
   id: string;
   text: string;
   mine: boolean;
+  /** Sender's name (shown in group chats). */
+  author: string | null;
   createdAt: Date;
   deleted: boolean;
   state: SendState;
@@ -82,13 +91,14 @@ const toUi = (m: LocalMessage, me: string): UiMessage => ({
   id: m.id,
   text: m.type === 'deleted' ? '' : m.text ?? '',
   mine: m.user?.id === me,
+  author: (m.user as { name?: string } | undefined)?.name ?? null,
   createdAt: m.created_at instanceof Date ? m.created_at : new Date(m.created_at as unknown as string),
   deleted: m.type === 'deleted',
   state: m.status === 'failed' ? 'failed' : m.status === 'sending' ? 'sending' : 'sent'
 });
 
-/** Watches one DM channel; exposes messages, send with status, deletion of own messages and paging. */
-export function useConversation(userId: string | null, channelId: string) {
+/** Watches one chat (a DM or a group); exposes messages, send with status, deletion of own messages and paging. */
+export function useConversation(userId: string | null, channelId: string, type: string = DM_CHANNEL_TYPE) {
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [status, setStatus] = useState<'connecting' | 'ready' | 'error'>('connecting');
   const [error, setError] = useState<unknown>(null);
@@ -110,7 +120,7 @@ export function useConversation(userId: string | null, channelId: string) {
     void (async () => {
       try {
         const c = await getChat(userId);
-        const ch = c.channel(DM_CHANNEL_TYPE, channelId);
+        const ch = c.channel(type, channelId);
         await ch.watch({ presence: false, messages: { limit: 30 } });
         if (!active) return;
         channelRef.current = ch;
@@ -129,7 +139,7 @@ export function useConversation(userId: string | null, channelId: string) {
       void channelRef.current?.stopWatching().catch(() => {});
       channelRef.current = null;
     };
-  }, [userId, channelId, attempt]);
+  }, [userId, channelId, type, attempt]);
 
   useEffect(() => {
     const ch = channelRef.current;

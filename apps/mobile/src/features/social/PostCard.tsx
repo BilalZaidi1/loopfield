@@ -10,6 +10,7 @@ import { Avatar, Badge, Card, IconButton, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { useUnits } from '@/state/session';
 import { radius, spacing, usePalette } from '@/theme/tokens';
+import { ClubLogo } from '@/features/clubs/ClubBits';
 import { useSignedUrl } from './media';
 import { landLine, RouteSketch } from '@/features/share/RouteSketch';
 
@@ -19,7 +20,7 @@ export interface PostJson {
   body: string | null;
   status: string;
   author: { id: string; handle: string; display_name: string; avatar_path: string | null };
-  club: { id: string; name: string; kind: string } | null;
+  club: { id: string; name: string; kind: string; avatar_path?: string | null } | null;
   shared_summary: {
     distance_m?: number;
     elapsed_ms?: number;
@@ -223,11 +224,18 @@ export function PostCard({ post, onOpen = true }: { post: PostJson; onOpen?: boo
         <View style={{ flex: 1, gap: 1 }}>
           <Txt variant="bodyStrong" numberOfLines={1}>{post.author.display_name}</Txt>
           <Txt variant="caption" numberOfLines={1}>
-            {`@${post.author.handle} · ${fmtRelative(post.published_at)} · ${post.club ? post.club.name : AUDIENCE_LABEL[post.audience]}${post.edited_at ? ' · edited' : ''}`}
+            {`@${post.author.handle} · ${fmtRelative(post.published_at)} · ${post.club ? (post.club.kind === 'group' ? 'Group' : 'Community') : AUDIENCE_LABEL[post.audience]}${post.edited_at ? ' · edited' : ''}`}
           </Txt>
         </View>
         <IconButton icon="more" label="Post options" onPress={() => menu()} color={p.textMuted} />
       </View>
+      {post.club ? (
+        <Pressable onPress={() => router.push({ pathname: '/club/[id]', params: { id: post.club!.id } })} accessibilityRole="link" accessibilityLabel={`Posted in ${post.club.name}. Open it`}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, alignSelf: 'flex-start', minHeight: 32 }}>
+          <ClubLogo club={post.club} size={24} />
+          <Txt variant="label" numberOfLines={1} style={{ flexShrink: 1 }}>{post.club.name}</Txt>
+        </Pressable>
+      ) : null}
       {post.is_announcement || post.status === 'processing' ? (
         <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
           {post.is_announcement ? <Badge tone="info" icon="bell" label="Announcement" /> : null}

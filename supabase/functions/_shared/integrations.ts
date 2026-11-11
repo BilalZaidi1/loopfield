@@ -4,7 +4,7 @@ import type { ServerEnv } from './env.ts';
 import type { Integrations } from './jobs/context.ts';
 import { revenueCatRestClient } from './jobs/billing.ts';
 import { sendExpoPush } from './push.ts';
-import { DM_CHANNEL_TYPE, streamServer } from './stream.ts';
+import { DM_CHANNEL_TYPE, streamServer, syncGroupChannel, deleteGroupChannel } from './stream.ts';
 
 /** Real provider integrations, each enabled only when its server-side credentials are configured. */
 export function buildIntegrations(env: ServerEnv): Integrations {
@@ -26,6 +26,14 @@ export function buildIntegrations(env: ServerEnv): Integrations {
           },
           async deleteMessage(messageId) {
             await streamServer(env).deleteMessage(messageId, true);
+          },
+          async syncGroup(channelId, name, members) {
+            await syncGroupChannel(env, channelId, name, members);
+          },
+          async deleteGroup(channelId) {
+            await deleteGroupChannel(env, channelId).catch((e) => {
+              if (!/not.?found|does not exist|404/i.test(String((e as Error).message))) throw e;
+            });
           }
         }
       : null,
