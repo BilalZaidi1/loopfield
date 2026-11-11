@@ -1631,10 +1631,17 @@ export type Database = {
         Row: {
           clubs: boolean
           competitive_digest: boolean
+          email_clubs: boolean
+          email_events: boolean
+          email_runs: boolean
+          email_territory: boolean
+          events: boolean
+          friend_runs: boolean
           marketing: boolean
           messages: boolean
           quiet_end: string | null
           quiet_start: string | null
+          run_results: boolean
           social: boolean
           territory_loss: boolean
           timezone: string
@@ -1645,10 +1652,17 @@ export type Database = {
         Insert: {
           clubs?: boolean
           competitive_digest?: boolean
+          email_clubs?: boolean
+          email_events?: boolean
+          email_runs?: boolean
+          email_territory?: boolean
+          events?: boolean
+          friend_runs?: boolean
           marketing?: boolean
           messages?: boolean
           quiet_end?: string | null
           quiet_start?: string | null
+          run_results?: boolean
           social?: boolean
           territory_loss?: boolean
           timezone?: string
@@ -1658,10 +1672,17 @@ export type Database = {
         Update: {
           clubs?: boolean
           competitive_digest?: boolean
+          email_clubs?: boolean
+          email_events?: boolean
+          email_runs?: boolean
+          email_territory?: boolean
+          events?: boolean
+          friend_runs?: boolean
           marketing?: boolean
           messages?: boolean
           quiet_end?: string | null
           quiet_start?: string | null
+          run_results?: boolean
           social?: boolean
           territory_loss?: boolean
           timezone?: string

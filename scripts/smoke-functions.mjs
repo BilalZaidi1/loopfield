@@ -69,6 +69,12 @@ const cases = {
     { name: 'stale timestamp', body: hookBody, headers: () => { const ts = now() - 3600; return { 'webhook-id': hookId, 'webhook-timestamp': String(ts), 'webhook-signature': svixSign(secrets.SEND_EMAIL_HOOK_SECRET, hookId, ts, hookBody) }; }, status: 401 },
     { name: 'signed request without Resend configured reports not_configured', body: hookBody, headers: () => { const ts = now(); return { 'webhook-id': hookId, 'webhook-timestamp': String(ts), 'webhook-signature': svixSign(secrets.SEND_EMAIL_HOOK_SECRET, hookId, ts, hookBody) }; }, status: 503, expect: { error: 'not_configured' } }
   ],
+  'email/unsubscribe': [
+    { name: 'opening the link changes nothing (GET is refused)', method: 'GET', status: 405 },
+    { name: 'one-click without a valid token is refused', body: 'List-Unsubscribe=One-Click', headers: { 'content-type': 'application/x-www-form-urlencoded' }, status: 400, expect: { error: 'invalid_link' } },
+    { name: 'the web page with an unknown token is refused', body: JSON.stringify({ token: 'x'.repeat(32), category: 'runs' }), status: 400, expect: { error: 'invalid_link' } },
+    { name: 'browser preflight from the web app is allowed', method: 'OPTIONS', headers: { origin: 'https://loopfield.expo.app', 'access-control-request-method': 'POST', 'access-control-request-headers': 'apikey, content-type' }, status: 204, expectHeaders: { 'access-control-allow-origin': 'https://loopfield.expo.app' } }
+  ],
   jobs: [
     { name: 'missing runner secret', body: '{}', status: 401 },
     { name: 'authorized run on an empty queue', body: '{}', headers: { 'x-jobs-secret': secrets.JOBS_RUNNER_SECRET }, status: 200, expect: { claimed: 0, failed: 0 } }

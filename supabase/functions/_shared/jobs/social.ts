@@ -1,5 +1,5 @@
 import { BUCKETS } from '../blobs.ts';
-import { dmChannelId, inQuietHours, jpegDimensions, safePushPreview, SOCIAL_RULES, stripJpegMetadata, UnsupportedImageError, type NotificationPrefs } from '../core/index.ts';
+import { dmChannelId, inQuietHours, jpegDimensions, pushAllowed, safePushPreview, SOCIAL_RULES, stripJpegMetadata, UnsupportedImageError, type NotificationPrefs } from '../core/index.ts';
 import { clubInvitationEmail, sha256Hex } from '../email.ts';
 import { NonRetryableError, type JobHandler } from './context.ts';
 import { pgArray } from '../clients.ts';
@@ -57,6 +57,9 @@ function prefsFromRow(r: Record<string, unknown> | undefined): NotificationPrefs
     competitiveDigest: (r?.competitive_digest as boolean) ?? true,
     territoryLoss: (r?.territory_loss as boolean) ?? true,
     marketing: false,
+    runResults: (r?.run_results as boolean) ?? true,
+    friendRuns: (r?.friend_runs as boolean) ?? false,
+    events: (r?.events as boolean) ?? true,
     quietStart: (r?.quiet_start as string | null)?.slice(0, 5) ?? null,
     quietEnd: (r?.quiet_end as string | null)?.slice(0, 5) ?? null,
     timezone: (r?.timezone as string) ?? 'UTC'
@@ -86,7 +89,7 @@ export const pushPending: JobHandler = async (payload, ctx) => {
   const suppressed: string[] = [];
   for (const n of pending) {
     const category = n.category as 'social' | 'message' | 'club' | 'competitive' | 'system';
-    const enabled = category === 'social' ? prefs.social : category === 'message' ? prefs.messages : category === 'club' ? prefs.clubs : category === 'competitive' ? prefs.competitiveDigest : true;
+    const enabled = pushAllowed(prefs, category, n.kind as string);
     const channel = (n.data as Record<string, string>)?.channel_id;
     if (!enabled || (channel && mutedConversations.has(channel)) || tokens.length === 0) {
       suppressed.push(n.id);
@@ -107,22 +110,27 @@ export const pushPending: JobHandler = async (payload, ctx) => {
 /** One aggregated competitive update per user per local day (PRD §7), sent at the user's digest hour. */
 export const dispatchDigests: JobHandler = async (_payload, ctx) => {
   const users = await ctx.sql`
-    select d.user_id, np.timezone, np.competitive_digest, np.territory_loss,
+    select d.user_id, np.timezone, np.competitive_digest, np.territory_loss, np.email_territory,
            count(*) filter (where d.kind like 'territory%') as territory_items,
            count(*) filter (where d.kind like 'title%') as title_items,
-           count(*) filter (where d.kind = 'territory_lost') as lost_items
+           count(*) filter (where d.kind = 'territory_lost') as lost_items,
+           coalesce(sum((d.payload ->> 'cells')::int) filter (where d.kind = 'territory_gained'), 0) as gained_cells,
+           coalesce(sum((d.payload ->> 'cells')::int) filter (where d.kind = 'territory_lost'), 0) as lost_cells
       from internal.digest_items d left join public.notification_prefs np on np.user_id = d.user_id
-     where d.digested_at is null group by d.user_id, np.timezone, np.competitive_digest, np.territory_loss limit 1000`;
+     where d.digested_at is null group by d.user_id, np.timezone, np.competitive_digest, np.territory_loss, np.email_territory limit 1000`;
   for (const u of users) {
     const tz = (u.timezone as string) ?? 'UTC';
     const localHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
     if (localHour < SOCIAL_RULES.dailyDigestHourLocal.value) continue;
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
-    if (u.competitive_digest !== false) {
+    // The summary row carries the daily push and, for runners who chose it, the daily land email.
+    if (u.competitive_digest !== false || u.email_territory === true) {
       const onlyLoss = Number(u.territory_items) === Number(u.lost_items) && Number(u.title_items) === 0;
       if (!(onlyLoss && u.territory_loss === false)) {
         if (Number(u.territory_items) > 0) {
-          await ctx.sql`select internal.notify(${u.user_id}::uuid, 'competitive', 'territory_digest', null, 'digest', ${day}, ${ctx.sql.json({ items: Number(u.territory_items) })}::jsonb, ${'digest-territory:' + day})`;
+          // Counts only (no places or rivals): the in-app digest row and, if chosen, the daily land email.
+          const counts = { items: Number(u.territory_items), gained_cells: Number(u.gained_cells), ...(u.territory_loss === false ? {} : { lost_cells: Number(u.lost_cells) }) };
+          await ctx.sql`select internal.notify(${u.user_id}::uuid, 'competitive', 'territory_digest', null, 'digest', ${day}, ${ctx.sql.json(counts)}::jsonb, ${'digest-territory:' + day})`;
         }
         if (Number(u.title_items) > 0) {
           await ctx.sql`select internal.notify(${u.user_id}::uuid, 'competitive', 'title_digest', null, 'digest', ${day}, ${ctx.sql.json({ items: Number(u.title_items) })}::jsonb, ${'digest-title:' + day})`;
@@ -141,10 +149,11 @@ export const clubInvitationEmailJob: JobHandler = async (payload, ctx, job) => {
   const toHash = await sha256Hex(to.toLowerCase());
   const [suppressed] = await ctx.sql`select 1 from internal.email_suppressions where email_hash = ${toHash}`;
   if (!suppressed) {
-    const [info] = await ctx.sql`select c.name, p.display_name from public.clubs c left join public.profiles p on p.id = ${String(payload.inviter_id)} where c.id = ${String(payload.club_id)}`;
+    const [info] = await ctx.sql`select c.name, c.kind, p.display_name from public.clubs c left join public.profiles p on p.id = ${String(payload.inviter_id)} where c.id = ${String(payload.club_id)}`;
     if (!info) throw new NonRetryableError('club not found');
-    const url = `${ctx.env.APP_LINK_BASE}club-invite?token=${encodeURIComponent(token)}`;
-    const mail = clubInvitationEmail(ctx.env.APP_NAME, info.name, info.display_name ?? 'A runner', url);
+    // A web link (custom-scheme links are not clickable in most mail apps); the route is club-invite/<token>.
+    const url = `${ctx.env.APP_WEB_URL}/club-invite/${encodeURIComponent(token)}`;
+    const mail = clubInvitationEmail(ctx.env.APP_NAME, info.name, info.display_name ?? 'A runner', url, info.kind === 'group' ? 'group' : 'community');
     const { id } = await ctx.integrations.sendEmail({ to, ...mail, tag: 'club_invitation', idempotencyKey: `club-invite-${await sha256Hex(token)}` });
     await ctx.sql`insert into internal.email_log (to_hash, template, provider_id, status) values (${toHash}, 'club_invitation', ${id}, 'sent')`;
   } else {

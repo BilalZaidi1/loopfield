@@ -4,6 +4,7 @@ import { deleteAccount, deleteActivity, exportData, purgeRawEvidence, withdrawCo
 import { reconcileEntitlement } from './billing.ts';
 import { awardMovementJob, buildRouteProposal, evaluateAttemptJob, evaluateFoundingAttempt, evaluateLoopJob, reconcileActivity } from './competition.ts';
 import { NonRetryableError, type JobContext, type JobHandler, type JobRow } from './context.ts';
+import { sendEmailJob } from './email.ts';
 import {
   closeClub,
   clubInvitationEmailJob,
@@ -30,6 +31,7 @@ export const HANDLERS: Record<string, JobHandler> = {
   push_pending: pushPending,
   dispatch_digests: dispatchDigests,
   club_invitation: clubInvitationEmailJob,
+  send_email: sendEmailJob,
   sync_block: syncBlock,
   deactivate_user: deactivateChatUser,
   moderate_message: moderateMessage,

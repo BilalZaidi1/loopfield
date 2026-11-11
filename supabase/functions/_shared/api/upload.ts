@@ -150,6 +150,9 @@ export async function finalizeActivity(sql: Sql, blobs: BlobStore, env: ServerEn
       competition_id = ${ticket?.competitionId ?? null}, season_id = ${ticket?.seasonId ?? null}, course_version_id = ${ticket?.courseVersionId ?? null}
     where id = ${req.activityId}`;
   await sql`select internal.enqueue_job('territory', 'reconcile_activity', ${sql.json({ activity_id: req.activityId })}::jsonb, ${'reconcile:' + req.activityId})`;
+  // Optional run summary email (off by default). Sent after the privacy delay so it can include published land.
+  await sql`select internal.enqueue_email(${userId}::uuid, 'run_summary', ${sql.json({ activity_id: req.activityId })}::jsonb, ${'runsum:' + req.activityId},
+                                         ${new Date(Math.max(now, req.endedAt) + 35 * 60_000)})`;
 
   const receipt: Receipt = { activityId: req.activityId, receivedAt: receivedAt.toISOString(), status: 'received', territoryClaimId: null, speedAttemptId: null, competitive: { territory: null, speed: null } };
   if (!ticket) {

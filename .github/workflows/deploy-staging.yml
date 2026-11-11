@@ -71,6 +71,8 @@ jobs:
           for fn in session-ticket activity-upload/finalize chat/token account billing-sync jobs; do check "$fn" "401"; done
           # Webhooks reject the unsigned request, or report not_configured until their provider secret is set.
           for fn in revenuecat-webhook stream-webhook resend-webhook auth-email-hook; do check "$fn" "401 503"; done
+          # One-click unsubscribe answers without a session but refuses a request with no valid link token.
+          check "email/unsubscribe" "400"
           # The web version may call user endpoints from its Expo Hosting origin; other sites get no CORS grant.
           cors() {  # $1 = path, $2 = origin, $3 = expected Access-Control-Allow-Origin ("" for none)
             got=$(curl -s -o /dev/null -D - -X OPTIONS -H "origin: $2" -H 'access-control-request-method: POST' -H 'access-control-request-headers: authorization, apikey, content-type' "$base/$1" | tr -d '\r' | awk -F': ' 'tolower($1)=="access-control-allow-origin"{print $2}')

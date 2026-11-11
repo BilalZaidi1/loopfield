@@ -7,7 +7,7 @@ import { Banner, Button, Card, Screen, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 
 /**
- * S29 (email invitation deep link: loopfield://club-invite/<token>). Accepting is an explicit action;
+ * S29 (email invitation link: https://<web>/club-invite/<token>, or loopfield://club-invite/<token> in the app). Accepting is an explicit action;
  * opening the link alone never adds the runner to the group.
  */
 export default function ClubEmailInvite() {
@@ -20,7 +20,8 @@ export default function ClubEmailInvite() {
     setError(null);
     try {
       const clubId = await rpc<string>('accept_club_email_invite', { p_token: token });
-      track('club_action', { action: 'invite_accepted', club_kind: 'club', visibility: 'private' });
+      const club = await rpc<{ kind: 'community' | 'group'; visibility: 'public' | 'private' } | null>('club_detail', { p_club: clubId }).catch(() => null);
+      track('club_action', { action: 'invite_accepted', club_kind: club?.kind ?? 'community', visibility: club?.visibility ?? 'private' });
       void qc.invalidateQueries({ queryKey: ['my_clubs'] });
       router.replace({ pathname: '/club/[id]', params: { id: clubId } });
     } catch (e) {

@@ -16,6 +16,8 @@ export interface ServerEnv {
   PREMIUM_ENTITLEMENT_ID: string;
   RESEND_API_KEY: string | undefined;
   RESEND_FROM: string | undefined;
+  /** Optional support address replies go to. */
+  RESEND_REPLY_TO: string | undefined;
   RESEND_WEBHOOK_SECRET: string | undefined;
   SEND_EMAIL_HOOK_SECRET: string | undefined;
   JOBS_RUNNER_SECRET: string | undefined;
@@ -25,6 +27,8 @@ export interface ServerEnv {
   APP_NAME: string;
   APP_SCHEME: string;
   APP_LINK_BASE: string;
+  /** The web version of the app; email buttons open it (custom-scheme links do not work in most mail apps). */
+  APP_WEB_URL: string;
   RELEASE: string;
 }
 
@@ -70,6 +74,7 @@ export function readEnv(get: (key: string) => string | undefined): ServerEnv {
     PREMIUM_ENTITLEMENT_ID: optional('PREMIUM_ENTITLEMENT_ID') ?? 'premium',
     RESEND_API_KEY: optional('RESEND_API_KEY'),
     RESEND_FROM: optional('RESEND_FROM'),
+    RESEND_REPLY_TO: optional('RESEND_REPLY_TO'),
     RESEND_WEBHOOK_SECRET: optional('RESEND_WEBHOOK_SECRET'),
     SEND_EMAIL_HOOK_SECRET: optional('SEND_EMAIL_HOOK_SECRET'),
     JOBS_RUNNER_SECRET: optional('JOBS_RUNNER_SECRET'),
@@ -79,6 +84,7 @@ export function readEnv(get: (key: string) => string | undefined): ServerEnv {
     APP_NAME: optional('APP_NAME') ?? 'Loopfield',
     APP_SCHEME: optional('APP_SCHEME') ?? 'loopfield',
     APP_LINK_BASE: optional('APP_LINK_BASE') ?? 'loopfield://',
+    APP_WEB_URL: (optional('APP_WEB_URL') ?? 'https://loopfield.expo.app').replace(/\/+$/, ''),
     RELEASE: optional('RELEASE') ?? 'dev'
   };
 }

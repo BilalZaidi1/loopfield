@@ -13,6 +13,12 @@ export interface NotificationPrefs {
   competitiveDigest: boolean;
   territoryLoss: boolean;
   marketing: boolean;
+  /** Your own runs: land results once published, badges and points refunds. */
+  runResults: boolean;
+  /** Runs your friends (mutual follows) share with you. Off by default. */
+  friendRuns: boolean;
+  /** Events and challenges you joined: reminders, starts, cancellations and results. */
+  events: boolean;
   quietStart: string | null; // "22:00"
   quietEnd: string | null; // "07:00"
   timezone: string; // IANA
@@ -25,10 +31,77 @@ export const DEFAULT_PREFS: NotificationPrefs = {
   competitiveDigest: true,
   territoryLoss: true,
   marketing: false,
+  runResults: true,
+  friendRuns: false,
+  events: true,
   quietStart: '22:00',
   quietEnd: '07:00',
   timezone: 'UTC'
 };
+
+/**
+ * Land changes caused by other runners appear in the in-app list one by one, but they are never pushed
+ * one by one: the push is the daily digest (PRD: at most one aggregated territory update per day, no
+ * live invasion alerts).
+ */
+export const IN_APP_ONLY_KINDS = new Set(['territory_lost', 'territory_contested']);
+
+const EVENT_KINDS = new Set(['event_starting', 'event_finished', 'event_cancelled', 'club_challenge', 'season_finished']);
+const PROGRESS_KINDS = new Set(['territory_captured', 'badge_earned', 'points_refunded']);
+
+/** Whether a notification is also sent as a push (every notification appears in the in-app list). */
+export function pushAllowed(prefs: NotificationPrefs, category: NotificationCategory, kind: string): boolean {
+  if (IN_APP_ONLY_KINDS.has(kind)) return false;
+  if (kind === 'friend_run') return prefs.social && prefs.friendRuns;
+  if (EVENT_KINDS.has(kind)) return prefs.events;
+  if (PROGRESS_KINDS.has(kind)) return prefs.runResults;
+  if (kind === 'territory_digest' || kind === 'title_digest') return prefs.competitiveDigest;
+  return categoryEnabled(prefs, category, kind);
+}
+
+/** Email categories: account and security email is always sent; everything else follows the runner's choice. */
+export type EmailCategory = 'account' | 'runs' | 'territory' | 'clubs' | 'events';
+export type EmailTemplate =
+  | 'welcome'
+  | 'run_summary'
+  | 'territory_daily'
+  | 'club_invite'
+  | 'club_approved'
+  | 'club_ownership'
+  | 'club_closed'
+  | 'event_registered'
+  | 'event_reminder'
+  | 'event_results'
+  | 'season_results';
+
+export const EMAIL_CATEGORY: Record<EmailTemplate, EmailCategory> = {
+  welcome: 'account',
+  run_summary: 'runs',
+  territory_daily: 'territory',
+  club_invite: 'clubs',
+  club_approved: 'clubs',
+  club_ownership: 'clubs',
+  club_closed: 'clubs',
+  event_registered: 'events',
+  event_reminder: 'events',
+  event_results: 'events',
+  season_results: 'events'
+};
+
+export interface EmailPrefs {
+  runs: boolean;
+  territory: boolean;
+  clubs: boolean;
+  events: boolean;
+}
+
+/** Proposed defaults: one-off and requested emails on; frequent ones (every run, daily land) off. */
+export const DEFAULT_EMAIL_PREFS: EmailPrefs = { runs: false, territory: false, clubs: true, events: true };
+
+export function emailAllowed(prefs: EmailPrefs, template: EmailTemplate): boolean {
+  const category = EMAIL_CATEGORY[template];
+  return category === 'account' ? true : prefs[category];
+}
 
 export function categoryEnabled(prefs: NotificationPrefs, category: NotificationCategory, kind?: string): boolean {
   switch (category) {
@@ -83,10 +156,42 @@ export function safePushPreview(kind: string, actorName: string | null): { title
       return { title: 'Mention', body: `${who} mentioned you` };
     case 'reaction':
       return { title: 'Cheer', body: `${who} cheered your post` };
+    case 'new_follower':
+      return { title: 'New follower', body: `${who} started following you` };
+    case 'friend_run':
+      return { title: 'New run', body: `${who} shared a run` };
     case 'club_invite':
-      return { title: 'Club invitation', body: 'You have a new club invitation' };
+      return { title: 'Invitation', body: 'You were invited to a community or group' };
     case 'club_request_approved':
-      return { title: 'Club', body: 'Your request to join was approved' };
+      return { title: 'Request approved', body: 'You are in. Your request to join was approved' };
+    case 'club_join_request':
+      return { title: 'Join request', body: 'Someone asked to join a community you manage' };
+    case 'club_member_joined':
+      return { title: 'New member', body: `${who} joined a community you manage` };
+    case 'club_announcement':
+      return { title: 'Announcement', body: 'A community you belong to posted an announcement' };
+    case 'club_ownership_offer':
+      return { title: 'Ownership offer', body: 'You were asked to take over a community or group' };
+    case 'club_ownership_received':
+      return { title: 'You are the owner now', body: 'You took over a community or group' };
+    case 'club_ownership_accepted':
+      return { title: 'Ownership accepted', body: 'The member you chose is now the owner' };
+    case 'club_ownership_declined':
+      return { title: 'Ownership declined', body: 'The member you chose said no. You are still the owner' };
+    case 'club_deleted':
+      return { title: 'Closed', body: 'A community or group you belonged to was deleted' };
+    case 'territory_captured':
+      return { title: 'Your land is on the map', body: 'Your run is scored. Open to see the land you captured.' };
+    case 'territory_lost':
+      return { title: 'Land changed hands', body: 'Another runner took some of your cells.' };
+    case 'territory_contested':
+      return { title: 'Your land is contested', body: 'Several runners have taken cells from your land this week.' };
+    case 'season_finished':
+      return { title: 'Season results', body: 'A season race you took part in has ended. See where you placed.' };
+    case 'route_decided':
+      return { title: 'Route review', body: 'A decision on your route proposal is ready.' };
+    case 'moderation_decision':
+      return { title: 'Moderation decision', body: 'A decision about your content is ready.' };
     case 'territory_digest':
       return { title: 'Daily territory update', body: 'Your land changed today. Open to see the details.' };
     case 'title_digest':

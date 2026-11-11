@@ -44,6 +44,20 @@ enabled = true
 uri = "http://host.docker.internal:54321/functions/v1/auth-email-hook"
 secrets = "env(SEND_EMAIL_HOOK_SECRET)"
 
+# Account security notices, delivered through the same hook (also switch these on in the hosted dashboard).
+[auth.email.notification.password_changed]
+enabled = true
+[auth.email.notification.email_changed]
+enabled = true
+[auth.email.notification.identity_linked]
+enabled = true
+[auth.email.notification.identity_unlinked]
+enabled = true
+[auth.email.notification.mfa_factor_enrolled]
+enabled = true
+[auth.email.notification.mfa_factor_unenrolled]
+enabled = true
+
 [storage]
 enabled = true
 file_size_limit = "10MiB"
@@ -78,5 +92,8 @@ import_map = "./functions/deno.json"
 verify_jwt = false
 import_map = "./functions/deno.json"
 [functions.jobs]
+verify_jwt = false
+import_map = "./functions/deno.json"
+[functions.email]
 verify_jwt = false
 import_map = "./functions/deno.json"

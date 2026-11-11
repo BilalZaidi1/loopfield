@@ -87,6 +87,8 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
             <Stack.Screen name="auth/callback" />
             {/* Public activity pages open from share links and QR codes, signed in or not. */}
             <Stack.Screen name="a/[token]" />
+            {/* Email "stop these emails" links, signed in or not. */}
+            <Stack.Screen name="unsubscribe" />
             <Stack.Screen name="auth/reset-password" />
           </Stack>
         </>

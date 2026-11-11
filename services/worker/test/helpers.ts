@@ -1,4 +1,5 @@
 import postgres from 'postgres';
+import { EmailSendError } from '../../../supabase/functions/_shared/email.ts';
 import { MemoryBlobStore } from '../../../supabase/functions/_shared/blobs.ts';
 import type { Sql } from '../../../supabase/functions/_shared/clients.ts';
 import { readEnv } from '../../../supabase/functions/_shared/env.ts';
@@ -45,7 +46,7 @@ export function testEnv() {
 export interface FakeIntegrations extends Integrations {
   calls: {
     push: unknown[];
-    email: Array<{ to: string; subject: string; text: string; tag: string }>;
+    email: Array<{ to: string; subject: string; text: string; html: string; tag: string; headers?: Record<string, string> }>;
     frozen: Array<[string, boolean]>;
     deletedUsers: string[];
     groups: Map<string, { name: string; members: string[] }>;
@@ -62,8 +63,11 @@ export function fakeIntegrations(sql: Sql): FakeIntegrations {
       return messages.map((m) => ({ token: m.to, ok: !m.to.includes('invalid'), invalidToken: m.to.includes('invalid') }));
     },
     async sendEmail(msg) {
-      calls.email.push({ to: msg.to, subject: msg.subject, text: msg.text, tag: msg.tag });
-      return { id: `email_${calls.email.length}` };
+      // Addresses containing "reject" or "flaky" stand in for Resend refusing (422) or being unavailable (503).
+      if (msg.to.includes('reject')) throw new EmailSendError(422, false);
+      if (msg.to.includes('flaky')) throw new EmailSendError(503, true);
+      calls.email.push({ to: msg.to, subject: msg.subject, text: msg.text, html: msg.html, tag: msg.tag, headers: msg.headers });
+      return { id: `email_${calls.email.length}_${crypto.randomUUID().slice(0, 8)}` };
     },
     chat: {
       async setFrozen(channelId, frozen) {

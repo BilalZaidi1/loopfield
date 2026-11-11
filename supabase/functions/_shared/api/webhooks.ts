@@ -6,7 +6,7 @@ import {
   type RcEvent
 } from '../core/index.ts';
 import type { Sql } from '../clients.ts';
-import { authEmail, sha256Hex, type AuthEmailAction, type EmailMessage } from '../email.ts';
+import { AUTH_NOTIFICATION_ACTIONS, authEmail, isAuthEmailAction, sha256Hex, type AuthEmailAction, type EmailMessage } from '../email.ts';
 import { requireKeys, type ServerEnv } from '../env.ts';
 import { HttpError } from '../http.ts';
 import { applyEvent } from '../jobs/billing.ts';
@@ -72,7 +72,11 @@ export async function handleResendWebhook(sql: Sql, env: ServerEnv, raw: string,
 
 interface AuthHookPayload {
   user: { id: string; email: string; new_email?: string };
-  email_data: { token: string; token_hash: string; redirect_to: string; email_action_type: string; site_url: string; token_new?: string; token_hash_new?: string };
+  email_data: {
+    token: string; token_hash: string; redirect_to: string; email_action_type: string; site_url: string; token_new?: string; token_hash_new?: string;
+    /** Security notifications (password, email, phone, sign-in method and verification method changes). */
+    old_email?: string; old_phone?: string; provider?: string; factor_type?: string;
+  };
 }
 
 /**
@@ -84,7 +88,20 @@ export async function handleAuthEmailHook(env: ServerEnv, raw: string, headers: 
   const ok = await verifyStandardWebhook(raw, { id: headers.get('webhook-id'), timestamp: headers.get('webhook-timestamp'), signature: headers.get('webhook-signature') }, cfg.SEND_EMAIL_HOOK_SECRET);
   if (!ok) throw new HttpError(401, 'invalid_signature');
   const { user, email_data: d } = JSON.parse(raw) as AuthHookPayload;
-  const action = d.email_action_type as AuthEmailAction;
+  if (!isAuthEmailAction(d.email_action_type)) {
+    // Never block an auth operation on an email type this version does not know; log it for follow-up.
+    console.warn(`auth email hook: unhandled action ${scrubText(d.email_action_type)}`);
+    return;
+  }
+  const action: AuthEmailAction = d.email_action_type;
+  if (AUTH_NOTIFICATION_ACTIONS.includes(action)) {
+    // Security notices go to the address that could be losing control: the old one after an email change.
+    const to = action === 'email_changed_notification' && d.old_email ? d.old_email : user.email;
+    const content = authEmail(env.APP_NAME, action, { url: null, token: '', oldEmail: d.old_email, newEmail: user.email, provider: d.provider, factorType: d.factor_type });
+    const key = headers.get('webhook-id') ?? `${user.id}:${action}:${Math.floor(Date.now() / 60_000)}`;
+    await send({ to, ...content, tag: `auth_${action}`, idempotencyKey: `auth-${await sha256Hex(key + action)}` });
+    return;
+  }
   const verifyUrl = (hash: string, type: string) =>
     `${env.SUPABASE_URL}/auth/v1/verify?token=${encodeURIComponent(hash)}&type=${encodeURIComponent(type)}&redirect_to=${encodeURIComponent(d.redirect_to || d.site_url)}`;
   const messages: Array<{ to: string; action: AuthEmailAction; url: string | null; token: string; key: string }> = [];

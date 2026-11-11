@@ -74,6 +74,9 @@ export function routeForNotification(n: { kind: string; object_type: string | nu
   if (n.kind === 'follow_request') return '/connections';
   if (n.kind === 'club_join_request') return { pathname: '/club/[id]/organizer', params: { id } };
   if (n.kind === 'territory_digest') return '/map';
+  if (n.kind === 'season_finished') return '/seasons';
+  if (n.kind === 'club_deleted') return '/clubs';
+  if (n.kind === 'club_member_joined') return { pathname: '/club/[id]/members', params: { id } };
   if (n.kind === 'title_digest') return '/routes';
   if (n.kind === 'badge_earned') return '/achievements';
   if (n.kind === 'points_refunded') return '/points';
@@ -98,6 +101,8 @@ export function routeForNotification(n: { kind: string; object_type: string | nu
       return '/proposals';
     case 'course':
       return { pathname: '/routes/[id]', params: { id } };
+    case 'cell':
+      return { pathname: '/territory/[cell]', params: { cell: id } };
     case 'competition':
       return { pathname: '/events/[id]', params: { id } };
   }
