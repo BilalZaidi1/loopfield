@@ -12,7 +12,8 @@ Working file kept current so work survives context limits. Newest first.
 * Stage 5 (notifications and email): land items after publication (own captures pushed; losses in-app only), contested land, friends' runs, members, announcements, season results; centre tabs; push policy; branded email with an outbox, preferences, suppressions, failure handling, one-click unsubscribe and security notices. Fixed the email invitation link (it did not match the app route).
 * Stage 6 (avatars): cartoon avatar builder and photo choice; runners' pictures on their land with grouping and a runner card; a stacked-buttons pass.
 * Deployed: backend through the Deploy backend workflow (`deploy/dev` at `d0b4018`, run 43041994519): migrations `20261111000100`–`…000300` applied, 11 functions deployed (new: `email`), every post-deploy check passed. Review fixes followed as migrations `…000400` (friends told only once a shared post is visible; layers counted once) and `…000500` (internal function grants), deployed the same way.
-* Started: Android pilot build `de44b4c3…` (new native modules, so a new runtime), web deploy and Expo Go preview (see `VERIFICATION.md`, Hosted resources).
+* Published: Android pilot APK `de44b4c3…` (version code 3; new runtime `219bb6f…` because of the new native modules), web deployment `ssf9lick8v` and Expo Go preview `88549c4c…` from `e676b38`; a pilot update from `5a476fc` queued at Expo (see `VERIFICATION.md`, Hosted resources). Final `npm run verify` on `5a476fc`: all 15 steps passed.
+* Completion report for the owner: the Claude doc "Loopfield enhancement release: completion report" (audit, what was built, heart rate, bugs, database changes, evidence, limitations and manual steps).
 
 ## 11 Nov 2026: movement points, reclaiming, challenges and global ranking
 
