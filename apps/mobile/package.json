@@ -57,6 +57,7 @@
     "expo-updates": "~58.0.21",
     "expo-web-browser": "~58.0.7",
     "h3-js": "4.5.0",
+    "html2canvas-pro": "2.6.4",
     "posthog-react-native": "4.85.3",
     "qrcode-generator": "^1.4.4",
     "react": "19.3.0",

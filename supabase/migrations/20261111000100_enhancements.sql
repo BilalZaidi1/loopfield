@@ -2,6 +2,7 @@
 --   1. Movement integrity: suspicious runs are marked, kept on the review trail, and thresholds are tunable.
 --   2. The all-time map, season races and events: permanent ownership, separate season standings,
 --      isolated event standings (derived claims), operator season dates.
+--   3. Routes and territory on run cards, share cards and public activity pages.
 
 -- ---------------------------------------------------------------------------------------------
 -- 1. Movement integrity
@@ -1108,6 +1109,337 @@ begin
   end loop;
 end $$;
 
+
+-- ---------------------------------------------------------------------------------------------
+-- 3. Routes and territory on run cards, share cards and public activity pages
+-- ---------------------------------------------------------------------------------------------
+-- A shared run can show its route: computed on the server from the run's own record, with the first
+-- and last 200 m removed and nothing inside the runner's private areas, simplified, and published with
+-- the post (never before the 30-minute delay). Land on a card is the run's published result on the
+-- all-time map (or its club race), and disappears if that result is later ruled invalid.
+alter table public.posts add column if not exists shared_route jsonb;
+alter table public.posts add column if not exists shared_land jsonb;
+
+insert into public.app_config (key, value, description, is_public) values
+  ('share_route_trim_m', '200'::jsonb, 'Metres hidden at the start and the end of a shared route.', true)
+on conflict (key) do nothing;
+
+/** The run's route as it may be shown to others (encoded polylines), or null when it is too short to hide its ends. */
+create or replace function internal.share_route(p_activity uuid, p_user uuid) returns jsonb
+language plpgsql stable security definer set search_path = pg_catalog, public, internal, extensions as $$
+declare
+  v_route text;
+  v_line geometry;
+  v_m geometry;
+  v_len double precision;
+  v_trim double precision := greatest(internal.config_int('share_route_trim_m', 200), 100);
+  v_hidden geometry;
+  v_parts jsonb;
+begin
+  select personal_route into v_route from public.activities where id = p_activity and user_id = p_user and deleted_at is null;
+  if v_route is null or length(v_route) < 4 then return null; end if;
+  v_line := st_setsrid(st_linefromencodedpolyline(v_route, 5), 4326);
+  if v_line is null or st_npoints(v_line) < 2 then return null; end if;
+  v_len := st_length(v_line::geography);
+  if v_len < v_trim * 3 then return null; end if;
+  -- Cut by length in a local metric projection (fractions there match ground distance), then simplify.
+  v_m := st_linesubstring(st_transform(v_line, 3857), v_trim / v_len, 1 - v_trim / v_len);
+  v_line := st_transform(st_simplifypreservetopology(v_m, 6), 4326);
+  select st_union(st_buffer(coalesce(pa.geom, st_buffer(pa.center, pa.radius_m)), 50)::geometry) into v_hidden from public.protected_areas pa where pa.user_id = p_user;
+  if v_hidden is not null then v_line := st_difference(v_line, v_hidden); end if;
+  select jsonb_agg(st_asencodedpolyline(d.geom, 5) order by d.path)
+    into v_parts
+    from st_dump(v_line) d
+   where st_geometrytype(d.geom) = 'ST_LineString' and st_length(d.geom::geography) >= 50;
+  return v_parts;
+end $$;
+
+/** The run's published land on the all-time map (or its club race): cells, what changed hands, from how many runners. */
+create or replace function internal.share_land(p_activity uuid) returns jsonb
+language sql stable security definer set search_path = pg_catalog, public, internal as $$
+  with prim as (select id from public.loop_claims where activity_id = p_activity),
+  layer as (
+    select lc.id, lc.user_id, lc.eligible_area_m2, lc.eligible_cell_count, lc.publish_after, c.kind
+      from public.loop_claims lc join public.competitions c on c.id = lc.competition_id
+     where (lc.id = (select id from prim) or lc.parent_claim_id = (select id from prim)) and lc.status = 'eligible'
+     order by case c.kind when 'permanent' then 0 when 'club' then 1 else 2 end
+     limit 1
+  ), ev as (
+    select e.id, e.summary from internal.territory_events e join layer on e.claim_id = layer.id and e.kind = 'capture'
+  ), taken as (
+    select ec.cell, ec.prior_controller from internal.territory_event_cells ec join ev on ec.event_id = ev.id
+     where ec.prior_controller is not null and ec.prior_controller is distinct from ec.new_controller
+  )
+  select case when not exists (select 1 from layer) then null else jsonb_build_object(
+    'claim_id', (select id from layer),
+    'layer', (select kind from layer),
+    'area_m2', round((select eligible_area_m2 from layer)::numeric, -1),
+    'cell_count', (select eligible_cell_count from layer),
+    'cells', coalesce((select jsonb_agg(x.cell::text order by x.cell) from (select cc.cell from internal.claim_cells cc join layer on cc.claim_id = layer.id order by cc.cell limit 1500) x), '[]'::jsonb),
+    'taken', coalesce((select jsonb_agg(x.cell::text order by x.cell) from (select distinct cell from taken order by cell limit 1500) x), '[]'::jsonb),
+    'gained_cells', coalesce(((select summary from ev) ->> 'gained_cells')::integer, 0),
+    'kept_cells', coalesce(((select summary from ev) ->> 'refreshed_cells')::integer, 0),
+    'taken_cells', (select count(distinct cell) from taken),
+    'rivals', (select count(distinct prior_controller) from taken),
+    'publish_after', (select publish_after from layer)) end;
+$$;
+
+/**
+ * Everything a share may carry, from the server's own records and only the fields the runner chose:
+ * the summary (distance, duration, pace, date, achievements), the privacy-trimmed route and the land.
+ * `publish_after` is the earliest moment it may be shown (results publish 30 minutes after a run).
+ */
+create or replace function internal.share_payload(p_act public.activities, p_fields text[]) returns jsonb
+language plpgsql stable security definer set search_path = pg_catalog, public, internal as $$
+declare
+  v_summary jsonb;
+  v_publish timestamptz := now();
+  v_claim public.loop_claims;
+  v_attempt public.speed_attempts;
+  v_route jsonb;
+  v_land jsonb;
+begin
+  v_summary := jsonb_strip_nulls(jsonb_build_object(
+    'distance_m', case when 'distance' = any (p_fields) then round(p_act.distance_m::numeric) end,
+    'elapsed_ms', case when 'duration' = any (p_fields) then p_act.elapsed_ms end,
+    'moving_ms', case when 'duration' = any (p_fields) then p_act.moving_ms end,
+    'avg_pace_s_per_km', case when 'pace' = any (p_fields) then p_act.avg_pace_s_per_km end,
+    'elevation_gain_m', case when 'distance' = any (p_fields) and p_act.elevation_gain_m is not null then round(p_act.elevation_gain_m::numeric) end,
+    'activity_date', case when 'date' = any (p_fields) then to_char(p_act.started_at at time zone 'UTC', 'YYYY-MM-DD') end));
+  if 'land' = any (p_fields) then
+    select * into v_claim from public.loop_claims where activity_id = p_act.id and status = 'eligible';
+    if found then
+      v_summary := v_summary || jsonb_build_object('achievement', 'land_claimed', 'area_m2', round(v_claim.eligible_area_m2::numeric, -2));
+      v_publish := greatest(v_publish, v_claim.publish_after);
+      v_land := internal.share_land(p_act.id);
+      if v_land is not null then v_publish := greatest(v_publish, (v_land ->> 'publish_after')::timestamptz); end if;
+    end if;
+  end if;
+  if 'title' = any (p_fields) then
+    select sa.* into v_attempt from public.speed_attempts sa
+      join internal.speed_titles t on t.benchmark_attempt_id = sa.id
+     where sa.activity_id = p_act.id and sa.status = 'eligible' limit 1;
+    if found then
+      v_summary := v_summary || jsonb_build_object('achievement_title', 'route_title');
+      v_publish := greatest(v_publish, v_attempt.publish_after);
+    end if;
+  end if;
+  if 'route' = any (p_fields) then
+    v_route := internal.share_route(p_act.id, p_act.user_id);
+    -- A route reveals where the run went: never sooner than the run's results would publish.
+    if v_route is not null then v_publish := greatest(v_publish, coalesce(p_act.ended_at, now()) + interval '30 minutes'); end if;
+  end if;
+  if v_summary = '{}'::jsonb then v_summary := null; end if;
+  -- Absent parts are left out (SQL null when read back), never stored as JSON null.
+  return jsonb_strip_nulls(jsonb_build_object('summary', v_summary, 'route', v_route, 'land', v_land, 'publish_after', v_publish));
+end $$;
+
+create or replace function public.create_post(
+  p_audience text, p_body text default null, p_club uuid default null, p_activity uuid default null,
+  p_share_fields text[] default '{}', p_route_course uuid default null, p_comments_enabled boolean default true,
+  p_media_count integer default 0, p_is_announcement boolean default false)
+returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, internal, authz as $$
+declare
+  v_user uuid := internal.require_user();
+  v_post uuid := gen_random_uuid();
+  v_summary jsonb;
+  v_act public.activities;
+  v_publish_after timestamptz := now();
+  v_payload jsonb;
+  v_slots jsonb := '[]'::jsonb;
+  v_handle text;
+  i integer;
+begin
+  perform internal.enforce_rate_limit(v_user::text, 'post', 10, 3600);
+  if p_audience not in ('only_me', 'followers', 'public', 'club') then raise exception 'invalid audience'; end if;
+  if coalesce(btrim(p_body), '') = '' and p_activity is null and p_media_count = 0 and p_route_course is null then raise exception 'empty post'; end if;
+  if p_media_count < 0 or p_media_count > 5 then raise exception 'at most five photos'; end if;
+  if p_media_count > 0 and not internal.config_bool('photo_uploads_enabled') then raise exception 'photo uploads are temporarily unavailable' using errcode = 'P0503'; end if;
+  if p_audience = 'club' then
+    if p_club is null or not authz.is_active_member(p_club, v_user) then raise exception 'not a member' using errcode = '42501'; end if;
+    if exists (select 1 from public.clubs where id = p_club and posting_policy = 'organizers') and not authz.is_organizer(p_club, v_user) then
+      raise exception 'only organizers can post here' using errcode = '42501';
+    end if;
+  elsif p_club is not null then raise exception 'club given for a non-club audience';
+  end if;
+  if p_is_announcement and (p_audience <> 'club' or not authz.is_organizer(p_club, v_user)) then raise exception 'only organizers can announce' using errcode = '42501'; end if;
+
+  -- Shared activity fields are copied from the server's own record, never from the client: the route is
+  -- trimmed at both ends and outside the runner's private areas, and land comes from the published result.
+  if p_activity is not null then
+    select * into v_act from public.activities where id = p_activity and user_id = v_user and deleted_at is null;
+    if not found then raise exception 'activity not found'; end if;
+    v_payload := internal.share_payload(v_act, p_share_fields);
+    v_summary := v_payload -> 'summary';
+    v_publish_after := greatest(v_publish_after, (v_payload ->> 'publish_after')::timestamptz);
+  end if;
+  if p_route_course is not null and not exists (select 1 from public.courses where id = p_route_course and status = 'active') then
+    raise exception 'route unavailable';
+  end if;
+
+  insert into public.posts (id, author_id, audience, club_id, body, activity_id, shared_summary, shared_route, shared_land, route_course_id, comments_enabled, is_announcement, status, publish_after, published_at)
+  values (v_post, v_user, p_audience, p_club, nullif(btrim(p_body), ''), p_activity, v_summary, v_payload -> 'route', v_payload -> 'land', p_route_course, p_comments_enabled, p_is_announcement,
+          case when p_media_count > 0 then 'processing' else 'published' end, v_publish_after,
+          case when p_media_count > 0 then null else now() end);
+
+  for i in 0 .. p_media_count - 1 loop
+    insert into public.post_media (post_id, owner_id, position, upload_path) values (v_post, v_user, i, v_user || '/' || v_post || '/' || i || '.jpg');
+    v_slots := v_slots || jsonb_build_object('position', i, 'bucket', 'media-uploads', 'path', v_user || '/' || v_post || '/' || i || '.jpg');
+  end loop;
+
+  -- Mentions never grant access; only users who can already see the post are notified.
+  for v_handle in select unnest(regexp_matches(coalesce(p_body, ''), '@([A-Za-z0-9_]{3,24})', 'g')) limit 10 loop
+    insert into public.mentions (post_id, mentioned_user_id, author_id)
+    select v_post, pr.id, v_user from public.profiles pr where pr.handle = v_handle and pr.status = 'active' and pr.id <> v_user;
+  end loop;
+  if p_media_count = 0 then perform internal.notify_post_mentions(v_post); end if;
+  return jsonb_build_object('post_id', v_post, 'upload_slots', v_slots, 'status', case when p_media_count > 0 then 'processing' else 'published' end);
+end $$;
+
+
+-- Posts carry the shared route and land; land disappears if the result behind it is ruled invalid.
+create or replace function internal.post_row_json(p public.posts, p_viewer uuid) returns jsonb
+language sql stable security definer set search_path = pg_catalog, public, authz as $$
+  select jsonb_build_object(
+    'id', p.id, 'audience', p.audience, 'body', p.body, 'status', p.status,
+    'author', jsonb_build_object('id', a.id, 'handle', a.handle, 'display_name', a.display_name, 'avatar_path', a.avatar_path),
+    'club', case when p.club_id is null then null else (select jsonb_build_object('id', c.id, 'name', c.name, 'kind', c.kind) from public.clubs c where c.id = p.club_id) end,
+    'shared_summary', p.shared_summary,
+    'shared_route', p.shared_route,
+    'shared_land', case when p.shared_land is not null
+                         and exists (select 1 from public.loop_claims lc where lc.id = (p.shared_land ->> 'claim_id')::uuid and lc.status = 'eligible')
+                        then p.shared_land - 'publish_after' end,
+    'route', case when p.route_course_id is null then null else (select jsonb_build_object('id', c.id, 'name', c.name) from public.courses c where c.id = p.route_course_id and c.status = 'active') end,
+    'comments_enabled', p.comments_enabled, 'is_announcement', p.is_announcement,
+    'published_at', coalesce(p.published_at, p.created_at), 'edited_at', p.edited_at,
+    'reaction_count', (select count(*) from public.reactions r where r.post_id = p.id and not authz.is_blocked(r.user_id, p_viewer)),
+    'i_reacted', exists (select 1 from public.reactions r where r.post_id = p.id and r.user_id = p_viewer),
+    'comment_count', (select count(*) from public.comments cm where cm.post_id = p.id and cm.status = 'visible' and not authz.is_blocked(cm.author_id, p_viewer)),
+    'media', coalesce((select jsonb_agg(jsonb_build_object('id', m.id, 'path', m.derivative_path, 'alt', m.alt_text, 'width', m.width, 'height', m.height, 'status', m.status) order by m.position)
+                         from public.post_media m where m.post_id = p.id and (m.status = 'ready' or p.author_id = p_viewer)), '[]'::jsonb),
+    'is_mine', p.author_id = p_viewer
+  )
+  from public.profiles a where a.id = p.author_id;
+$$;
+
+-- Deleting the run withdraws its route and land from posts at once (with the summary, as before).
+create or replace function internal.clear_post_share() returns trigger
+language plpgsql security definer set search_path = pg_catalog, public as $$
+begin
+  if new.activity_id is null and old.activity_id is not null then
+    new.shared_route := null;
+    new.shared_land := null;
+  end if;
+  return new;
+end $$;
+drop trigger if exists posts_clear_share on public.posts;
+create trigger posts_clear_share before update of activity_id on public.posts for each row execute function internal.clear_post_share();
+
+-- Public activity pages: a link (and QR code) the runner creates for one run, showing only what they
+-- chose. Anyone with the link can open it until the runner revokes it; nothing is listed or searchable.
+create table if not exists public.activity_links (
+  token text primary key,
+  activity_id uuid not null references public.activities (id) on delete cascade,
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  share_fields text[] not null,
+  shared_summary jsonb,
+  shared_route jsonb,
+  shared_land jsonb,
+  publish_after timestamptz not null default now(),
+  views integer not null default 0,
+  created_at timestamptz not null default now(),
+  revoked_at timestamptz
+);
+create index if not exists activity_links_activity_idx on public.activity_links (activity_id) where revoked_at is null;
+create index if not exists activity_links_user_idx on public.activity_links (user_id, created_at desc);
+alter table public.activity_links enable row level security;
+-- No direct table access: the RPCs below are the only way in.
+
+/** What a share of one of my runs would show (the server-trimmed route, land, summary), without publishing anything. */
+create or replace function public.share_preview(p_activity uuid, p_share_fields text[]) returns jsonb
+language plpgsql stable security definer set search_path = pg_catalog, public, internal as $$
+declare
+  v_act public.activities;
+begin
+  select * into v_act from public.activities where id = p_activity and user_id = auth.uid() and deleted_at is null;
+  if not found then return null; end if;
+  return internal.share_payload(v_act, coalesce(p_share_fields, '{}'));
+end $$;
+
+/** Creates (or replaces) the public link for one of my runs, with exactly the chosen fields. */
+create or replace function public.create_activity_link(p_activity uuid, p_share_fields text[]) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, internal as $$
+declare
+  v_user uuid := internal.require_user();
+  v_act public.activities;
+  v_payload jsonb;
+  v_token text;
+begin
+  perform internal.enforce_rate_limit(v_user::text, 'activity_link', 20, 86400);
+  if coalesce((select full_private_mode from public.user_settings where user_id = v_user), false) then
+    raise exception 'full_private_mode' using errcode = '42501';
+  end if;
+  select * into v_act from public.activities where id = p_activity and user_id = v_user and deleted_at is null;
+  if not found then raise exception 'activity not found'; end if;
+  if p_share_fields is null or cardinality(p_share_fields) = 0 then raise exception 'nothing_to_share' using errcode = '22023'; end if;
+  v_payload := internal.share_payload(v_act, p_share_fields);
+  update public.activity_links set revoked_at = now() where activity_id = p_activity and revoked_at is null;
+  v_token := rtrim(translate(encode(decode(replace(gen_random_uuid()::text, '-', ''), 'hex'), 'base64'), '+/', '-_'), '=');
+  insert into public.activity_links (token, activity_id, user_id, share_fields, shared_summary, shared_route, shared_land, publish_after)
+  values (v_token, p_activity, v_user, p_share_fields, v_payload -> 'summary', v_payload -> 'route', v_payload -> 'land',
+          coalesce((v_payload ->> 'publish_after')::timestamptz, now()));
+  return jsonb_build_object('token', v_token, 'publish_after', (v_payload ->> 'publish_after')::timestamptz);
+end $$;
+
+create or replace function public.revoke_activity_link(p_token text) returns void
+language plpgsql security definer set search_path = pg_catalog, public, internal as $$
+declare
+  v_user uuid := internal.require_user();
+begin
+  update public.activity_links set revoked_at = now() where token = p_token and user_id = v_user and revoked_at is null;
+end $$;
+
+/** My current link for a run (to show, copy or revoke it). */
+create or replace function public.my_activity_link(p_activity uuid) returns jsonb
+language sql stable security definer set search_path = pg_catalog, public as $$
+  select jsonb_build_object('token', l.token, 'share_fields', to_jsonb(l.share_fields), 'publish_after', l.publish_after, 'views', l.views, 'created_at', l.created_at)
+    from public.activity_links l
+   where l.activity_id = p_activity and l.user_id = auth.uid() and l.revoked_at is null
+   order by l.created_at desc limit 1;
+$$;
+
+/**
+ * A public activity page (signed in or not). Shows only the fields the runner chose, never before the
+ * results publish, and nothing at all once the link is revoked, the run is deleted, the runner turns on
+ * full private mode or is no longer active, or the viewer and the runner have blocked each other.
+ */
+create or replace function public.public_activity(p_token text) returns jsonb
+language plpgsql security definer set search_path = pg_catalog, public, authz as $$
+declare
+  l public.activity_links;
+  v_out jsonb;
+begin
+  if p_token is null or length(p_token) not between 16 and 64 then return null; end if;
+  select * into l from public.activity_links where token = p_token and revoked_at is null;
+  if not found or l.publish_after > now() then return null; end if;
+  if exists (select 1 from public.activities a where a.id = l.activity_id and a.deleted_at is not null) then return null; end if;
+  if coalesce((select full_private_mode from public.user_settings where user_id = l.user_id), false) then return null; end if;
+  if auth.uid() is not null and authz.is_blocked(l.user_id, auth.uid()) then return null; end if;
+  select jsonb_build_object(
+           'runner', jsonb_build_object('handle', p.handle, 'display_name', p.display_name, 'is_me', p.id = auth.uid()),
+           'summary', l.shared_summary,
+           'route', l.shared_route,
+           'land', case when l.shared_land is not null
+                         and exists (select 1 from public.loop_claims lc where lc.id = (l.shared_land ->> 'claim_id')::uuid and lc.status = 'eligible')
+                        then l.shared_land - 'publish_after' - 'claim_id' end,
+           'shared_at', l.created_at)
+    into v_out
+    from public.profiles p where p.id = l.user_id and p.status = 'active';
+  if v_out is not null then update public.activity_links set views = views + 1 where token = p_token; end if;
+  return v_out;
+end $$;
+
 -- ---------------------------------------------------------------------------------------------
 -- Grants for the RPCs added in this release (everything else stays closed)
 -- ---------------------------------------------------------------------------------------------
@@ -1116,7 +1448,8 @@ do $$
 declare
   f text;
   rpc text[] := array['list_events', 'join_event', 'leave_event', 'event_standings', 'create_club_event', 'cancel_event',
-                      'ops_create_event', 'ops_set_season_dates', 'ops_schedule_season', 'ops_set_season_length'];
+                      'ops_create_event', 'ops_set_season_dates', 'ops_schedule_season', 'ops_set_season_length',
+                      'create_activity_link', 'revoke_activity_link', 'my_activity_link', 'public_activity', 'share_preview'];
 begin
   for f in
     select format('%I.%I(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
@@ -1128,3 +1461,5 @@ begin
   end loop;
 end $$;
 grant execute on all functions in schema public to service_role;
+-- Public activity pages open without signing in (read-only, by unguessable link).
+grant execute on function public.public_activity(text) to anon;

@@ -242,6 +242,40 @@ export function simplify(points: readonly LatLng[], toleranceM: number): LatLng[
 }
 
 /** Google encoded polyline (precision 5 by default). */
+/**
+ * The part of a path after its first `startM` metres and before its last `endM` metres, cut exactly at
+ * those distances (used to preview a shared route, whose ends are hidden). Empty when the path is too short.
+ */
+export function trimPathEnds(points: readonly LatLng[], startM: number, endM = startM): LatLng[] {
+  const total = pathLengthMeters(points);
+  if (points.length < 2 || total <= startM + endM) return [];
+  const from = startM;
+  const to = total - endM;
+  const out: LatLng[] = [];
+  let walked = 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!;
+    const b = points[i]!;
+    const seg = haversineMeters(a, b);
+    const s0 = walked;
+    const s1 = walked + seg;
+    const at = (d: number): LatLng => {
+      const t = seg > 0 ? (d - s0) / seg : 0;
+      return { lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t };
+    };
+    if (s1 >= from && s0 <= to) {
+      if (!out.length) out.push(s0 >= from ? a : at(from));
+      if (s1 <= to) out.push(b);
+      else {
+        out.push(at(to));
+        break;
+      }
+    }
+    walked = s1;
+  }
+  return out;
+}
+
 export function encodePolyline(points: readonly LatLng[], precision = 5): string {
   const factor = 10 ** precision;
   let lastLat = 0;

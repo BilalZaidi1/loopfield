@@ -6,7 +6,7 @@ import { decodePolyline, heartRateSummary } from '@loopfield/core';
 import { friendlyError, rpc } from '@/lib/api';
 import { fmtDate, fmtDistance, fmtDuration, fmtPace, splitValue } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
-import { Banner, BigNumber, Button, Card, Chip, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, StatLine, TextField, Txt } from '@/components/ui';
+import { ActionBar, Banner, BigNumber, Button, Card, Chip, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, StatLine, TextField, Txt } from '@/components/ui';
 import { RunPointsCard } from '@/features/movement/Reclaim';
 import { Icon } from '@/components/icons';
 import { DataTable } from '@/components/charts';
@@ -106,12 +106,20 @@ export default function ActivityDetailScreen() {
         </Section>
       ) : null}
       <NotesForm key={a.id} activity={a} onSaved={() => void qc.invalidateQueries({ queryKey: ['activities'] })} />
-      <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
-        <Button label="Share run" variant="ink" size="lg" arrow icon="share" onPress={() => router.push({ pathname: '/share/[id]', params: { id: a.id } })} />
-        <Button label="Propose as a speed route" icon="route" variant="secondary" onPress={() => router.push({ pathname: '/propose-route/[activityId]', params: { activityId: a.id } })} />
-        {canExportRuns() ? <Button variant="ghost" icon="pulse" label={`Save workout to ${PLATFORM_LABEL}`} onPress={() => void exportRun({ activityId: a.id, start: Date.parse(a.started_at), end: Date.parse(a.ended_at), distanceM: a.distance_m ?? 0 }).then(() => Alert.alert('Saved', `Saved to ${PLATFORM_LABEL}.`)).catch((e) => Alert.alert('Not saved', friendlyError(e)))} /> : null}
-        <Button label="Delete activity" icon="trash" variant="danger" onPress={remove} />
-      </View>
+      {/* One row of equal actions instead of a stack of large buttons; deleting stays a quiet, separate step. */}
+      <Card>
+        <ActionBar
+          actions={[
+            { icon: 'share', label: 'Share', primary: true, accessibilityLabel: 'Share this run as an image', onPress: () => router.push({ pathname: '/share/card/[id]', params: { id: a.id } }) },
+            { icon: 'send', label: 'Post', accessibilityLabel: 'Post this run in your feed', onPress: () => router.push({ pathname: '/share/[id]', params: { id: a.id } }) },
+            { icon: 'route', label: 'Propose', accessibilityLabel: 'Propose this run as a speed route', onPress: () => router.push({ pathname: '/propose-route/[activityId]', params: { activityId: a.id } }) },
+            ...(canExportRuns()
+              ? [{ icon: 'pulse' as const, label: 'Save', accessibilityLabel: `Save workout to ${PLATFORM_LABEL}`, onPress: () => void exportRun({ activityId: a.id, start: Date.parse(a.started_at), end: Date.parse(a.ended_at), distanceM: a.distance_m ?? 0 }).then(() => Alert.alert('Saved', `Saved to ${PLATFORM_LABEL}.`)).catch((e) => Alert.alert('Not saved', friendlyError(e))) }]
+              : [])
+          ]}
+        />
+      </Card>
+      <Button label="Delete activity" icon="trash" variant="ghost" onPress={remove} />
       <Txt variant="caption" style={{ color: p.textMuted, marginTop: spacing.md }}>Rules: territory {detail.data.claim?.rule_version ?? '—'} · thresholds are proposed and may change after field validation.</Txt>
     </Screen>
   );

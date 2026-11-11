@@ -1,7 +1,7 @@
 -- 11 Nov enhancement release: movement integrity trail, appeals and reviewer clearing; the all-time map,
 -- season races and events (derived claims, cascades, standings, settlement, season dates).
 begin;
-select plan(52);
+select plan(53);
 
 insert into auth.users (id, email) values
   ('a7100000-0000-4000-8000-000000000001', 'rider@example.test'),
@@ -154,6 +154,11 @@ select is((select count(*)::int from public.my_territory_events(50) where compet
 select is((select jsonb_agg(l ->> 'kind' order by l ->> 'kind') from jsonb_array_elements(public.activity_detail((select activity_id from public.loop_claims where id = (select a from lay))) -> 'layers') l),
           '["event", "permanent", "public"]'::jsonb, 'the run''s detail shows what the loop did in each layer');
 reset role;
+
+-- A shared card's land comes from the all-time map: what changed hands, and from how many runners
+select is((select (l ->> 'layer') || ':' || (l ->> 'taken_cells') || ':' || (l ->> 'rivals') || ':' || jsonb_array_length(l -> 'cells')
+             from internal.share_land((select activity_id from public.loop_claims where id = (select b from lay))) l), 'permanent:10:1:20',
+          'a card shows the run''s map land: 20 cells, 10 taken from 1 runner');
 
 -- A decision on the race claim carries to the run's other layers
 select internal.invalidate_claim((select a from lay), 'invalid', 'staff_invalidated', 'a7300000-0000-4000-8000-000000000003');

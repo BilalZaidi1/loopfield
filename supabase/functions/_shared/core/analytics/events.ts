@@ -67,6 +67,13 @@ export const EVENT_SCHEMA = {
     outcome: oneOf('ok', 'failed', 'blocked_by_policy')
   },
   message_action: { action: oneOf('conversation_started', 'message_sent', 'message_deleted', 'conversation_muted', 'reported'), outcome: oneOf('ok', 'failed', 'not_allowed') },
+  share_card: {
+    action: oneOf('shared', 'saved', 'downloaded', 'link_created', 'link_shared', 'link_revoked'),
+    format: oneOf('9:16', '4:5', '1:1'),
+    with_route: bool,
+    with_land: bool,
+    with_qr: bool
+  },
   event_action: {
     action: oneOf('joined', 'left', 'created', 'cancelled', 'standings_viewed', 'shown_on_map'),
     event_type: oneOf('territory', 'distance'),

@@ -104,7 +104,7 @@ export default function RunSummary() {
         <Card>
           <ActionBar
             actions={[
-              { icon: 'share', label: 'Share', primary: true, accessibilityLabel: 'Share this run', onPress: () => router.push({ pathname: '/share/[id]', params: { id: id! } }) },
+              { icon: 'share', label: 'Share', primary: true, accessibilityLabel: 'Share this run as an image or a post', onPress: () => router.push({ pathname: '/share/card/[id]', params: { id: id! } }) },
               ...(saveable
                 ? [{ icon: 'pulse' as const, label: exported ? 'Saved' : 'Save', disabled: exported, accessibilityLabel: exported ? `Saved to ${PLATFORM_LABEL}` : `Save this workout to ${PLATFORM_LABEL}`, onPress: save }]
                 : []),
@@ -119,6 +119,7 @@ export default function RunSummary() {
           {detail.data?.claim ? (
             <Row icon="flag" title="Request a review of the land result" subtitle="For example after a GPS error" onPress={() => { setMore(false); router.push({ pathname: '/appeals', params: { type: 'loop_claim', id: detail.data!.claim!.id } }); }} />
           ) : null}
+          <Row icon="send" title="Post in your feed" subtitle="Choose what followers see" onPress={() => { setMore(false); router.push({ pathname: '/share/[id]', params: { id: id! } }); }} />
           <Row icon="clock" title="Activity history" onPress={() => { setMore(false); router.replace('/activities'); }} />
           <Row icon="home" title="Back to Home" onPress={() => { setMore(false); router.replace('/home'); }} />
         </ListGroup>

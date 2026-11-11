@@ -54,6 +54,8 @@ export interface MapLayers {
   grid?: GeoJSON.FeatureCollection | null;
   routes?: GeoJSON.FeatureCollection;
   path?: [number, number][];
+  /** A route in several parts (a shared route with private areas left out); used when `path` is not set. */
+  pathParts?: [number, number][][];
   closing?: [number, number][];
   markers?: MapMarker[];
 }
@@ -146,7 +148,10 @@ export function MapCanvas({
     const id = setInterval(() => setGlow((g) => !g), 2400);
     return () => clearInterval(id);
   }, [animate, reduced]);
-  const pathFc = useMemo(() => (layers.path && layers.path.length > 1 ? { type: 'FeatureCollection' as const, features: [lineFeature(layers.path)] } : null), [layers.path]);
+  const pathFc = useMemo(() => {
+    const parts = (layers.path ? [layers.path] : layers.pathParts ?? []).filter((x) => x.length > 1);
+    return parts.length ? { type: 'FeatureCollection' as const, features: parts.map((x) => lineFeature(x)) } : null;
+  }, [layers.path, layers.pathParts]);
   const closingFc = useMemo(() => (layers.closing && layers.closing.length > 1 ? { type: 'FeatureCollection' as const, features: [lineFeature(layers.closing)] } : null), [layers.closing]);
   const markerFc = useMemo<GeoJSON.FeatureCollection | null>(
     () =>
@@ -155,7 +160,7 @@ export function MapCanvas({
         : null,
     [layers.markers]
   );
-  const fitBounds = fit ?? (layers.path?.length ? boundsOf(layers.path) : null);
+  const fitBounds = fit ?? (layers.path?.length ? boundsOf(layers.path) : layers.pathParts?.length ? boundsOf(layers.pathParts.flat()) : null);
   const frame = fill ? { flex: 1 } : { height, borderRadius: radius.lg, overflow: 'hidden' as const };
 
   if (!avail.ok || !Mapbox) {

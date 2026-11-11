@@ -85,6 +85,8 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
               <Stack.Screen name="(app)" />
             </Stack.Protected>
             <Stack.Screen name="auth/callback" />
+            {/* Public activity pages open from share links and QR codes, signed in or not. */}
+            <Stack.Screen name="a/[token]" />
             <Stack.Screen name="auth/reset-password" />
           </Stack>
         </>

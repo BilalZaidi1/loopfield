@@ -155,6 +155,64 @@ export type Database = {
           },
         ]
       }
+      activity_links: {
+        Row: {
+          activity_id: string
+          created_at: string
+          publish_after: string
+          revoked_at: string | null
+          share_fields: string[]
+          shared_land: Json | null
+          shared_route: Json | null
+          shared_summary: Json | null
+          token: string
+          user_id: string
+          views: number
+        }
+        ComputedFields: never
+        Insert: {
+          activity_id: string
+          created_at?: string
+          publish_after?: string
+          revoked_at?: string | null
+          share_fields: string[]
+          shared_land?: Json | null
+          shared_route?: Json | null
+          shared_summary?: Json | null
+          token: string
+          user_id: string
+          views?: number
+        }
+        Update: {
+          activity_id?: string
+          created_at?: string
+          publish_after?: string
+          revoked_at?: string | null
+          share_fields?: string[]
+          shared_land?: Json | null
+          shared_route?: Json | null
+          shared_summary?: Json | null
+          token?: string
+          user_id?: string
+          views?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_links_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_links_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_config: {
         Row: {
           description: string | null
@@ -1752,6 +1810,8 @@ export type Database = {
           published_at: string | null
           removed_reason: string | null
           route_course_id: string | null
+          shared_land: Json | null
+          shared_route: Json | null
           shared_summary: Json | null
           status: string
           updated_at: string
@@ -1772,6 +1832,8 @@ export type Database = {
           published_at?: string | null
           removed_reason?: string | null
           route_course_id?: string | null
+          shared_land?: Json | null
+          shared_route?: Json | null
           shared_summary?: Json | null
           status?: string
           updated_at?: string
@@ -1791,6 +1853,8 @@ export type Database = {
           published_at?: string | null
           removed_reason?: string | null
           route_course_id?: string | null
+          shared_land?: Json | null
+          shared_route?: Json | null
           shared_summary?: Json | null
           status?: string
           updated_at?: string
@@ -2578,6 +2642,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      create_activity_link: {
+        Args: { p_activity: string; p_share_fields: string[] }
+        Returns: Json
+      }
       create_club: {
         Args: {
           p_city_label?: string
@@ -2744,6 +2812,7 @@ export type Database = {
         Args: { p_muted: boolean; p_target: string }
         Returns: undefined
       }
+      my_activity_link: { Args: { p_activity: string }; Returns: Json }
       my_challenges: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -3027,6 +3096,7 @@ export type Database = {
         }
         Returns: string
       }
+      public_activity: { Args: { p_token: string }; Returns: Json }
       reclaim_cells: {
         Args: {
           p_cells: string[]
@@ -3062,6 +3132,7 @@ export type Database = {
         Args: { p_accept: boolean; p_follower: string }
         Returns: undefined
       }
+      revoke_activity_link: { Args: { p_token: string }; Returns: undefined }
       search_profiles: {
         Args: { p_district?: string; p_limit?: number; p_query: string }
         Returns: {
@@ -3097,6 +3168,10 @@ export type Database = {
       set_full_private_mode: {
         Args: { p_enabled: boolean }
         Returns: undefined
+      }
+      share_preview: {
+        Args: { p_activity: string; p_share_fields: string[] }
+        Returns: Json
       }
       speed_route_detail: {
         Args: { p_competition: string; p_course: string; p_season: string }

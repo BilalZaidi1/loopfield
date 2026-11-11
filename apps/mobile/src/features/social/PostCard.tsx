@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Alert, Pressable, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -10,6 +11,7 @@ import { Icon } from '@/components/icons';
 import { useUnits } from '@/state/session';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 import { useSignedUrl } from './media';
+import { landLine, RouteSketch } from '@/features/share/RouteSketch';
 
 export interface PostJson {
   id: string;
@@ -27,6 +29,10 @@ export interface PostJson {
     area_m2?: number;
     achievement_title?: 'route_title';
   } | null;
+  /** The run's route as others may see it (first and last 200 m and private areas left out by the server). */
+  shared_route?: string[] | null;
+  /** The run's published land on the all-time map (or its club race); gone if the result is ruled invalid. */
+  shared_land?: SharedLand | null;
   route: { id: string; name: string } | null;
   comments_enabled: boolean;
   is_announcement: boolean;
@@ -37,6 +43,18 @@ export interface PostJson {
   comment_count: number;
   media: { id: string; path: string | null; alt: string | null; width: number | null; height: number | null; status: string }[];
   is_mine: boolean;
+}
+
+export interface SharedLand {
+  layer: 'permanent' | 'public' | 'club' | 'event';
+  area_m2: number;
+  cell_count: number;
+  cells: string[];
+  taken: string[];
+  gained_cells: number;
+  kept_cells: number;
+  taken_cells: number;
+  rivals: number;
 }
 
 export const AUDIENCE_LABEL: Record<PostJson['audience'], string> = { only_me: 'Only me', followers: 'Followers', public: 'Public', club: 'Club members' };
@@ -170,6 +188,28 @@ export function usePostActions(post: PostJson) {
   return { react, menu, remove };
 }
 
+/** The run's route and land on a card; tapping opens the larger map (zoom, start and finish, cells). */
+function RunMapPreview({ post }: { post: PostJson }) {
+  const p = usePalette();
+  const units = useUnits();
+  const land = post.shared_land ?? null;
+  const line = landLine(land);
+  const input = useMemo(() => ({ route: post.shared_route ?? null, cells: land?.cells ?? null, taken: land?.taken ?? null }), [post.shared_route, land]);
+  return (
+    <Pressable onPress={() => router.push({ pathname: '/post/route/[id]', params: { id: post.id } })} accessibilityRole="button"
+      accessibilityLabel={`Open the run's map${line ? `. ${line}` : ''}`} style={({ pressed }) => ({ gap: spacing.sm, opacity: pressed ? 0.85 : 1 })}>
+      <RouteSketch input={input} height={168} />
+      {line ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+          <Icon name="hexagon" color={p.primary} size={18} />
+          <Txt variant="label" style={{ flex: 1 }} numberOfLines={1}>{`${line}${land?.area_m2 ? ` · ${fmtArea(land.area_m2, units)}` : ''}`}</Txt>
+          <Icon name="chevron-right" color={p.textSubtle} size={18} />
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
 export function PostCard({ post, onOpen = true }: { post: PostJson; onOpen?: boolean }) {
   const p = usePalette();
   const avatar = useSignedUrl('avatars', post.author.avatar_path);
@@ -196,6 +236,7 @@ export function PostCard({ post, onOpen = true }: { post: PostJson; onOpen?: boo
       ) : null}
       {post.body ? <BodyText text={post.body} /> : null}
       {post.shared_summary ? <SharedSummary s={post.shared_summary} /> : null}
+      {post.shared_route?.length || post.shared_land ? <RunMapPreview post={post} /> : null}
       {post.route ? (
         <Pressable onPress={() => router.push({ pathname: '/routes/[id]', params: { id: post.route!.id } })} accessibilityRole="link" accessibilityLabel={`Route: ${post.route.name}`} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 44, opacity: pressed ? 0.6 : 1 })}>
           <Icon name="route" color={p.orangeText} size={20} />

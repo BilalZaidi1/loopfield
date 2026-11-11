@@ -8,7 +8,7 @@ import {
   seriesByMethod,
   sleepNights
 } from '../src/health/reconcile.ts';
-import { comparePeriods, heartRateSummary, timeInZones, zonesFromMaxHr } from '../src/health/metrics.ts';
+import { activeEnergyDuring, comparePeriods, heartRateSummary, timeInZones, zonesFromMaxHr } from '../src/health/metrics.ts';
 import { toCanonical } from '../src/health/units.ts';
 import type { QuantitySample, SleepSegment, WorkoutRecord } from '../src/health/types.ts';
 
@@ -172,5 +172,15 @@ describe('units', () => {
     expect(toCanonical('active_energy', 4184, 'kJ')).toBeCloseTo(1000);
     expect(toCanonical('distance', 1, 'mi')).toBeCloseTo(1609.344);
     expect(() => toCanonical('heart_rate', 1, 'furlongs')).toThrow();
+  });
+});
+
+describe('activeEnergyDuring (share card, on-device only)', () => {
+  const s = (start: number, end: number, value: number) => ({ id: `${start}`, type: 'active_energy' as const, value, start, end, sourceId: 'watch', sourceKind: 'watch' as const });
+  it('counts the part of each sample inside the run', () => {
+    expect(activeEnergyDuring([s(0, 600_000, 60), s(600_000, 1_200_000, 60)], 300_000, 900_000)).toBe(60);
+  });
+  it('keeps missing data missing', () => {
+    expect(activeEnergyDuring([], 0, 1000)).toBeNull();
   });
 });

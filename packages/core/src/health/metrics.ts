@@ -53,6 +53,23 @@ export function heartRateSummary(samples: readonly QuantitySample[], start: numb
   };
 }
 
+/**
+ * Active energy (kcal) recorded during a run, from samples that overlap it (each counted for the share
+ * of its interval inside the run). Null when nothing was recorded: missing data stays missing.
+ */
+export function activeEnergyDuring(samples: readonly QuantitySample[], start: number, end: number): number | null {
+  let total = 0;
+  let any = false;
+  for (const s of samples) {
+    if (s.type !== 'active_energy' || s.end < start || s.start > end) continue;
+    const span = Math.max(1, s.end - s.start);
+    const inside = Math.max(0, Math.min(s.end, end) - Math.max(s.start, start));
+    total += s.end === s.start ? s.value : s.value * (inside / span);
+    any = true;
+  }
+  return any ? Math.round(total) : null;
+}
+
 export interface ZoneSummary {
   zoneVersion: number;
   basis: ZoneConfig['basis'];

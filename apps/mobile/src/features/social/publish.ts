@@ -2,7 +2,8 @@ import { rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { prepareImage, uploadToBucket } from './media';
 
-export type ShareField = 'distance' | 'duration' | 'pace' | 'date' | 'land' | 'title';
+/** `route` is trimmed by the server: the first and last 200 m and anything inside your private areas are left out. */
+export type ShareField = 'distance' | 'duration' | 'pace' | 'date' | 'land' | 'title' | 'route';
 
 export interface NewPost {
   audience: 'only_me' | 'followers' | 'public' | 'club';

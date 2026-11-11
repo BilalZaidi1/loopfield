@@ -23,6 +23,8 @@ export const env = {
   privacyUrl: v(process.env.EXPO_PUBLIC_PRIVACY_URL),
   supportEmail: v(process.env.EXPO_PUBLIC_SUPPORT_EMAIL),
   defaultMapCenter: v(process.env.EXPO_PUBLIC_DEFAULT_MAP_CENTER),
+  /** Where public activity pages live (share links and QR codes). */
+  webUrl: v(process.env.EXPO_PUBLIC_WEB_URL) ?? 'https://loopfield.expo.app',
   appEnv: ((Constants.expoConfig?.extra as { appEnv?: string } | undefined)?.appEnv ?? 'development') as 'development' | 'preview' | 'production'
 } as const;
 

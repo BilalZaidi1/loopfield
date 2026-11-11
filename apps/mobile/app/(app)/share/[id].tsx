@@ -21,7 +21,7 @@ export default function SharePreview() {
   const { settings } = useSession();
   const detail = useActivityDetail(id);
   const now = useNow();
-  const [fields, setFields] = useState<Record<ShareField, boolean>>({ distance: true, duration: true, pace: true, date: true, land: true, title: true });
+  const [fields, setFields] = useState<Record<ShareField, boolean>>({ distance: true, duration: true, pace: true, date: true, land: true, title: true, route: true });
   const [audience, setAudience] = useState<'only_me' | 'followers' | 'public'>(settings?.default_post_audience ?? 'followers');
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
@@ -30,8 +30,9 @@ export default function SharePreview() {
   if (detail.isLoading || !a) return <Screen><Stack.Screen options={{ title: 'Share run' }} /><LoadingState variant="cards" /></Screen>;
   const claimEligible = detail.data?.claim?.status === 'eligible';
   const titleHeld = detail.data?.attempts.some((t) => t.is_benchmark);
-  const delayed = (claimEligible && fields.land && detail.data?.claim?.publish_after && Date.parse(detail.data.claim.publish_after) > now) || (titleHeld && fields.title);
-  const chosen = (Object.keys(fields) as ShareField[]).filter((k) => fields[k] && (k !== 'land' || claimEligible) && (k !== 'title' || titleHeld));
+  const routeShareable = Boolean(a.personal_route) && (a.distance_m ?? 0) >= 600;
+  const delayed = (claimEligible && fields.land && detail.data?.claim?.publish_after && Date.parse(detail.data.claim.publish_after) > now) || (titleHeld && fields.title) || (routeShareable && fields.route && Date.parse(a.ended_at) + 30 * 60_000 > now);
+  const chosen = (Object.keys(fields) as ShareField[]).filter((k) => fields[k] && (k !== 'land' || claimEligible) && (k !== 'title' || titleHeld) && (k !== 'route' || routeShareable));
 
   const publish = async () => {
     setBusy(true);
@@ -70,13 +71,14 @@ export default function SharePreview() {
           </View>
         ) : null}
       </Card>
-      <Txt color="textMuted">Choose exactly what to share. The route map, GPS trace and any health readings are never included.</Txt>
+      <Txt color="textMuted">Choose exactly what to share. A shared route never shows its first and last 200 m or anything inside your private areas. The raw GPS trace and health readings are never included.</Txt>
       <Section title="What to include" icon="check">
         <ListGroup>
           <Toggle label={`Distance (${fmtDistance(a.distance_m, units)})`} value={fields.distance} onChange={toggle('distance')} />
           <Toggle label={`Duration (${fmtDuration(a.elapsed_ms)})`} value={fields.duration} onChange={toggle('duration')} />
           <Toggle label={`Average pace (${fmtPace(a.avg_pace_s_per_km, units)})`} value={fields.pace} onChange={toggle('pace')} />
           <Toggle label="Date" value={fields.date} onChange={toggle('date')} />
+          {routeShareable ? <Toggle label="Route map (start and finish hidden)" value={fields.route} onChange={toggle('route')} /> : null}
           {claimEligible ? <Toggle label={`Land claimed (${fmtArea(detail.data?.claim?.eligible_area_m2, units)})`} value={fields.land} onChange={toggle('land')} /> : null}
           {titleHeld ? <Toggle label="Route title" value={fields.title} onChange={toggle('title')} /> : null}
         </ListGroup>
@@ -89,7 +91,7 @@ export default function SharePreview() {
           <Chip icon="globe" label="Public" selected={audience === 'public'} onPress={() => setAudience('public')} />
         </View>
       </Section>
-      {delayed ? <Banner text="Achievements appear in the post only after the result is published (at least 30 minutes after the run)." /> : null}
+      {delayed ? <Banner text="The post appears once the run's results are published, at least 30 minutes after it ended." /> : null}
       {error ? <Banner tone="danger" text={error} /> : null}
     </Screen>
   );
