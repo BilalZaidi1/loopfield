@@ -85,7 +85,7 @@ export default function Notifications() {
   return (
     <Screen onRefresh={() => void list.refetch()} refreshing={list.isRefetching}>
       <Stack.Screen options={{ title: 'Notifications', headerRight: () => <IconButton icon="settings" label="Notification settings" onPress={() => router.push('/settings/notifications')} /> }} />
-      <ChipGroup<NotificationFilter> label="Show" value={filter} onChange={setFilter} options={options} scroll />
+      <ChipGroup<NotificationFilter> label="Show" showLabel={false} value={filter} onChange={setFilter} options={options} scroll />
       {unread.length ? (
         <View style={{ alignSelf: 'flex-end' }}>
           <Button variant="secondary" size="sm" icon="check" label={filter === 'all' ? 'Mark all as read' : 'Mark these as read'} loading={markAll.isPending}

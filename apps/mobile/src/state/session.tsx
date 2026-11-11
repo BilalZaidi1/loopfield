@@ -16,6 +16,12 @@ export interface Profile {
   display_name: string;
   bio: string | null;
   avatar_path: string | null;
+  /** What avatar_path shows: a photo or a cartoon (saved as an image); null before either was chosen. */
+  avatar_kind?: 'photo' | 'cartoon' | null;
+  /** The cartoon's parts, to edit it later. */
+  avatar_style?: unknown;
+  /** The last photo uploaded, to switch back from a cartoon. */
+  avatar_photo_path?: string | null;
   district_id: string | null;
   city_label: string | null;
   visibility: 'public' | 'private';

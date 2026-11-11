@@ -7,6 +7,7 @@ import { Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { boundsOf, lineFeature, type Bounds } from '@/territory/h3';
 import { useReducedMotion } from '@/theme/motion';
+import { AvatarPin, MIN_AVATAR_ZOOM, type AvatarPinData } from './AvatarPin';
 import { radius, spacing, useTheme } from '@/theme/tokens';
 
 /**
@@ -58,6 +59,8 @@ export interface MapLayers {
   pathParts?: [number, number][][];
   closing?: [number, number][];
   markers?: MapMarker[];
+  /** Pictures of the runners holding land in view (already grouped so they do not crowd the map). */
+  avatars?: AvatarPinData[];
 }
 
 export interface MapHandle {
@@ -93,6 +96,7 @@ export function MapCanvas({
   onPressCell,
   onPressRoute,
   onPressMap,
+  onPressAvatar,
   selectedCell,
   height = 320,
   fill = false,
@@ -114,6 +118,7 @@ export function MapCanvas({
   onPressRoute?: (id: string) => void;
   /** Tap on the map outside any feature (used to clear a selection). */
   onPressMap?: () => void;
+  onPressAvatar?: (pin: AvatarPinData) => void;
   selectedCell?: string | null;
   height?: number | `${number}%`;
   /** Fill the parent edge to edge (the Map tab) instead of a rounded card. */
@@ -176,7 +181,7 @@ export function MapCanvas({
       </View>
     );
   }
-  const { MapView, Camera, ShapeSource, FillLayer, LineLayer, CircleLayer, SymbolLayer, LocationPuck, FillExtrusionLayer, RasterDemSource, Terrain, SkyLayer } = Mapbox;
+  const { MapView, Camera, ShapeSource, FillLayer, LineLayer, CircleLayer, SymbolLayer, LocationPuck, FillExtrusionLayer, RasterDemSource, Terrain, SkyLayer, MarkerView } = Mapbox;
   const onFeature = () => {
     featureTap.current = Date.now();
   };
@@ -316,6 +321,16 @@ export function MapCanvas({
             <SymbolLayer id="markers-label" style={{ textField: ['get', 'label'], textSize: 12, textOffset: [0, 1.5], textColor: tc.label, textHaloColor: tc.labelHalo, textHaloWidth: 1.5 }} />
           </ShapeSource>
         ) : null}
+        {layers.avatars?.map((pin) => (
+          // Hidden below the avatar zoom and wherever pins would collide (the heavier pin wins).
+          <MarkerView key={pin.id} coordinate={pin.coord} anchor={{ x: 0.5, y: 0.5 }} allowOverlap={false} allowOverlapWithPuck
+            priority={pin.mine ? 1_000_000 : pin.weight} minZoom={MIN_AVATAR_ZOOM} allowZElevate={threeD}>
+            <AvatarPin pin={pin} onPress={() => {
+              onFeature();
+              onPressAvatar?.(pin);
+            }} />
+          </MarkerView>
+        ))}
         {showUser ? <LocationPuck puckBearingEnabled={false} pulsing={{ isEnabled: true, color: tc.path, radius: 'accuracy' }} /> : null}
       </MapView>
     </View>

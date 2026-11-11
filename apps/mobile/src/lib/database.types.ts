@@ -1922,7 +1922,10 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_kind: string | null
           avatar_path: string | null
+          avatar_photo_path: string | null
+          avatar_style: Json | null
           bio: string | null
           city_label: string | null
           created_at: string
@@ -1938,7 +1941,10 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          avatar_kind?: string | null
           avatar_path?: string | null
+          avatar_photo_path?: string | null
+          avatar_style?: Json | null
           bio?: string | null
           city_label?: string | null
           created_at?: string
@@ -1953,7 +1959,10 @@ export type Database = {
           visibility?: string
         }
         Update: {
+          avatar_kind?: string | null
           avatar_path?: string | null
+          avatar_photo_path?: string | null
+          avatar_style?: Json | null
           bio?: string | null
           city_label?: string | null
           created_at?: string
@@ -3310,6 +3319,29 @@ export type Database = {
           handle: string
           is_me: boolean
           rank: number
+          user_id: string
+        }[]
+      }
+      territory_owners_in_view: {
+        Args: {
+          p_competition: string
+          p_max_lat: number
+          p_max_lng: number
+          p_min_lat: number
+          p_min_lng: number
+          p_season: string
+        }
+        Returns: {
+          area_m2: number
+          avatar_path: string
+          cells: number
+          cells_in_view: number
+          display_name: string
+          handle: string
+          is_me: boolean
+          owner_key: string
+          rank: number
+          runners: number
           user_id: string
         }[]
       }

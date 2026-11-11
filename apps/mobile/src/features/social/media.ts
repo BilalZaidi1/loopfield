@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { SOCIAL_RULES } from '@loopfield/core';
 import { supabase } from '@/lib/supabase';
@@ -20,6 +20,31 @@ export function useSignedUrl(bucket: 'post-media' | 'avatars' | 'club-media', pa
       const { data, error } = await supabase().storage.from(bucket).createSignedUrl(path!, TTL);
       if (error) throw error;
       return data.signedUrl;
+    }
+  });
+}
+
+/** Several private pictures in one request (map pins); each URL is also cached under its single-path key. */
+export function useSignedUrls(bucket: 'avatars' | 'club-media', paths: (string | null | undefined)[]) {
+  const qc = useQueryClient();
+  const list = [...new Set(paths.filter((x): x is string => Boolean(x)))].sort();
+  return useQuery({
+    queryKey: ['signed-batch', bucket, list],
+    enabled: list.length > 0,
+    staleTime: (TTL - 30) * 1000,
+    gcTime: TTL * 1000,
+    placeholderData: (prev) => prev,
+    queryFn: async () => {
+      const { data, error } = await supabase().storage.from(bucket).createSignedUrls(list, TTL);
+      if (error) throw error;
+      const out: Record<string, string> = {};
+      for (const row of data ?? []) {
+        if (row.path && row.signedUrl) {
+          out[row.path] = row.signedUrl;
+          qc.setQueryData(['signed', bucket, row.path], row.signedUrl);
+        }
+      }
+      return out;
     }
   });
 }

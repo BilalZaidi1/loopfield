@@ -6,12 +6,15 @@ import Animated, { LinearTransition } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polygon } from 'react-native-svg';
 import { TERRITORY_RULES } from '@loopfield/core';
-import { fmtCount, fmtDate, fmtDistance, fmtDuration } from '@/lib/format';
+import { fmtArea, fmtCount, fmtDate, fmtDistance, fmtDuration } from '@/lib/format';
 import { friendlyError } from '@/lib/api';
 import { Avatar, Badge, Banner, Button, IconButton, OfflineBanner, PressableScale, Row, Sheet, Skeleton, Txt } from '@/components/ui';
 import { Icon, type IconName } from '@/components/icons';
 import { MapCanvas, mapAvailability, type MapHandle } from '@/features/map/MapCanvas';
 import { useInitialCenter } from '@/features/map/useInitialCenter';
+import type { AvatarPinData } from '@/features/map/AvatarPin';
+import { clusterPins, MIN_AVATAR_ZOOM, ownerAnchors, useOwnersInView, type OwnerInView } from '@/features/map/owners';
+import { useSignedUrls } from '@/features/social/media';
 import { routesToFeatures, useExclusions, useRoutesInView, useTerritoryViewport, type RouteInView } from '@/features/map/useMapData';
 import { layerSubtitle, layerTitle, useCompetition, type Competition } from '@/state/competition';
 import { useSession, useUnits } from '@/state/session';
@@ -76,6 +79,34 @@ export default function TerritoryMap() {
   const selectedCell = selected?.kind === 'cell' ? (cells.data ?? []).find((c) => c.cell === selected.id) ?? null : null;
   const selectedRoute = selected?.kind === 'route' ? (routes.data ?? []).find((r) => r.course_id === selected.id) ?? null : null;
 
+  // Runners' pictures on their land (zoomed in, not while choosing cells to reclaim); nearby ones share a pin.
+  const showAvatars = available && zoom >= MIN_AVATAR_ZOOM && !reclaiming;
+  const owners = useOwnersInView(available ? bounds : null, zoom, showAvatars);
+  const anchors = useMemo(() => ownerAnchors(cells.data ?? []), [cells.data]);
+  const pictures = useSignedUrls('avatars', (owners.data ?? []).map((o) => o.avatar_path));
+  const [ownerKey, setOwnerKey] = useState<string | null>(null);
+  const pins = useMemo<AvatarPinData[]>(() => {
+    if (!showAvatars || !owners.data) return [];
+    const placed = owners.data.flatMap((o) => {
+      const a = anchors.get(o.owner_key);
+      return a ? [{ key: o.owner_key, anchor: a.anchor, weight: a.cells, owner: o }] : [];
+    });
+    return clusterPins(placed, zoom).map((c) => {
+      const lead = c.members[0]!.owner;
+      return {
+        id: c.id,
+        coord: c.anchor,
+        uri: lead.avatar_path ? pictures.data?.[lead.avatar_path] ?? null : null,
+        name: lead.display_name,
+        color: lead.is_me ? tc.mineFill : controllerColor(lead.owner_key, tc.rivalHues),
+        mine: lead.is_me,
+        count: c.members.length,
+        weight: c.members.reduce((sum, m) => sum + m.weight, 0)
+      };
+    });
+  }, [showAvatars, owners.data, anchors, zoom, pictures.data, tc]);
+  const ownerCard = ownerKey ? (owners.data ?? []).find((o) => o.owner_key === ownerKey) ?? null : null;
+
   // Ground I held and lost to another runner (in this layer): in view on the map, the whole layer otherwise.
   // Events never offer reclaiming: their standings are only what runners ran.
   const lost = useLostCells(layer?.id, layerSeason?.id, available ? bounds : 'all', Boolean(layer && layerSeason && !inEvent));
@@ -129,7 +160,8 @@ export default function TerritoryMap() {
           showUser
           ornamentBottom={isWide ? 8 : sheetH + 8}
           selectedCell={selected?.kind === 'cell' ? selected.id : null}
-          layers={{ cells: fc, exclusions: exclusions.data, grid, routes: showRoutes && !reclaiming ? routeFc : undefined, lost: lostFc }}
+          layers={{ cells: fc, exclusions: exclusions.data, grid, routes: showRoutes && !reclaiming ? routeFc : undefined, lost: lostFc, avatars: pins }}
+          onPressAvatar={(pin) => (pin.count > 1 ? mapRef.current?.flyTo(pin.coord, Math.min(zoom + 2, 18)) : setOwnerKey(pin.id))}
           onIdle={(b, z) => {
             setBounds(b);
             setZoom(z);
@@ -270,6 +302,9 @@ export default function TerritoryMap() {
 
       <ReclaimSheet visible={listOpen} onClose={() => setListOpen(false)} competitionId={layer?.id} seasonId={layerSeason?.id} />
 
+      <Sheet visible={Boolean(ownerCard)} title={ownerCard?.is_me ? 'Your land' : 'Runner'} onClose={() => setOwnerKey(null)}>
+        {ownerCard ? <OwnerCard owner={ownerCard} picture={ownerCard.avatar_path ? pictures.data?.[ownerCard.avatar_path] ?? null : null} layerName={layer ? layerTitle(layer, layerSeason) : 'this map'} onClose={() => setOwnerKey(null)} /> : null}
+      </Sheet>
       <Sheet visible={sheet === 'legend'} title="Map key" onClose={() => setSheet(null)}>
         <Legend />
       </Sheet>
@@ -517,6 +552,43 @@ function Legend() {
 
 function LegendIcon({ icon, color }: { icon: IconName; color: string }) {
   return <Icon name={icon} color={color} size={26} />;
+}
+
+/** A runner's card from their picture on the map: who they are and how much of this layer they hold. */
+function OwnerCard({ owner, picture, layerName, onClose }: { owner: OwnerInView; picture: string | null; layerName: string; onClose: () => void }) {
+  const t = useTheme();
+  const units = useUnits();
+  const stats = [
+    owner.area_m2 != null ? { label: 'Land held', value: fmtArea(owner.area_m2, units), sub: owner.cells != null ? `${fmtCount(owner.cells)} ${owner.cells === 1 ? 'cell' : 'cells'}` : undefined } : null,
+    owner.rank != null ? { label: 'Rank', value: `#${owner.rank}`, sub: owner.runners != null ? `of ${fmtCount(owner.runners)}` : undefined } : null,
+    { label: 'In view', value: fmtCount(owner.cells_in_view), sub: owner.cells_in_view === 1 ? 'cell' : 'cells' }
+  ].filter(Boolean) as { label: string; value: string; sub?: string }[];
+  return (
+    <View style={{ gap: spacing.lg }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+        <Avatar name={owner.display_name} uri={picture} size={64} ring={owner.is_me ? true : undefined} />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Txt variant="headline" numberOfLines={1}>{owner.is_me ? 'You' : owner.display_name}</Txt>
+          {owner.handle && !owner.is_me ? <Txt variant="caption">{`@${owner.handle}`}</Txt> : null}
+          <Txt variant="caption" numberOfLines={1}>{layerName}</Txt>
+        </View>
+      </View>
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        {stats.map((st) => (
+          <View key={st.label} style={{ flex: 1, padding: spacing.md, borderRadius: radius.lg, backgroundColor: t.palette.surfaceAlt, gap: 2 }} accessible accessibilityLabel={`${st.label}: ${st.value}${st.sub ? ` ${st.sub}` : ''}`}>
+            <Txt variant="caption">{st.label}</Txt>
+            <Txt variant="headline">{st.value}</Txt>
+            {st.sub ? <Txt variant="caption">{st.sub}</Txt> : null}
+          </View>
+        ))}
+      </View>
+      {owner.user_id && !owner.is_me ? (
+        <Button label="View profile" arrow onPress={() => { onClose(); router.push({ pathname: '/profile/[id]', params: { id: owner.user_id! } }); }} />
+      ) : owner.is_me ? (
+        <Button label="My land and points" variant="secondary" onPress={() => { onClose(); router.push('/points'); }} />
+      ) : null}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

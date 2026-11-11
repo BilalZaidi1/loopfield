@@ -4,11 +4,13 @@ import * as ImagePicker from 'expo-image-picker';
 import { useQuery } from '@tanstack/react-query';
 import { friendlyError } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
-import { Avatar, Banner, Button, Chip, Segmented, TextField, Toggle, Txt } from '@/components/ui';
+import { Avatar, Banner, Button, Chip, Segmented, Sheet, TextField, Toggle, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { useSession, type Profile } from '@/state/session';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 import { prepareImage, uploadToBucket, useSignedUrl } from '@/features/social/media';
+import { AvatarBuilder } from '@/features/avatar/AvatarBuilder';
+import { parseAvatar, shuffleAvatar, type AvatarSpec } from '@/features/avatar/spec';
 
 export interface District {
   id: string;
@@ -48,6 +50,12 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
   const [discoverable, setDiscoverable] = useState(profile.discoverable);
   const [units, setUnits] = useState(initialUnits);
   const [avatarPath, setAvatarPath] = useState<string | null>(profile.avatar_path);
+  const [avatarKind, setAvatarKind] = useState<'photo' | 'cartoon' | null>(profile.avatar_kind ?? (profile.avatar_path ? 'photo' : null));
+  const [avatarStyle, setAvatarStyle] = useState<AvatarSpec | null>(profile.avatar_style ? parseAvatar(profile.avatar_style) : null);
+  const [photoPath, setPhotoPath] = useState<string | null>(profile.avatar_photo_path ?? (profile.avatar_kind !== 'cartoon' ? profile.avatar_path : null));
+  const [building, setBuilding] = useState(false);
+  // A different starting avatar for everyone who has not made one yet ("Surprise me" shuffles again).
+  const [firstAvatar] = useState(() => shuffleAvatar(Math.floor(Math.random() * 100_000)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const avatarUrl = useSignedUrl('avatars', avatarPath);
@@ -64,6 +72,8 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
       const path = `${userId}/avatar-${Date.now()}.jpg`;
       await uploadToBucket('avatars', path, img.uri);
       setAvatarPath(path);
+      setPhotoPath(path);
+      setAvatarKind('photo');
     } catch (e) {
       Alert.alert('Photo not uploaded', friendlyError(e));
     } finally {
@@ -79,7 +89,8 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
       const d = districts.data?.find((x) => x.id === district);
       const { error: e1 } = await supabase()
         .from('profiles')
-        .update({ handle, display_name: name.trim(), bio: bio.trim() || null, district_id: district, city_label: d?.name ?? null, visibility, discoverable: visibility === 'public' && discoverable, avatar_path: avatarPath })
+        .update({ handle, display_name: name.trim(), bio: bio.trim() || null, district_id: district, city_label: d?.name ?? null, visibility, discoverable: visibility === 'public' && discoverable, avatar_path: avatarPath,
+                  avatar_kind: avatarKind, avatar_style: avatarStyle, avatar_photo_path: photoPath })
         .eq('id', userId!);
       if (e1) throw e1.code === '23505' ? new Error('That handle is taken. Try another.') : e1;
       const { error: e2 } = await supabase().from('user_settings').update({ units }).eq('user_id', userId!);
@@ -95,18 +106,39 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
 
   return (
     <View style={{ gap: spacing.xl }}>
-      <Pressable onPress={pickAvatar} accessibilityRole="button" accessibilityLabel={avatarPath ? 'Change profile photo' : 'Add a profile photo (optional)'} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: spacing.lg, opacity: pressed ? 0.7 : 1 })}>
-        <View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
+        <Pressable onPress={pickAvatar} accessibilityRole="button" accessibilityLabel={avatarPath ? 'Change your picture to a photo' : 'Add a photo (optional)'} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
           <Avatar name={name || 'You'} uri={avatarUrl.data} size={84} />
           <View style={{ position: 'absolute', right: -2, bottom: -2, width: 32, height: 32, borderRadius: 16, backgroundColor: p.primaryFill, borderWidth: 3, borderColor: p.bg, alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="camera" color="#FFFFFF" size={16} />
+            <Icon name={avatarKind === 'cartoon' ? 'sparkle' : 'camera'} color="#FFFFFF" size={16} />
+          </View>
+        </Pressable>
+        <View style={{ flex: 1, gap: spacing.sm }}>
+          <Txt variant="caption">Optional. Your picture marks your land on the map and shows on your profile, posts and rankings.</Txt>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+            <Button label={avatarKind === 'photo' ? 'New photo' : 'Photo'} icon="camera" size="sm" variant="secondary" onPress={() => void pickAvatar()} />
+            <Button label={avatarKind === 'cartoon' ? 'Edit avatar' : 'Cartoon avatar'} icon="sparkle" size="sm" variant="secondary" onPress={() => setBuilding(true)} />
+            {avatarKind === 'cartoon' && photoPath ? (
+              <Button label="Use my photo" size="sm" variant="ghost" onPress={() => { setAvatarPath(photoPath); setAvatarKind('photo'); }} />
+            ) : null}
           </View>
         </View>
-        <View style={{ flex: 1, gap: 2 }}>
-          <Txt variant="heading">{avatarPath ? 'Change photo' : 'Add a photo'}</Txt>
-          <Txt variant="caption">Optional. Shown on your profile, posts and rankings.</Txt>
-        </View>
-      </Pressable>
+      </View>
+      <Sheet visible={building} title="Your avatar" onClose={() => setBuilding(false)}>
+        {building && userId ? (
+          <AvatarBuilder
+            userId={userId}
+            initial={avatarStyle ?? firstAvatar}
+            onCancel={() => setBuilding(false)}
+            onSaved={({ path, spec }) => {
+              setAvatarPath(path);
+              setAvatarStyle(spec);
+              setAvatarKind('cartoon');
+              setBuilding(false);
+            }}
+          />
+        ) : null}
+      </Sheet>
       <View style={{ gap: spacing.lg }}>
         <TextField label="Display name" value={name} onChangeText={setName} maxLength={40} error={name && !nameOk ? 'Use 1–40 characters.' : undefined} />
         <TextField label="Handle" value={handle} onChangeText={setHandle} autoCapitalize="none" maxLength={24} hint="3–24 letters, numbers or underscores. Others can @mention you with it." error={handle && !handleOk ? 'Use 3–24 letters, numbers or underscores.' : undefined} />

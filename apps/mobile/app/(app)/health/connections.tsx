@@ -3,7 +3,7 @@ import { Alert, Linking, Platform, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { track } from '@/lib/analytics';
 import { fmtRelative } from '@/lib/format';
-import { Badge, Banner, Button, Card, ListGroup, LoadingState, Screen, Section, Toggle, Txt } from '@/components/ui';
+import { Badge, Banner, Button, Card, ListGroup, LoadingState, Row, Screen, Section, Toggle, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { spacing } from '@/theme/tokens';
 import type { HealthCardId } from '@/health/cache';
@@ -88,12 +88,17 @@ export default function HealthConnections() {
       ) : null}
       {available ? (
         conn.connected ? (
-          <View style={{ gap: spacing.sm }}>
-            <Button label="Update data types" icon="check" onPress={() => { setEnabledCards(cards); void connect(); }} loading={busy} />
-            <Button variant="secondary" icon="refresh" label="Sync now" onPress={() => void syncHealth()} />
-            {Platform.OS === 'android' ? <Button variant="ghost" label="Open Health Connect permissions" onPress={openHealthConnectSettings} /> : null}
-            <Button variant="ghost" icon="trash" label="Clear imported data from this phone" onPress={() => Alert.alert('Clear imported data?', 'Deletes cached readings and summaries. The next sync imports them again.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: () => void clearHealthData() }])} />
-            <Button variant="danger" label={`Disconnect ${PLATFORM_LABEL}`} onPress={disconnect} />
+          <View style={{ gap: spacing.md }}>
+            {/* Two everyday actions side by side; the rarer ones are rows below instead of a stack of buttons. */}
+            <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+              <Button label="Save choices" icon="check" style={{ flex: 1 }} onPress={() => { setEnabledCards(cards); void connect(); }} loading={busy} />
+              <Button variant="secondary" icon="refresh" label="Sync now" style={{ flex: 1 }} onPress={() => void syncHealth()} />
+            </View>
+            <ListGroup>
+              {Platform.OS === 'android' ? <Row icon="settings" title="Health Connect permissions" subtitle="Change what Loopfield may read" onPress={openHealthConnectSettings} /> : null}
+              <Row icon="refresh" title="Clear imported data from this phone" subtitle="The next sync imports it again" onPress={() => Alert.alert('Clear imported data?', 'Deletes cached readings and summaries. The next sync imports them again.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: () => void clearHealthData() }])} />
+              <Row icon="trash" title={`Disconnect ${PLATFORM_LABEL}`} subtitle="Stops reading and deletes what was imported here" destructive onPress={disconnect} />
+            </ListGroup>
           </View>
         ) : (
           <Button label={`Connect ${PLATFORM_LABEL}`} size="lg" arrow onPress={() => void connect()} loading={busy} />
