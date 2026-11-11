@@ -36,7 +36,13 @@ export type RecordingEventKind =
   | 'interrupted'
   | 'recovered'
   | 'permission_lost'
-  | 'permission_restored';
+  | 'permission_restored'
+  /** The phone's step check: `data.result` = 'no_running_steps' with `data.from`/`data.to` (epoch ms). */
+  | 'steps_check'
+  /** The phone warned about implausible speed (`data.reason`, `data.kmh`). */
+  | 'speed_warning'
+  /** The phone paused recording itself (`data.reason`); a normal pause follows. */
+  | 'auto_pause';
 
 export interface RecordingEvent {
   /** Sequence number of the last sample persisted before this event (-1 when none). */

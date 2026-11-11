@@ -156,6 +156,11 @@ export interface TerritoryColors {
   exploration: string;
   label: string;
   labelHalo: string;
+  /** Start of the route gradient (the end uses `path`). */
+  pathStart: string;
+  /** 3D building extrusions: quiet so land and routes stay the loudest thing on the map. */
+  building: string;
+  buildingOpacity: number;
 }
 const territoryLight: TerritoryColors = {
   mineFill: '#5B57E3',
@@ -180,7 +185,10 @@ const territoryLight: TerritoryColors = {
   checkpoint: '#0A74E0',
   exploration: '#0A74E0',
   label: '#121318',
-  labelHalo: '#FFFFFF'
+  labelHalo: '#FFFFFF',
+  pathStart: '#38B6FF',
+  building: '#D6D9E3',
+  buildingOpacity: 0.75
 };
 const territoryDark: TerritoryColors = {
   mineFill: '#7C78FF',
@@ -205,7 +213,10 @@ const territoryDark: TerritoryColors = {
   checkpoint: '#5AB4FF',
   exploration: '#4FA8FF',
   label: '#F5F6FA',
-  labelHalo: '#101114'
+  labelHalo: '#101114',
+  pathStart: '#4FA8FF',
+  building: '#2A2D37',
+  buildingOpacity: 0.8
 };
 
 export interface Theme {

@@ -21,7 +21,7 @@ interface Appeal {
   decided_at: string | null;
 }
 
-const TYPE_LABEL: Record<string, string> = { loop_claim: 'Land result', speed_attempt: 'Route time', post: 'Removed post', comment: 'Removed comment', route_proposal: 'Route proposal decision', moderation_case: 'Account or content decision' };
+const TYPE_LABEL: Record<string, string> = { activity: 'Run marked for review', loop_claim: 'Land result', speed_attempt: 'Route time', post: 'Removed post', comment: 'Removed comment', route_proposal: 'Route proposal decision', moderation_case: 'Account or content decision' };
 const STATUS: Record<Appeal['status'], { label: string; tone: 'info' | 'success' | 'warning' | 'muted' }> = {
   submitted: { label: 'Submitted', tone: 'info' },
   in_review: { label: 'In review', tone: 'warning' },

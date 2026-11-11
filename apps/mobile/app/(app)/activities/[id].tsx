@@ -11,7 +11,7 @@ import { RunPointsCard } from '@/features/movement/Reclaim';
 import { Icon } from '@/components/icons';
 import { DataTable } from '@/components/charts';
 import { MapCanvas } from '@/features/map/MapCanvas';
-import { LandCard, TitleCards } from '@/features/results/ResultCards';
+import { IntegrityCard, LandCard, TitleCards } from '@/features/results/ResultCards';
 import { useActivityDetail, type ActivityJson } from '@/features/results/useActivity';
 import { canExportRuns, exportRun } from '@/health/export';
 import { PLATFORM_LABEL } from '@/health/sync';
@@ -72,6 +72,7 @@ export default function ActivityDetailScreen() {
         <StatLine icon="clock" label="Elapsed" value={fmtDuration(a.elapsed_ms)} />
         <StatLine icon="speed" label="Avg pace" value={fmtPace(a.avg_pace_s_per_km, units)} />
         <StatLine icon="mountain" label="Elevation gain" value={a.elevation_gain_m != null ? `${a.elevation_gain_m} m` : 'Not enough data'} />
+        <IntegrityCard activity={a} />
         <RunPointsCard activityId={id} />
       </Card>
       {a.gaps?.length ? <Banner tone="warning" text={`${a.gaps.length} recording gap(s), ${Math.round(a.gaps.reduce((t, g) => t + g.seconds, 0))} s in total. Missing movement is never filled in.`} /> : null}

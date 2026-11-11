@@ -6,13 +6,16 @@ import {
   evaluateLoop,
   evaluateMovement,
   evaluateSpeedAttempt,
+  integrityRulesWith,
   isDuplicateCourse,
   isUsable,
   SPEED_RULES,
   simplify,
   summarizeActivity,
+  MOVEMENT_RULES,
   TERRITORY_RULES,
   type CourseGeometry,
+  type IntegrityRules,
   type LatLng,
   type ReasonCode
 } from '../core/index.ts';
@@ -30,8 +33,21 @@ const str = (v: unknown, name: string): string => {
  * Movement points from server-verified distance (public or private runs alike). The database awards
  * each run once and applies the daily cap; mocked evidence verifies 0 m and earns nothing.
  */
+/** Integrity thresholds with the backend's overrides (`app_config.integrity_overrides`) applied. */
+async function integrityRules(ctx: JobContext): Promise<IntegrityRules> {
+  const [row] = await ctx.sql`select value from public.app_config where key = 'integrity_overrides'`;
+  return integrityRulesWith(row?.value ?? null);
+}
+
+/** Reasons that put a run on the integrity review trail, whatever the final decision. */
+const SPEED_SIGNALS: readonly ReasonCode[] = ['suspicious_speed', 'implausible_speed', 'no_running_steps'];
+
 async function awardMovement(ctx: JobContext, ev: Evidence) {
-  const m = evaluateMovement(ev.samples, ev.events);
+  const integrity = await integrityRules(ctx);
+  const m = evaluateMovement(ev.samples, ev.events, MOVEMENT_RULES, integrity);
+  // Any run (public or private) moving unlike a runner is marked and kept on the review trail.
+  const flags = m.reasons.filter((r) => SPEED_SIGNALS.includes(r));
+  await ctx.sql`select internal.flag_activity(${ev.activityId}::uuid, ${pgArray(flags)}::text[], ${ctx.sql.json({ rule_version: integrity.version, excluded_m: m.excludedDistanceM } as never)}::jsonb)`;
   await ctx.sql`select internal.award_movement_points(${ev.activityId}::uuid, ${m.verifiedDistanceM}, ${m.ruleVersion}, ${pgArray(m.reasons)}::text[])`;
   ctx.log('movement evaluated', { activityId: ev.activityId, decision: m.decision, verifiedM: m.verifiedDistanceM, reasons: m.reasons });
 }
@@ -81,7 +97,8 @@ export const evaluateLoopJob: JobHandler = async (payload, ctx) => {
       from public.loop_claims lc left join public.seasons s on s.id = lc.season_id where lc.id = ${claimId}`;
   if (!claim || claim.status !== 'processing') return; // idempotent
   const ev = await loadEvidence(ctx, claim.activity_id);
-  const result = evaluateLoop(ev.samples, ev.events);
+  const integrity = await integrityRules(ctx);
+  const result = evaluateLoop(ev.samples, ev.events, TERRITORY_RULES, integrity);
   const reasons = [...result.reasons];
   if (result.completedAt && result.startedAt && claim.starts_at && claim.ends_at) {
     const inSeason = (t: number) => t >= new Date(claim.starts_at).getTime() && t < new Date(claim.ends_at).getTime();
@@ -90,9 +107,13 @@ export const evaluateLoopJob: JobHandler = async (payload, ctx) => {
   const decision = decide(reasons);
   if (decision !== 'eligible') {
     await setClaimOutcome(ctx, claimId, decision, reasons, { completedAt: result.completedAt, lengthM: result.lengthM });
-    if (decision === 'pending_review') {
-      await ctx.sql`insert into public.integrity_cases (kind, object_id, subject_user_id, opened_by, hold_from_competition)
-                    values ('loop_claim', ${claimId}, ${ev.userId}, 'system', true)`;
+    const signals = reasons.filter((r) => SPEED_SIGNALS.includes(r));
+    if (decision === 'pending_review' || signals.length) {
+      // Audit trail: every loop held for review, and every loop that moved unlike a runner even when other
+      // problems already stop it from counting.
+      await ctx.sql`insert into public.integrity_cases (kind, object_id, subject_user_id, opened_by, hold_from_competition, signals)
+                    values ('loop_claim', ${claimId}, ${ev.userId}, 'system', ${decision === 'pending_review'},
+                            ${ctx.sql.json({ reasons, rule_version: integrity.version } as never)}::jsonb)`;
     }
     ctx.log('loop not eligible', { claimId, reasons });
     return;
@@ -188,7 +209,7 @@ export const buildRouteProposal: JobHandler = async (payload, ctx) => {
   };
   const ev = await loadEvidence(ctx, p.source_activity_id);
   const loop = evaluateLoop(ev.samples, ev.events);
-  const blocking = loop.reasons.filter((r) => !['no_eligible_cells', 'eligibility_data_unavailable', 'outside_season', 'season_boundary', 'late_upload', 'no_ticket'].includes(r));
+  const blocking = loop.reasons.filter((r) => !['no_eligible_cells', 'eligibility_data_unavailable', 'outside_season', 'season_boundary', 'late_upload', 'no_ticket', 'gps_spike_ignored'].includes(r));
   if (!loop.interval || blocking.length) return decline(`source loop not suitable: ${blocking.join(', ') || 'no capture interval'}`);
   const trace = canonicalSamples(ev.samples).filter((s) => s.t >= loop.interval!.startT && s.t <= loop.interval!.endT && isUsable(s));
   const course = buildCourse(trace, { closed: true });

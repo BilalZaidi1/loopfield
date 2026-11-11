@@ -28,6 +28,9 @@ export interface ActivityJson {
   notes: string | null;
   perceived_effort: number | null;
   received_at: string | null;
+  /** Server reasons this run moved unlike a runner (implausible or vehicle-like speed, no running steps). */
+  integrity_flags?: string[];
+  integrity_cleared_at?: string | null;
   raw_evidence_purged_at: string | null;
 }
 

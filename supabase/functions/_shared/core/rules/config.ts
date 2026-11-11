@@ -65,6 +65,57 @@ export const TERRITORY_RULES = {
   maxCandidateCells: p(15_000, 'Processing bound PRD §17 (25 km² ≈ 11.6k res-11 cells)')
 } as const;
 
+export const INTEGRITY_RULES_VERSION = 'integrity-2026.11.0-proposed';
+
+/**
+ * Movement integrity (11 Nov request): what speed a human can plausibly hold, from elite race records,
+ * and how the phone and the server react. Every value can be overridden from the backend
+ * (`app_config.integrity_overrides`); the server records which version it applied.
+ */
+export const INTEGRITY_RULES = {
+  version: INTEGRITY_RULES_VERSION,
+  /** [duration s, average m/s] for men's outdoor world records, 100 m to the marathon. */
+  eliteRecords: p(
+    [
+      [9.58, 10.44],
+      [19.19, 10.42],
+      [43.03, 9.3],
+      [100.91, 7.93],
+      [206.0, 7.28],
+      [440.67, 6.81],
+      [755.36, 6.62],
+      [1571.0, 6.36],
+      [3451.0, 6.11],
+      [7235.0, 5.83]
+    ] as readonly (readonly [number, number])[],
+    'World records 100 m to marathon (as of mid-2026): the fastest average speed a human has held for each duration'
+  ),
+  /** Allowance on the record speed for GPS distance error. */
+  envelopeMargin: p(1.1, 'Implementation default: GPS error on short windows'),
+  /** Windows over which the average speed is compared with the record envelope. */
+  envelopeWindowsSeconds: p([20, 60, 180, 600] as readonly number[], 'Implementation default: sprint to 10-minute efforts'),
+  /** Up to this many consecutive fixes that jump away and come back are a GPS spike and are ignored. */
+  isolatedSpikeMaxFixes: p(2, 'Brief: do not penalise isolated GPS spikes'),
+  /** Median filter length (fixes) for speeds shown to and judged on the phone. */
+  smoothingFixes: p(5, 'Implementation default'),
+  /** Phone: warn after this long above the vehicle threshold (half the server's review threshold). */
+  liveWarnSeconds: p(30, 'Implementation default'),
+  /** Phone: pause recording after this long above the record envelope (clearly impossible on foot). */
+  liveImpossiblePauseSeconds: p(60, 'Implementation default'),
+  /** Phone: pause recording after this long at vehicle speed. */
+  liveVehiclePauseSeconds: p(120, 'Implementation default'),
+  /** Phone: how much recent movement the live check looks at. */
+  liveWindowSeconds: p(180, 'Implementation default'),
+  /** Step check applies only at or above this speed (10 km/h), where running cadence is unmistakable. */
+  stepsMinSpeedMetersPerSecond: p(2.8, 'Implementation default'),
+  /** Fewer steps per minute than this at running speed means no running steps (running is 150–200). */
+  stepsMinCadence: p(100, 'Implementation default'),
+  /** Running speed with no running steps for this long: warn and flag the run for review. */
+  stepsFlagSeconds: p(60, 'Implementation default'),
+  /** ... and for this long: pause recording. */
+  stepsPauseSeconds: p(180, 'Implementation default')
+} as const;
+
 export const SPEED_RULES = {
   version: SPEED_RULES_VERSION,
   minCourseLengthMeters: p(1_000, 'PRD §6 Course range — review routes of 1 to 5 km'),

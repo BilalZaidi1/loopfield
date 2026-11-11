@@ -1,0 +1,309 @@
+import { haversineMeters } from '../geo/geo.ts';
+import { INTEGRITY_RULES, TERRITORY_RULES } from '../rules/config.ts';
+import type { LocationSample, RecordingEvent } from '../recording/types.ts';
+
+/**
+ * Movement integrity: is this person moving like a runner? Shared by the phone (live warnings and
+ * auto-pause) and the server (results). The principles from the 11 Nov brief:
+ *  - an isolated GPS spike is ignored, never penalised;
+ *  - only sustained readings count, judged on smoothed speeds;
+ *  - "impossible" means faster than the fastest humans have ever held for that long (world records);
+ *  - "vehicle-like" means a sustained speed above the configured threshold, held for review;
+ *  - running speed with no running steps (phone step counter) is held for review too.
+ */
+
+type Num = { value: number };
+export interface IntegrityRules {
+  version: string;
+  eliteRecords: { value: readonly (readonly [number, number])[] };
+  envelopeMargin: Num;
+  envelopeWindowsSeconds: { value: readonly number[] };
+  isolatedSpikeMaxFixes: Num;
+  smoothingFixes: Num;
+  liveWarnSeconds: Num;
+  liveImpossiblePauseSeconds: Num;
+  liveVehiclePauseSeconds: Num;
+  liveWindowSeconds: Num;
+  stepsMinSpeedMetersPerSecond: Num;
+  stepsMinCadence: Num;
+  stepsFlagSeconds: Num;
+  stepsPauseSeconds: Num;
+}
+
+export interface Interval {
+  from: number;
+  to: number;
+}
+
+/** Fastest average speed a human has held for `seconds` (log-interpolated between records), with the GPS margin. */
+export function recordSpeedFor(seconds: number, rules: IntegrityRules = INTEGRITY_RULES): number {
+  const recs = rules.eliteRecords.value;
+  const m = rules.envelopeMargin.value;
+  if (!recs.length) return Infinity;
+  if (seconds <= recs[0]![0]) return recs[0]![1] * m;
+  for (let i = 1; i < recs.length; i++) {
+    const [d1, v1] = recs[i - 1]!;
+    const [d2, v2] = recs[i]!;
+    if (seconds <= d2) {
+      const f = (Math.log(seconds) - Math.log(d1)) / (Math.log(d2) - Math.log(d1));
+      return (v1 + f * (v2 - v1)) * m;
+    }
+  }
+  return recs[recs.length - 1]![1] * m;
+}
+
+/** Speed implied between two fixes after allowing for both fixes' accuracy (m/s); Infinity if time does not advance. */
+function impliedSpeed(a: LocationSample, b: LocationSample): number {
+  const dt = (b.t - a.t) / 1000;
+  if (dt <= 0) return Infinity;
+  return Math.max(0, haversineMeters(a, b) - ((a.acc ?? 0) + (b.acc ?? 0))) / dt;
+}
+
+/**
+ * Removes GPS spikes: up to `maxFixes` consecutive fixes that jump impossibly far away and come back.
+ * A real relocation (the next fixes stay far away) is kept, so it is still judged as movement.
+ */
+export function dropIsolatedSpikes(samples: readonly LocationSample[], maxJump: number = TERRITORY_RULES.maxJumpSpeedMetersPerSecond.value, maxFixes: number = INTEGRITY_RULES.isolatedSpikeMaxFixes.value): { kept: LocationSample[]; dropped: number } {
+  const kept: LocationSample[] = [];
+  let dropped = 0;
+  let i = 0;
+  while (i < samples.length) {
+    const s = samples[i]!;
+    const prev = kept[kept.length - 1];
+    if (prev && impliedSpeed(prev, s) > maxJump) {
+      let back = -1;
+      for (let j = i + 1; j < samples.length && j - i <= maxFixes; j++) {
+        if (impliedSpeed(prev, samples[j]!) <= maxJump) {
+          back = j;
+          break;
+        }
+      }
+      if (back !== -1) {
+        dropped += back - i;
+        i = back;
+        continue;
+      }
+    }
+    kept.push(s);
+    i++;
+  }
+  return { kept, dropped };
+}
+
+/** Speed for each fix (from the previous one), median-filtered over `k` fixes; gaps reset the filter. */
+export function smoothedSpeeds(samples: readonly LocationSample[], k: number = INTEGRITY_RULES.smoothingFixes.value, maxGapSeconds: number = TERRITORY_RULES.maxSampleGapSeconds.value): { t: number; v: number; gapBefore: boolean }[] {
+  const raw: { t: number; v: number; gapBefore: boolean }[] = [];
+  for (let i = 1; i < samples.length; i++) {
+    const a = samples[i - 1]!;
+    const b = samples[i]!;
+    const dt = (b.t - a.t) / 1000;
+    if (dt <= 0) continue;
+    raw.push({ t: b.t, v: haversineMeters(a, b) / dt, gapBefore: dt > maxGapSeconds });
+  }
+  const half = Math.floor(k / 2);
+  return raw.map((r, i) => {
+    const win: number[] = [];
+    for (let j = Math.max(0, i - half); j <= Math.min(raw.length - 1, i + half); j++) {
+      // do not mix speeds across a recording gap
+      if (j < i && raw.slice(j + 1, i + 1).some((x) => x.gapBefore)) continue;
+      if (j > i && raw.slice(i + 1, j + 1).some((x) => x.gapBefore)) continue;
+      win.push(raw[j]!.v);
+    }
+    win.sort((x, y) => x - y);
+    return { t: r.t, v: win[Math.floor(win.length / 2)] ?? r.v, gapBefore: r.gapBefore };
+  });
+}
+
+/** Intervals where the smoothed speed stays at or above `threshold` for at least `minSeconds`. */
+export function sustainedAbove(speeds: readonly { t: number; v: number; gapBefore: boolean }[], threshold: number, minSeconds: number): Interval[] {
+  const out: Interval[] = [];
+  let start: number | null = null;
+  let lastT = 0;
+  const close = () => {
+    if (start !== null && (lastT - start) / 1000 >= minSeconds) out.push({ from: start, to: lastT });
+    start = null;
+  };
+  for (const s of speeds) {
+    if (s.gapBefore) close();
+    if (s.v >= threshold) {
+      if (start === null) start = s.t;
+      lastT = s.t;
+    } else close();
+  }
+  close();
+  return out;
+}
+
+/** Windows whose average speed beats the record envelope for that duration (merged). */
+export function beyondRecords(samples: readonly LocationSample[], rules: IntegrityRules = INTEGRITY_RULES): Interval[] {
+  const found: Interval[] = [];
+  const cum: number[] = [0];
+  for (let i = 1; i < samples.length; i++) cum.push(cum[i - 1]! + haversineMeters(samples[i - 1]!, samples[i]!));
+  for (const w of rules.envelopeWindowsSeconds.value) {
+    let b = 0;
+    for (let a = 0; a < samples.length; a++) {
+      if (b < a) b = a;
+      while (b < samples.length - 1 && (samples[b]!.t - samples[a]!.t) / 1000 < w) b++;
+      const dt = (samples[b]!.t - samples[a]!.t) / 1000;
+      if (dt < w) break;
+      if ((cum[b]! - cum[a]!) / dt > recordSpeedFor(dt, rules)) found.push({ from: samples[a]!.t, to: samples[b]!.t });
+    }
+  }
+  found.sort((x, y) => x.from - y.from);
+  const merged: Interval[] = [];
+  for (const iv of found) {
+    const last = merged[merged.length - 1];
+    if (last && iv.from <= last.to) last.to = Math.max(last.to, iv.to);
+    else merged.push({ ...iv });
+  }
+  return merged;
+}
+
+/** Windows the phone flagged as running speed without running steps (recorded as `steps_check` events). */
+export function noStepWindows(events: readonly RecordingEvent[]): Interval[] {
+  return events
+    .filter((e) => e.kind === 'steps_check' && e.data?.result === 'no_running_steps')
+    .map((e) => ({ from: Number(e.data?.from ?? e.t), to: Number(e.data?.to ?? e.t) }))
+    .filter((iv) => Number.isFinite(iv.from) && Number.isFinite(iv.to) && iv.to >= iv.from);
+}
+
+export const overlaps = (iv: Interval, from: number, to: number) => iv.from <= to && iv.to >= from;
+
+export type LiveIntegrityState = 'ok' | 'warn' | 'pause';
+export type LiveIntegrityReason = 'impossible' | 'vehicle' | 'no_steps';
+export interface LiveIntegrity {
+  state: LiveIntegrityState;
+  reason: LiveIntegrityReason | null;
+  /** Current smoothed speed (m/s), null without enough fixes. */
+  speed: number | null;
+  /** How long the current problem has lasted (s). */
+  seconds: number;
+  /** For `no_steps`: the window to record as a `steps_check` flag. */
+  window: Interval | null;
+}
+
+/** Step counts from the phone: `steps` taken between `from` and `to` (epoch ms). */
+export interface StepWindow {
+  from: number;
+  to: number;
+  steps: number;
+}
+
+function trailing(speeds: readonly { t: number; v: number; gapBefore: boolean }[], ok: (s: { t: number; v: number }) => boolean): Interval | null {
+  let i = speeds.length - 1;
+  if (i < 0 || !ok(speeds[i]!)) return null;
+  const to = speeds[i]!.t;
+  let from = to;
+  while (i >= 0 && ok(speeds[i]!)) {
+    from = speeds[i]!.t;
+    if (speeds[i]!.gapBefore) break;
+    i--;
+  }
+  return { from, to };
+}
+
+/** Steps per minute over [from, to] from the phone's step windows, or null when unknown. */
+export function cadenceBetween(steps: readonly StepWindow[], from: number, to: number): number | null {
+  let covered = 0;
+  let count = 0;
+  for (const w of steps) {
+    const a = Math.max(from, w.from);
+    const b = Math.min(to, w.to);
+    if (b <= a) continue;
+    const share = (b - a) / Math.max(1, w.to - w.from);
+    count += w.steps * share;
+    covered += b - a;
+  }
+  if (covered < (to - from) * 0.8) return null;
+  return (count / covered) * 60_000;
+}
+
+/**
+ * The phone's live check on the last few minutes of fixes (and step counts, when the step counter is
+ * available). Warns early, pauses only when the movement stays clearly impossible for a runner.
+ */
+export function liveIntegrity(recent: readonly LocationSample[], steps: readonly StepWindow[] | null, vehicleSpeed: number = TERRITORY_RULES.suspiciousSustainedSpeedMetersPerSecond.value, rules: IntegrityRules = INTEGRITY_RULES): LiveIntegrity {
+  const usable = recent.filter((s) => (s.acc ?? Infinity) <= TERRITORY_RULES.maxUsableAccuracyMeters.value && !s.mocked);
+  const { kept } = dropIsolatedSpikes(usable);
+  const speeds = smoothedSpeeds(kept, rules.smoothingFixes.value);
+  const speed = speeds.length ? speeds[speeds.length - 1]!.v : null;
+  const none: LiveIntegrity = { state: 'ok', reason: null, speed, seconds: 0, window: null };
+  if (speed === null) return none;
+  const secs = (iv: Interval | null) => (iv ? (iv.to - iv.from) / 1000 : 0);
+
+  const fast = trailing(speeds, (s) => s.v > recordSpeedFor(60, rules));
+  if (secs(fast) >= 20) {
+    return { state: secs(fast) >= rules.liveImpossiblePauseSeconds.value ? 'pause' : 'warn', reason: 'impossible', speed, seconds: secs(fast), window: fast };
+  }
+  const vehicle = trailing(speeds, (s) => s.v >= vehicleSpeed);
+  if (secs(vehicle) >= rules.liveWarnSeconds.value) {
+    return { state: secs(vehicle) >= rules.liveVehiclePauseSeconds.value ? 'pause' : 'warn', reason: 'vehicle', speed, seconds: secs(vehicle), window: vehicle };
+  }
+  if (steps) {
+    const moving = trailing(speeds, (s) => s.v >= rules.stepsMinSpeedMetersPerSecond.value);
+    if (moving && secs(moving) >= rules.stepsFlagSeconds.value) {
+      const cadence = cadenceBetween(steps, moving.from, moving.to);
+      if (cadence !== null && cadence < rules.stepsMinCadence.value) {
+        return { state: secs(moving) >= rules.stepsPauseSeconds.value ? 'pause' : 'warn', reason: 'no_steps', speed, seconds: secs(moving), window: moving };
+      }
+    }
+  }
+  return none;
+}
+
+/** The trailing stretch at running speed or faster: the window to ask the step counter about. */
+export function trailingRunningStretch(recent: readonly LocationSample[], rules: IntegrityRules = INTEGRITY_RULES): Interval | null {
+  const usable = recent.filter((s) => (s.acc ?? Infinity) <= TERRITORY_RULES.maxUsableAccuracyMeters.value && !s.mocked);
+  const speeds = smoothedSpeeds(dropIsolatedSpikes(usable).kept, rules.smoothingFixes.value);
+  return trailing(speeds, (s) => s.v >= rules.stepsMinSpeedMetersPerSecond.value);
+}
+
+/** Plain words for the live warning and the pause (km/h: what runners and drivers both understand). */
+export function liveIntegrityText(r: LiveIntegrity): string {
+  const kmh = r.speed === null ? null : Math.round(r.speed * 3.6);
+  if (r.reason === 'impossible') {
+    return r.state === 'pause'
+      ? `Recording paused: ${kmh ?? 'this'} km/h is faster than anyone can run for that long. Resume when you are running again.`
+      : `${kmh ?? 'This'} km/h is faster than any human can run for long. If you are in a vehicle, this part cannot capture land.`;
+  }
+  if (r.reason === 'vehicle') {
+    return r.state === 'pause'
+      ? `Recording paused: you have been moving at ${kmh ?? 'vehicle'} km/h, like a vehicle. Resume when you are running again.`
+      : `You are moving at ${kmh ?? 'vehicle'} km/h, which looks like a vehicle. Runs at this speed are held for review and cannot capture land.`;
+  }
+  if (r.reason === 'no_steps') {
+    return r.state === 'pause'
+      ? 'Recording paused: you are moving at running speed but your phone counts no running steps, as on a bicycle. Resume when you are running.'
+      : 'Moving at running speed without running steps, as on a bicycle. This part of the run is marked for review.';
+  }
+  return '';
+}
+
+/**
+ * Applies backend overrides (`app_config.integrity_overrides`) to the defaults. Only known keys with
+ * sane values are taken; anything else is ignored, so a bad config can never switch the checks off.
+ */
+export function integrityRulesWith(overrides: unknown, base: IntegrityRules = INTEGRITY_RULES): IntegrityRules {
+  if (!overrides || typeof overrides !== 'object') return base;
+  const o = overrides as Record<string, unknown>;
+  const num = (k: keyof IntegrityRules, min: number, max: number): Num => {
+    const v = o[k];
+    return typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max ? { value: v } : (base[k] as Num);
+  };
+  const version = typeof o.version === 'string' && o.version.length <= 60 ? `${base.version}+${o.version}` : base.version;
+  return {
+    ...base,
+    version,
+    envelopeMargin: num('envelopeMargin', 1, 1.5),
+    isolatedSpikeMaxFixes: num('isolatedSpikeMaxFixes', 0, 5),
+    smoothingFixes: num('smoothingFixes', 1, 15),
+    liveWarnSeconds: num('liveWarnSeconds', 10, 300),
+    liveImpossiblePauseSeconds: num('liveImpossiblePauseSeconds', 20, 600),
+    liveVehiclePauseSeconds: num('liveVehiclePauseSeconds', 30, 900),
+    liveWindowSeconds: num('liveWindowSeconds', 60, 900),
+    stepsMinSpeedMetersPerSecond: num('stepsMinSpeedMetersPerSecond', 2, 5),
+    stepsMinCadence: num('stepsMinCadence', 40, 160),
+    stepsFlagSeconds: num('stepsFlagSeconds', 30, 600),
+    stepsPauseSeconds: num('stepsPauseSeconds', 60, 1800)
+  };
+}

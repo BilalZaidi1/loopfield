@@ -34,6 +34,12 @@ export function getSession(_id: string): PhoneDb.SessionRow | null {
 export function samplesFor(_sessionId: string): LocationSample[] {
   return [];
 }
+export function samplesAfter(_sessionId: string, _afterSeq: number): LocationSample[] {
+  return [];
+}
+export function samplesSince(_sessionId: string, _sinceT: number): LocationSample[] {
+  return [];
+}
 export function eventsFor(_sessionId: string): RecordingEvent[] {
   return [];
 }
@@ -54,7 +60,7 @@ export function recentLocalRuns(_userId: string, _limit?: number): (PhoneDb.Sess
 }
 
 // Compile-time check that this file offers every function the phone version does, with compatible types.
-const sameShape = { recordingDb, activeSession, getSession, samplesFor, eventsFor, addEvent, appendSamples, setSessionState, pendingUploads, recentLocalRuns } satisfies {
+const sameShape = { recordingDb, activeSession, getSession, samplesFor, samplesAfter, samplesSince, eventsFor, addEvent, appendSamples, setSessionState, pendingUploads, recentLocalRuns } satisfies {
   [K in keyof typeof PhoneDb]: (...args: never[]) => ReturnType<(typeof PhoneDb)[K]>;
 };
 void sameShape;

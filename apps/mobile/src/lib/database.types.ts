@@ -29,6 +29,9 @@ export type Database = {
           expected_chunks: number | null
           gaps: Json | null
           id: string
+          integrity_cleared_at: string | null
+          integrity_excluded_m: number
+          integrity_flags: string[]
           modes: NonNullable<Json>
           moving_ms: number | null
           notes: string | null
@@ -66,6 +69,9 @@ export type Database = {
           expected_chunks?: number | null
           gaps?: Json | null
           id: string
+          integrity_cleared_at?: string | null
+          integrity_excluded_m?: number
+          integrity_flags?: string[]
           modes?: NonNullable<Json>
           moving_ms?: number | null
           notes?: string | null
@@ -102,6 +108,9 @@ export type Database = {
           expected_chunks?: number | null
           gaps?: Json | null
           id?: string
+          integrity_cleared_at?: string | null
+          integrity_excluded_m?: number
+          integrity_flags?: string[]
           modes?: NonNullable<Json>
           moving_ms?: number | null
           notes?: string | null
@@ -1133,6 +1142,7 @@ export type Database = {
           opened_by: string
           resolution: string | null
           resolved_at: string | null
+          signals: NonNullable<Json>
           status: string
           subject_user_id: string | null
         }
@@ -1148,6 +1158,7 @@ export type Database = {
           opened_by: string
           resolution?: string | null
           resolved_at?: string | null
+          signals?: NonNullable<Json>
           status?: string
           subject_user_id?: string | null
         }
@@ -1162,6 +1173,7 @@ export type Database = {
           opened_by?: string
           resolution?: string | null
           resolved_at?: string | null
+          signals?: NonNullable<Json>
           status?: string
           subject_user_id?: string | null
         }

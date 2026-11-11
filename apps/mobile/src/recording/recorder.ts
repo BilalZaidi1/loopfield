@@ -9,6 +9,21 @@ import { log } from '@/lib/log';
 import { isExpoGo } from '@/lib/runtime';
 import { activeSession, addEvent, appendSamples, eventsFor, getSession, recordingDb, samplesFor, setSessionState, type RunMode } from './db';
 import { LOCATION_TASK } from './task';
+import { checkIntegrity, setAutoPauseHandler, setIntegrityOverrides, startSteps, stopSteps } from './integrity';
+import { supabase } from '@/lib/supabase';
+
+// The live movement check pauses through the same path as the Pause button.
+setAutoPauseHandler((id) => pauseRun(id));
+
+/** Backend-tuned integrity thresholds for this run; the defaults apply when offline. */
+async function loadIntegrityOverrides(): Promise<void> {
+  try {
+    const { data } = await supabase().from('app_config').select('value').eq('key', 'integrity_overrides').maybeSingle();
+    setIntegrityOverrides(data?.value ?? null);
+  } catch {
+    setIntegrityOverrides(null);
+  }
+}
 
 export interface TicketResponse {
   claims: { ticketId: string; modes: { territory: boolean; speed: boolean }; competitionId: string; seasonId: string; courseVersionId: string | null; startBy: number; issuedAt: number };
@@ -90,6 +105,7 @@ async function startForegroundUpdates(sessionId: string): Promise<void> {
   stopForegroundUpdates();
   foregroundWatch = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 }, (loc) => {
     appendSamples(sessionId, [loc]);
+    void checkIntegrity(sessionId);
   });
   await activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
 }
@@ -111,6 +127,8 @@ export async function startRun(sessionId: string, opts: { startCaptureNow: boole
   if (!s || s.state !== 'ready') throw new Error('Session is not ready');
   setSessionState(sessionId, { state: 'recording', started_at: Date.now() });
   addEvent(sessionId, 'start');
+  void loadIntegrityOverrides();
+  void startSteps();
   await startUpdates(sessionId);
   emitCue('started', 'Run started');
   if (opts.startCaptureNow && (s.mode === 'territory' || s.mode === 'territory_speed')) startCapture(sessionId);
@@ -147,12 +165,14 @@ export async function pauseRun(sessionId: string): Promise<void> {
   addEvent(sessionId, 'pause');
   setSessionState(sessionId, { state: 'paused' });
   await stopUpdates();
+  stopSteps();
   emitCue('paused', 'Paused');
 }
 
 export async function resumeRun(sessionId: string): Promise<void> {
   setSessionState(sessionId, { state: 'recording' });
   addEvent(sessionId, 'resume');
+  void startSteps();
   await startUpdates(sessionId);
   emitCue('resumed', 'Resumed');
 }
@@ -169,6 +189,7 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
   addEvent(sessionId, 'finish');
   setSessionState(sessionId, { state: 'finished', ended_at: Date.now() });
   await stopUpdates();
+  stopSteps();
   const summary = summarizeActivity(samplesFor(sessionId), eventsFor(sessionId));
   recordingDb().runSync(
     'insert or replace into uploads (session_id, state, next_chunk, attempts, next_attempt_at, summary, updated_at) values (?, ?, 0, 0, 0, ?, ?)',
@@ -187,6 +208,7 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
 
 export async function discardRun(sessionId: string): Promise<void> {
   await stopUpdates();
+  stopSteps();
   const d = recordingDb();
   d.withTransactionSync(() => {
     d.runSync('delete from samples where session_id = ?', [sessionId]);

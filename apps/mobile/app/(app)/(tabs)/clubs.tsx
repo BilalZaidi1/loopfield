@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@/lib/api';
-import { ArrowLink, Badge, Button, Card, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, TextField, Txt } from '@/components/ui';
+import { ArrowLink, Badge, Button, Card, CardRail, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, TextField, Txt } from '@/components/ui';
 import { ClubCard, ClubMonogram, clubTone } from '@/features/clubs/ClubBits';
 import { useLayout } from '@/theme/layout';
 import { TopBar } from '@/components/TopBar';
@@ -60,9 +60,11 @@ export default function Clubs() {
                 <Button label="Create a club" arrow onPress={() => router.push('/club/create')} />
               </Card>
             ) : (
-              <ScrollView horizontal={!isTablet} showsHorizontalScrollIndicator={false} contentContainerStyle={isTablet ? styles.grid : { gap: spacing.md, paddingRight: spacing.lg }} style={isTablet ? undefined : { marginHorizontal: -spacing.xl, paddingLeft: spacing.xl }}>
-                {active.map((c) => <ClubCard key={c.id} club={c} width={isTablet ? undefined : 232} />)}
-              </ScrollView>
+              isTablet ? (
+                <View style={styles.grid}>{active.map((c) => <ClubCard key={c.id} club={c} />)}</View>
+              ) : (
+                <CardRail>{active.map((c) => <ClubCard key={c.id} club={c} width={232} />)}</CardRail>
+              )
             )}
             {requested.length ? (
               <ListGroup>

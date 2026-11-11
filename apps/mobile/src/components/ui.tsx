@@ -274,6 +274,60 @@ export function ChipGroup<T extends string>({ label, value, onChange, options, s
   );
 }
 
+/**
+ * A row of cards that scrolls sideways and runs to the screen edges, with the same gap before the first
+ * card and after the last. The padding sits on the content, not the scroll view: Android drops a scroll
+ * view's own end padding, which left the last card touching the screen edge. Use directly inside a Screen.
+ */
+export function CardRail({ children, gap = spacing.md, accessibilityLabel }: { children: ReactNode; gap?: number; accessibilityLabel?: string }) {
+  const { gutter } = useLayout();
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityLabel={accessibilityLabel}
+      style={{ marginHorizontal: -gutter, flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: gutter, gap }}>
+      {children}
+    </ScrollView>
+  );
+}
+
+export interface ActionItem {
+  icon: IconName;
+  label: string;
+  onPress: () => void;
+  /** The main action gets the filled disc. */
+  primary?: boolean;
+  disabled?: boolean;
+  /** Spoken description when the visible label is short ("Share" → "Share this run"). */
+  accessibilityLabel?: string;
+}
+
+/**
+ * Three to five actions as equal columns of round icon buttons with a one-line label under each, instead
+ * of a stack of full-width buttons. Labels never wrap; the main action is the only filled disc.
+ */
+export function ActionBar({ actions }: { actions: ActionItem[] }) {
+  const t = useTheme();
+  const p = t.palette;
+  const block = useBlock();
+  return (
+    <View style={styles.actionBar} accessibilityRole="toolbar">
+      {actions.map((a) => {
+        const bg = a.primary ? (block ? block.fg : p.primaryFill) : block ? block.chip : p.surfaceAlt;
+        const fg = a.primary ? (block ? block.bg : '#FFFFFF') : block ? block.fg : p.text;
+        return (
+          <PressableScale key={a.label} onPress={a.onPress} disabled={a.disabled} scaleTo={0.94} accessibilityRole="button"
+            accessibilityLabel={a.accessibilityLabel ?? a.label} accessibilityState={{ disabled: Boolean(a.disabled) }}
+            style={[styles.action, { opacity: a.disabled ? 0.45 : 1 }]}>
+            <View style={[styles.actionDisc, { backgroundColor: bg }]}>
+              <Icon name={a.icon} color={fg} size={24} />
+            </View>
+            <Txt variant="label" align="center" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>{a.label}</Txt>
+          </PressableScale>
+        );
+      })}
+    </View>
+  );
+}
+
 /** "See all" style link: label plus arrow, at least 48 dp tall. */
 export function ArrowLink({ label, onPress, accessibilityLabel }: { label?: string; onPress: () => void; accessibilityLabel?: string }) {
   const { palette: p } = useTheme();
@@ -900,6 +954,9 @@ export function confirm(title: string, message: string, confirmLabel: string, on
 }
 
 const styles = StyleSheet.create({
+  actionBar: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-start', gap: spacing.sm },
+  action: { flex: 1, alignItems: 'center', gap: spacing.xs, minHeight: 84, maxWidth: 96 },
+  actionDisc: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   button: { borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   count: { position: 'absolute', top: 4, right: 2, minWidth: 20, height: 20, borderRadius: 10, borderWidth: 2, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   chip: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: spacing.xs + 2, paddingHorizontal: spacing.lg, borderRadius: radius.pill, borderWidth: 1 },

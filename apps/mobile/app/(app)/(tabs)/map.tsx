@@ -55,6 +55,7 @@ export default function TerritoryMap() {
   const [sheet, setSheet] = useState<'legend' | 'competition' | null>(null);
   const [sheetH, setSheetH] = useState(240);
   const [reclaiming, setReclaiming] = useState(false);
+  const [threeD, setThreeD] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [listOpen, setListOpen] = useState(false);
   const mapRef = useRef<MapHandle>(null);
@@ -136,6 +137,8 @@ export default function TerritoryMap() {
           onPressCell={(cell) => (reclaiming ? togglePick(cell) : setSelected({ kind: 'cell', id: cell }))}
           onPressRoute={(id) => (reclaiming ? undefined : setSelected({ kind: 'route', id }))}
           onPressMap={() => (reclaiming ? undefined : setSelected(null))}
+          threeD={threeD}
+          animate={!reclaiming}
         />
       )}
 
@@ -171,6 +174,7 @@ export default function TerritoryMap() {
         {available ? <IconButton icon="locate" label="Show my location" variant="surface" onPress={() => void recenter()} /> : null}
         <IconButton icon="route" label={showRoutes ? 'Hide speed routes' : 'Show speed routes'} variant="surface" color={showRoutes ? p.primary : p.textSubtle} onPress={() => setShowRoutes(!showRoutes)} />
         {available ? <IconButton icon="hexagon" label={showGrid ? 'Hide the grid' : 'Show the grid'} variant="surface" color={showGrid ? p.primary : p.textSubtle} onPress={() => setShowGrid(!showGrid)} /> : null}
+        {available ? <IconButton icon="mountain" label={threeD ? 'Switch to flat map' : 'Switch to 3D map'} variant="surface" color={threeD ? p.primary : p.textSubtle} onPress={() => setThreeD(!threeD)} /> : null}
         <IconButton icon="info" label="Map key" variant="surface" onPress={() => setSheet('legend')} />
       </View>
 

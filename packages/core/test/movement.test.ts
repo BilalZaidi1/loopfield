@@ -70,13 +70,14 @@ describe('movement points: verified distance', () => {
     expect(r.verifiedDistanceM).toBeGreaterThan(990);
   });
 
-  it('drops a single GPS jump', () => {
+  it('ignores a single GPS spike without penalising the run', () => {
     const s = samplePath(line(1500), { speedMps: 3 });
     const k = 200;
     const far = destination(s[k]!, 600, 0);
     s[k] = { ...s[k]!, lat: far.lat, lng: far.lng };
     const r = evaluateMovement(s, runEvents(s));
-    expect(r.reasons).toContain('gps_jump');
+    expect(r.reasons).toContain('gps_spike_ignored');
+    expect(r.reasons).not.toContain('gps_jump');
     expect(r.verifiedDistanceM).toBeGreaterThan(1480);
     expect(r.verifiedDistanceM).toBeLessThan(1520);
   });

@@ -1,4 +1,4 @@
-import { useImperativeHandle, useMemo, useRef, type ReactNode, type Ref } from 'react';
+import { useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import Svg, { Polygon } from 'react-native-svg';
 import { env } from '@/config/env';
@@ -6,6 +6,7 @@ import { isExpoGo } from '@/lib/runtime';
 import { Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { boundsOf, lineFeature, type Bounds } from '@/territory/h3';
+import { useReducedMotion } from '@/theme/motion';
 import { radius, spacing, useTheme } from '@/theme/tokens';
 
 /**
@@ -61,6 +62,11 @@ export interface MapHandle {
   flyTo: (coord: [number, number], zoom?: number) => void;
 }
 
+/** The Mapbox module when this build can draw maps (native build with a token), otherwise null. */
+export function mapboxModule(): typeof import('@rnmapbox/maps') | null {
+  return mapAvailability().ok ? Mapbox : null;
+}
+
 export function mapAvailability(): { ok: true } | { ok: false; reason: string } {
   if (mapboxError) return { ok: false, reason: mapboxError };
   if (!env.mapboxToken) return { ok: false, reason: 'Maps are not configured for this build (EXPO_PUBLIC_MAPBOX_TOKEN is missing).' };
@@ -71,7 +77,7 @@ const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: 
 
 /** The part of the Mapbox camera handle this screen uses. */
 interface CameraHandle {
-  setCamera: (config: { centerCoordinate: [number, number]; zoomLevel: number; animationDuration: number; animationMode: 'flyTo' }) => void;
+  setCamera: (config: { centerCoordinate?: [number, number]; zoomLevel?: number; pitch?: number; animationDuration: number; animationMode: 'flyTo' | 'easeTo' }) => void;
 }
 
 export function MapCanvas({
@@ -91,7 +97,9 @@ export function MapCanvas({
   ornamentBottom = 8,
   accessibilityLabel,
   fallback,
-  mapRef
+  mapRef,
+  threeD = false,
+  animate = false
 }: {
   layers: MapLayers;
   fit?: Bounds | null;
@@ -113,6 +121,10 @@ export function MapCanvas({
   accessibilityLabel: string;
   fallback?: ReactNode;
   mapRef?: Ref<MapHandle>;
+  /** Perspective camera with extruded buildings and terrain (the explore map; off while recording). */
+  threeD?: boolean;
+  /** Let your own land breathe gently (skipped with Reduce Motion). */
+  animate?: boolean;
 }) {
   const t = useTheme();
   const tc = t.territory;
@@ -122,6 +134,18 @@ export function MapCanvas({
   useImperativeHandle(mapRef, () => ({
     flyTo: (coord, z) => camera.current?.setCamera({ centerCoordinate: coord, zoomLevel: z ?? 15, animationDuration: 700, animationMode: 'flyTo' })
   }), []);
+  const reduced = useReducedMotion();
+  useEffect(() => {
+    if (!Mapbox) return;
+    camera.current?.setCamera({ pitch: threeD ? 55 : 0, animationDuration: reduced ? 0 : 800, animationMode: 'easeTo' });
+  }, [threeD, reduced]);
+  // Own land "breathes": one state flip every few seconds; Mapbox animates the change natively.
+  const [glow, setGlow] = useState(false);
+  useEffect(() => {
+    if (!animate || reduced || !Mapbox) return;
+    const id = setInterval(() => setGlow((g) => !g), 2400);
+    return () => clearInterval(id);
+  }, [animate, reduced]);
   const pathFc = useMemo(() => (layers.path && layers.path.length > 1 ? { type: 'FeatureCollection' as const, features: [lineFeature(layers.path)] } : null), [layers.path]);
   const closingFc = useMemo(() => (layers.closing && layers.closing.length > 1 ? { type: 'FeatureCollection' as const, features: [lineFeature(layers.closing)] } : null), [layers.closing]);
   const markerFc = useMemo<GeoJSON.FeatureCollection | null>(
@@ -147,7 +171,7 @@ export function MapCanvas({
       </View>
     );
   }
-  const { MapView, Camera, ShapeSource, FillLayer, LineLayer, CircleLayer, SymbolLayer, LocationPuck } = Mapbox;
+  const { MapView, Camera, ShapeSource, FillLayer, LineLayer, CircleLayer, SymbolLayer, LocationPuck, FillExtrusionLayer, RasterDemSource, Terrain, SkyLayer } = Mapbox;
   const onFeature = () => {
     featureTap.current = Date.now();
   };
@@ -163,7 +187,8 @@ export function MapCanvas({
         compassEnabled
         compassPosition={{ top: fill ? 120 : 8, right: 12 }}
         scaleBarEnabled={false}
-        pitchEnabled={false}
+        pitchEnabled
+        rotateEnabled
         onPress={() => {
           if (Date.now() - featureTap.current > 300) onPressMap?.();
         }}
@@ -180,6 +205,27 @@ export function MapCanvas({
           followZoomLevel={followUser ? 16 : undefined}
           animationDuration={0}
         />
+        {threeD ? (
+          <>
+            <RasterDemSource id="terrain-dem" url="mapbox://mapbox.mapbox-terrain-dem-v1" tileSize={514} maxZoomLevel={14} />
+            <Terrain sourceID="terrain-dem" style={{ exaggeration: 1.2 }} />
+            <SkyLayer id="sky" style={{ skyType: 'atmosphere', skyAtmosphereSun: [0, 0], skyAtmosphereSunIntensity: 12 }} />
+            <FillExtrusionLayer
+              id="buildings-3d"
+              sourceID="composite"
+              sourceLayerID="building"
+              minZoomLevel={14.5}
+              maxZoomLevel={22}
+              filter={['==', ['get', 'extrude'], 'true']}
+              style={{
+                fillExtrusionColor: tc.building,
+                fillExtrusionOpacity: tc.buildingOpacity,
+                fillExtrusionHeight: ['interpolate', ['linear'], ['zoom'], 14.5, 0, 15.2, ['get', 'height']],
+                fillExtrusionBase: ['interpolate', ['linear'], ['zoom'], 14.5, 0, 15.2, ['get', 'min_height']]
+              }}
+            />
+          </>
+        ) : null}
         {layers.grid ? (
           <ShapeSource id="grid" shape={layers.grid}>
             <LineLayer id="grid-line" minZoomLevel={14.5} style={{ lineColor: tc.grid, lineWidth: 0.8 }} />
@@ -207,7 +253,11 @@ export function MapCanvas({
               if (c && onPressCell) onPressCell(String(c));
             }}>
             <FillLayer id="cells-fill" style={{ fillColor: ['get', 'color'], fillOpacity: ['case', ['==', ['get', 'status'], 'excluded'], 0.2, ['==', ['get', 'mine'], true], 0.5, tc.rivalOpacity] }} />
-            <LineLayer id="cells-glow" filter={['==', ['get', 'mine'], true]} style={{ lineColor: tc.mineGlow, lineWidth: 6, lineBlur: 3 }} />
+            <LineLayer
+              id="cells-glow"
+              filter={['==', ['get', 'mine'], true]}
+              style={{ lineColor: tc.mineGlow, lineWidth: glow ? 9 : 6, lineBlur: 3, lineOpacity: glow ? 1 : 0.7, lineWidthTransition: { duration: 2200, delay: 0 }, lineOpacityTransition: { duration: 2200, delay: 0 } }}
+            />
             <LineLayer id="cells-line" filter={['!=', ['get', 'status'], 'excluded']} style={{ lineColor: ['case', ['==', ['get', 'mine'], true], tc.mineLine, ['get', 'color']], lineWidth: ['case', ['==', ['get', 'mine'], true], 2, 1], lineOpacity: 0.95 }} />
             <LineLayer id="cells-excluded-line" filter={['==', ['get', 'status'], 'excluded']} style={{ lineColor: tc.unavailableLine, lineWidth: 1.2, lineDasharray: [2, 2] }} />
             <LineLayer id="cells-selected-casing" filter={['==', ['get', 'cell'], selectedCell ?? '']} style={{ lineColor: tc.selectedCasing, lineWidth: 7 }} />
@@ -244,9 +294,10 @@ export function MapCanvas({
           <LineLayer id="routes-suspended" filter={['==', ['get', 'status'], 'suspended']} style={{ lineColor: tc.routeSuspended, lineWidth: 3.5, lineDasharray: [1, 2], lineCap: 'round' }} />
         </ShapeSource>
         {pathFc ? (
-          <ShapeSource id="path" shape={pathFc}>
+          <ShapeSource id="path" shape={pathFc} lineMetrics>
             <LineLayer id="path-casing" style={{ lineColor: tc.pathCasing, lineWidth: 9, lineCap: 'round', lineJoin: 'round' }} />
-            <LineLayer id="path-line" style={{ lineColor: tc.path, lineWidth: 5, lineCap: 'round', lineJoin: 'round' }} />
+            {/* Light at the start, full colour at the finish: the direction of travel reads at a glance. */}
+            <LineLayer id="path-line" style={{ lineWidth: 5, lineCap: 'round', lineJoin: 'round', lineGradient: ['interpolate', ['linear'], ['line-progress'], 0, tc.pathStart, 1, tc.path] }} />
           </ShapeSource>
         ) : null}
         {closingFc ? (

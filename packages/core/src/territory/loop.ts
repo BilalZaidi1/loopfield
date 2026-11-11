@@ -10,7 +10,8 @@ import {
   type LatLng
 } from '../geo/geo.ts';
 import { decide, type Decision, type ReasonCode } from '../rules/decisions.ts';
-import { TERRITORY_RULES } from '../rules/config.ts';
+import { INTEGRITY_RULES, TERRITORY_RULES } from '../rules/config.ts';
+import { beyondRecords, dropIsolatedSpikes, noStepWindows, overlaps, smoothedSpeeds, sustainedAbove, type IntegrityRules } from '../integrity/speed.ts';
 import { canonicalSamples, findGaps, isUsable, pausedIntervals } from '../recording/summary.ts';
 import type { LocationSample, RecordingEvent } from '../recording/types.ts';
 
@@ -52,24 +53,6 @@ export function findCaptureInterval(events: readonly RecordingEvent[], samples: 
   return { startT: start.t, endT: end.t, startSeq: inside[0]!.seq, endSeq: inside[inside.length - 1]!.seq };
 }
 
-/** Longest stretch over which the implied speed exceeded a threshold (seconds). */
-function longestFastStretchSeconds(samples: readonly LocationSample[], thresholdMps: number): number {
-  let best = 0;
-  let current = 0;
-  for (let i = 1; i < samples.length; i++) {
-    const a = samples[i - 1]!;
-    const b = samples[i]!;
-    const dt = (b.t - a.t) / 1000;
-    if (dt <= 0) continue;
-    const v = haversineMeters(a, b) / dt;
-    if (v > thresholdMps) {
-      current += dt;
-      best = Math.max(best, current);
-    } else current = 0;
-  }
-  return best;
-}
-
 /** Drop consecutive duplicates closer than minSpacing so ring construction is stable. */
 function thinRing(points: readonly LatLng[], minSpacingM: number): LatLng[] {
   const out: LatLng[] = [];
@@ -89,7 +72,8 @@ function thinRing(points: readonly LatLng[], minSpacingM: number): LatLng[] {
 export function evaluateLoop(
   rawSamples: readonly LocationSample[],
   events: readonly RecordingEvent[],
-  rules: Rules = TERRITORY_RULES
+  rules: Rules = TERRITORY_RULES,
+  integrity: IntegrityRules = INTEGRITY_RULES
 ): LoopEvaluation {
   const reasons = new Set<ReasonCode>();
   const samples = canonicalSamples(rawSamples);
@@ -119,8 +103,11 @@ export function evaluateLoop(
     reasons.add('recording_gap');
   }
 
-  const usable = inside.filter((s) => isUsable(s, rules.maxUsableAccuracyMeters.value));
-  const usableShare = inside.length === 0 ? 0 : usable.length / inside.length;
+  const accurate = inside.filter((s) => isUsable(s, rules.maxUsableAccuracyMeters.value));
+  const usableShare = inside.length === 0 ? 0 : accurate.length / inside.length;
+  // An isolated GPS spike (a fix or two that jump away and come back) is dropped, never penalised.
+  const { kept: usable, dropped } = dropIsolatedSpikes(accurate, rules.maxJumpSpeedMetersPerSecond.value, integrity.isolatedSpikeMaxFixes.value);
+  if (dropped > 0) reasons.add('gps_spike_ignored');
   if (usable.length < rules.minSamples.value) {
     reasons.add('insufficient_samples');
     return { ...empty, reasons: [...reasons], decision: decide([...reasons]), usableShare };
@@ -150,9 +137,13 @@ export function evaluateLoop(
       break;
     }
   }
-  if (longestFastStretchSeconds(usable, rules.suspiciousSustainedSpeedMetersPerSecond.value) >= rules.suspiciousSustainedSeconds.value) {
+  // Judged on smoothed speeds: only sustained readings count.
+  const speeds = smoothedSpeeds(usable, integrity.smoothingFixes.value, rules.maxSampleGapSeconds.value);
+  if (sustainedAbove(speeds, rules.suspiciousSustainedSpeedMetersPerSecond.value, rules.suspiciousSustainedSeconds.value).length > 0) {
     reasons.add('suspicious_speed');
   }
+  if (beyondRecords(usable, integrity).length > 0) reasons.add('implausible_speed');
+  if (noStepWindows(events).some((iv) => overlaps(iv, interval.startT, interval.endT))) reasons.add('no_running_steps');
 
   const first = usable[0]!;
   const last = usable[usable.length - 1]!;

@@ -5,7 +5,7 @@ import * as Speech from 'expo-speech';
  * Every audio cue has a visual text equivalent and an optional haptic (PRD §8 accessibility).
  * Components subscribe to cues to show the visual banner; audio and haptics are user preferences.
  */
-export type CueKind = 'started' | 'paused' | 'resumed' | 'split' | 'closure_possible' | 'gps_weak' | 'gps_restored' | 'gap' | 'finished' | 'capture_started' | 'speed_started';
+export type CueKind = 'started' | 'paused' | 'resumed' | 'split' | 'closure_possible' | 'gps_weak' | 'gps_restored' | 'gap' | 'finished' | 'capture_started' | 'speed_started' | 'speed_warning' | 'auto_paused';
 export interface Cue {
   kind: CueKind;
   text: string;
@@ -29,7 +29,7 @@ export function emitCue(kind: CueKind, text: string): void {
   const cue = { kind, text, at: Date.now() };
   listeners.forEach((l) => l(cue));
   if (prefs.haptics) {
-    const warn = kind === 'gps_weak' || kind === 'gap';
+    const warn = kind === 'gps_weak' || kind === 'gap' || kind === 'speed_warning' || kind === 'auto_paused';
     void Haptics.notificationAsync(warn ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success).catch(() => {});
   }
   if (prefs.audio) Speech.speak(text, { rate: 1.0 });

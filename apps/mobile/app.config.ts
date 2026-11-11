@@ -57,7 +57,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       NSHealthShareUsageDescription:
         'Optional: read workouts, heart rate, steps, calories, sleep, resting heart rate, HRV and VO2 max to show your private health dashboard on this phone. Health data is never uploaded or shared.',
       NSHealthUpdateUsageDescription: 'Optional: save runs you record in this app to Apple Health when you turn on workout export.',
-      NSMotionUsageDescription: 'Motion data can improve recording accuracy for runs you start.',
+      NSMotionUsageDescription: 'During a run you start, the step count is checked on this phone to tell running from cycling. Steps are never uploaded; only a yes/no flag is sent with the run.',
       NSPhotoLibraryUsageDescription: 'Choose photos to add to a post. Location metadata is removed before upload.',
       NSCameraUsageDescription: 'Take a photo to add to a post. Location metadata is removed before upload.',
       UIBackgroundModes: ['location', 'remote-notification'],
@@ -82,7 +82,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       ...HEALTH_CONNECT_READ,
       'android.permission.health.WRITE_EXERCISE'
     ],
-    blockedPermissions: ['android.permission.READ_EXTERNAL_STORAGE', 'android.permission.WRITE_EXTERNAL_STORAGE', 'android.permission.RECORD_AUDIO']
+    // Saving cards on Android goes through the share sheet, so no broad media access is ever requested.
+    blockedPermissions: [
+      'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.WRITE_EXTERNAL_STORAGE',
+      'android.permission.RECORD_AUDIO',
+      'android.permission.READ_MEDIA_IMAGES',
+      'android.permission.READ_MEDIA_VIDEO',
+      'android.permission.READ_MEDIA_AUDIO',
+      'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+      'android.permission.ACCESS_MEDIA_LOCATION'
+    ]
   },
   plugins: [
     'expo-router',
@@ -100,7 +110,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // Source maps upload only when the build has a Sentry auth token (an EAS secret); otherwise the build skips it.
     ['@sentry/react-native/expo', { organization: process.env.SENTRY_ORG ?? 'futurama-labs', project: process.env.SENTRY_PROJECT_MOBILE ?? 'loopfield-mobile', url: process.env.SENTRY_URL ?? 'https://de.sentry.io/', disableAutoUpload: !process.env.SENTRY_AUTH_TOKEN }],
     'expo-web-browser',
-    'expo-localization'
+    'expo-localization',
+    ['expo-sensors', { motionPermission: 'During a run you start, the step count is checked on this phone to tell running from cycling. Steps are never uploaded; only a yes/no flag is sent with the run.' }],
+    ['expo-media-library', { photosPermission: 'Choose photos to add to a post. Location metadata is removed before upload.', savePhotosPermission: 'Save activity cards you create to your photos.', isAccessMediaLocationEnabled: false, granularPermissions: ['photo'] }]
   ],
   experiments: { typedRoutes: false },
   extra: {

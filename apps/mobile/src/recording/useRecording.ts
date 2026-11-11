@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { closureHint, haversineMeters, summarizeActivity, TERRITORY_RULES, type ActivitySummary, type LocationSample } from '@loopfield/core';
+import { closureHint, haversineMeters, summarizeActivity, TERRITORY_RULES, type ActivitySummary, type LocationSample, type RecordingEvent } from '@loopfield/core';
 import { emitCue } from '@/lib/cues';
-import { activeSession, eventsFor, getSession, samplesFor, type SessionRow } from './db';
+import { activeSession, eventsFor, getSession, samplesAfter, type SessionRow } from './db';
 
 export interface LiveState {
   session: SessionRow | null;
@@ -11,21 +11,49 @@ export interface LiveState {
   gpsStaleSeconds: number | null;
   closure: 'not_started' | 'open' | 'possible_closure';
   captureDistanceM: number;
+  /** Display path: fixes good enough to draw (≤ 50 m accuracy), thinned to one point every few metres. */
   path: [number, number][];
+  /** Where the loop capture started, for the closing hint on the map. */
+  captureStart: [number, number] | null;
+  events: RecordingEvent[];
 }
+
+/** Minimum spacing between drawn points: enough for a smooth line, far fewer points to send to the map. */
+const DRAW_SPACING_M = 3;
+
+const EMPTY: LiveState = { session: null, summary: null, last: null, gpsQuality: 'none', gpsStaleSeconds: null, closure: 'not_started', captureDistanceM: 0, path: [], captureStart: null, events: [] };
 
 /**
  * UI view of the recording. This 1 s refresh only re-reads persisted samples for display; it is not
- * the sampling source (location events written by the background task are).
+ * the sampling source (location events written by the background task are). Only samples added since the
+ * last refresh are read, and the drawn path is thinned, so long runs stay cheap to display.
  */
 export function useRecording(sessionId?: string, refreshMs = 1000): LiveState {
-  const [state, setState] = useState<LiveState>({ session: null, summary: null, last: null, gpsQuality: 'none', gpsStaleSeconds: null, closure: 'not_started', captureDistanceM: 0, path: [] });
+  const [state, setState] = useState<LiveState>(EMPTY);
   const lastQuality = useRef<string>('none');
+  const cache = useRef<{ id: string; samples: LocationSample[]; path: [number, number][]; lastSeq: number } | null>(null);
   useEffect(() => {
     const tick = () => {
       const session = sessionId ? getSession(sessionId) : activeSession();
-      if (!session) return setState((s) => ({ ...s, session: null }));
-      const samples = samplesFor(session.id);
+      if (!session) {
+        cache.current = null;
+        return setState((s) => (s.session ? EMPTY : s));
+      }
+      if (cache.current?.id !== session.id) cache.current = { id: session.id, samples: [], path: [], lastSeq: -1 };
+      const c = cache.current;
+      const fresh = samplesAfter(session.id, c.lastSeq);
+      let pathChanged = false;
+      for (const s of fresh) {
+        c.samples.push(s);
+        c.lastSeq = s.seq;
+        if ((s.acc ?? 99) > 50) continue;
+        const prev = c.path[c.path.length - 1];
+        if (!prev || haversineMeters({ lat: prev[1], lng: prev[0] }, s) >= DRAW_SPACING_M) {
+          c.path.push([s.lng, s.lat]);
+          pathChanged = true;
+        }
+      }
+      const samples = c.samples;
       const events = eventsFor(session.id);
       const last = samples[samples.length - 1] ?? null;
       const stale = last ? (Date.now() - last.t) / 1000 : null;
@@ -40,16 +68,20 @@ export function useRecording(sessionId?: string, refreshMs = 1000): LiveState {
       const capSamples = captureStart ? samples.filter((s) => s.t >= captureStart.t) : [];
       let capDist = 0;
       for (let i = 1; i < capSamples.length; i++) capDist += haversineMeters(capSamples[i - 1]!, capSamples[i]!);
-      setState({
+      const first = capSamples[0];
+      setState((prev) => ({
         session,
         summary: summarizeActivity(samples, events),
         last,
         gpsQuality: quality,
         gpsStaleSeconds: stale,
-        closure: session.capture_state === 'open' ? closureHint(capSamples[0] ?? null, last, capDist) : 'not_started',
+        closure: session.capture_state === 'open' ? closureHint(first ?? null, last, capDist) : 'not_started',
         captureDistanceM: capDist,
-        path: samples.filter((s) => (s.acc ?? 99) <= 50).map((s) => [s.lng, s.lat])
-      });
+        // A new array only when the drawn line changed, so the map re-renders only then.
+        path: pathChanged || prev.session?.id !== session.id ? [...c.path] : prev.path,
+        captureStart: first ? [first.lng, first.lat] : null,
+        events
+      }));
     };
     tick();
     const id = setInterval(tick, refreshMs);

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { formatDuration, REASON_TEXT, type ReasonCode } from '@loopfield/core';
 import { fmtArea, fmtDate, splitValue } from '@/lib/format';
 import { Badge, BigNumber, Button, Card, Skeleton, Txt } from '@/components/ui';
+import type { ActivityJson } from './useActivity';
 import { Icon } from '@/components/icons';
 import { useUnits } from '@/state/session';
 import { useNow } from '@/lib/useNow';
@@ -68,6 +69,27 @@ const STATUS_LABEL: Record<string, { label: string; tone: 'info' | 'success' | '
 };
 
 /** Land result: separate from route titles; area never transfers or protects titles (PRD §6). */
+/**
+ * A run the server marked for moving unlike a runner: what that means for this run, and how to ask for a
+ * review when it was a GPS error. Nothing is shown for an ordinary run.
+ */
+export function IntegrityCard({ activity }: { activity: ActivityJson | null | undefined }) {
+  const { palette: p } = useTheme();
+  const flags = activity?.integrity_flags ?? [];
+  if (!activity || !flags.length) return null;
+  return (
+    <Card tone="soft" accessibilityLabel="This run is marked for review">
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <Icon name="shield" color={p.warning} size={22} />
+        <Txt variant="heading" style={{ flex: 1 }}>Marked for review</Txt>
+      </View>
+      {flags.map((f) => <Txt key={f} color="textMuted">{REASON_TEXT[f as ReasonCode] ?? f}</Txt>)}
+      <Txt color="textMuted">Movement points were not counted for that part, and land from this run is held until a reviewer looks at it.</Txt>
+      <Button variant="secondary" icon="flag" label="It was a GPS error: request a review" onPress={() => router.push({ pathname: '/appeals', params: { type: 'activity', id: activity.id } })} />
+    </Card>
+  );
+}
+
 export function LandCard({ claim, territoryRequested }: { claim: ClaimJson | null; territoryRequested: boolean }) {
   const { palette: p } = useTheme();
   const units = useUnits();

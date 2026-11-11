@@ -4,11 +4,11 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { friendlyError } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { fmtDistance, fmtDuration, fmtPace, splitValue } from '@/lib/format';
-import { Badge, Banner, BigNumber, Button, Card, EmptyState, Screen, StatLine, Txt } from '@/components/ui';
+import { ActionBar, Badge, Banner, BigNumber, Button, Card, EmptyState, ListGroup, Row, Screen, Sheet, StatLine, Txt } from '@/components/ui';
 import { RunPointsCard } from '@/features/movement/Reclaim';
 import { Icon } from '@/components/icons';
 import { Celebration } from '@/features/run/Celebration';
-import { LandCard, TitleCards } from '@/features/results/ResultCards';
+import { IntegrityCard, LandCard, TitleCards } from '@/features/results/ResultCards';
 import { readLocalRun, useActivityDetail, type LocalRun } from '@/features/results/useActivity';
 import { canExportRuns, exportRun } from '@/health/export';
 import { PLATFORM_LABEL } from '@/health/sync';
@@ -38,6 +38,13 @@ export default function RunSummary() {
       track('claim_explained', { result_type: detail.data.claim.status === 'eligible' ? 'land' : 'none', viewed: true });
     }
   }, [detail.data?.claim?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [more, setMore] = useState(false);
+  const saveable = canExportRuns() && Boolean(local?.startedAt && local?.endedAt);
+  const save = () =>
+    void exportRun({ activityId: id!, start: local!.startedAt!, end: local!.endedAt!, distanceM: detail.data?.activity?.distance_m ?? local?.summary?.distanceM ?? 0 })
+      .then(() => setExported(true))
+      .catch((e) => Alert.alert('Not saved', friendlyError(e)));
 
   if (!local) return <Screen><EmptyState icon="record" title="Run not found on this phone" action={{ label: 'Activity history', onPress: () => router.replace('/activities') }} /></Screen>;
   const s = local.summary;
@@ -85,6 +92,7 @@ export default function RunSummary() {
       {uploaded ? (
         <>
           {detail.error ? <Banner tone="danger" text={friendlyError(detail.error)} action={{ label: 'Retry', onPress: () => void detail.refetch() }} /> : null}
+          <IntegrityCard activity={detail.data?.activity} />
           <RunPointsCard activityId={id} />
           <LandCard claim={detail.data?.claim ?? null} territoryRequested={territoryRequested} />
           <TitleCards attempts={detail.data?.attempts ?? []} context={detail.data?.title_context ?? []} />
@@ -93,24 +101,28 @@ export default function RunSummary() {
         <Txt variant="caption">Land and title results appear after the upload is checked.</Txt>
       ) : null}
       {uploaded ? (
-        <View style={{ gap: spacing.sm }}>
-          <Button label="Share run" variant="ink" size="lg" arrow icon="share" onPress={() => router.push({ pathname: '/share/[id]', params: { id: id! } })} />
-          <Button label="Activity details" variant="secondary" onPress={() => router.push({ pathname: '/activities/[id]', params: { id: id! } })} />
-          {canExportRuns() && local.startedAt && local.endedAt ? (
-            <Button
-              variant="ghost"
-              icon="pulse"
-              label={exported ? `Saved to ${PLATFORM_LABEL}` : `Save workout to ${PLATFORM_LABEL}`}
-              disabled={exported}
-              onPress={() =>
-                void exportRun({ activityId: id!, start: local.startedAt!, end: local.endedAt!, distanceM: a?.distance_m ?? s?.distanceM ?? 0 })
-                  .then(() => setExported(true))
-                  .catch((e) => Alert.alert('Not saved', friendlyError(e)))
-              }
-            />
-          ) : null}
-        </View>
+        <Card>
+          <ActionBar
+            actions={[
+              { icon: 'share', label: 'Share', primary: true, accessibilityLabel: 'Share this run', onPress: () => router.push({ pathname: '/share/[id]', params: { id: id! } }) },
+              ...(saveable
+                ? [{ icon: 'pulse' as const, label: exported ? 'Saved' : 'Save', disabled: exported, accessibilityLabel: exported ? `Saved to ${PLATFORM_LABEL}` : `Save this workout to ${PLATFORM_LABEL}`, onPress: save }]
+                : []),
+              { icon: 'progress', label: 'Analytics', accessibilityLabel: 'Open the activity details and analytics', onPress: () => router.push({ pathname: '/activities/[id]', params: { id: id! } }) },
+              { icon: 'more', label: 'More', accessibilityLabel: 'More options', onPress: () => setMore(true) }
+            ]}
+          />
+        </Card>
       ) : null}
+      <Sheet visible={more} title="More options" onClose={() => setMore(false)}>
+        <ListGroup>
+          {detail.data?.claim ? (
+            <Row icon="flag" title="Request a review of the land result" subtitle="For example after a GPS error" onPress={() => { setMore(false); router.push({ pathname: '/appeals', params: { type: 'loop_claim', id: detail.data!.claim!.id } }); }} />
+          ) : null}
+          <Row icon="clock" title="Activity history" onPress={() => { setMore(false); router.replace('/activities'); }} />
+          <Row icon="home" title="Back to Home" onPress={() => { setMore(false); router.replace('/home'); }} />
+        </ListGroup>
+      </Sheet>
     </Screen>
   );
 }

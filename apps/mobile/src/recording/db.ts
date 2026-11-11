@@ -88,6 +88,26 @@ export function samplesFor(sessionId: string): LocationSample[] {
     .map((r) => ({ seq: r.seq, t: r.t, mono: r.mono, lat: r.lat, lng: r.lng, acc: r.acc, alt: r.alt, altAcc: r.alt_acc, spd: r.spd, hdg: r.hdg, mocked: r.mocked === 1 }));
 }
 
+/** Samples recorded after `afterSeq` (the live screen reads only what is new each second). */
+export function samplesAfter(sessionId: string, afterSeq: number): LocationSample[] {
+  return recordingDb()
+    .getAllSync<{ seq: number; t: number; mono: number | null; lat: number; lng: number; acc: number | null; alt: number | null; alt_acc: number | null; spd: number | null; hdg: number | null; mocked: number }>(
+      'select * from samples where session_id = ? and seq > ? order by seq',
+      [sessionId, afterSeq]
+    )
+    .map((r) => ({ seq: r.seq, t: r.t, mono: r.mono, lat: r.lat, lng: r.lng, acc: r.acc, alt: r.alt, altAcc: r.alt_acc, spd: r.spd, hdg: r.hdg, mocked: r.mocked === 1 }));
+}
+
+/** Samples recorded at or after `sinceT` (epoch ms): the window the live integrity check looks at. */
+export function samplesSince(sessionId: string, sinceT: number): LocationSample[] {
+  return recordingDb()
+    .getAllSync<{ seq: number; t: number; mono: number | null; lat: number; lng: number; acc: number | null; alt: number | null; alt_acc: number | null; spd: number | null; hdg: number | null; mocked: number }>(
+      'select * from samples where session_id = ? and t >= ? order by seq',
+      [sessionId, sinceT]
+    )
+    .map((r) => ({ seq: r.seq, t: r.t, mono: r.mono, lat: r.lat, lng: r.lng, acc: r.acc, alt: r.alt, altAcc: r.alt_acc, spd: r.spd, hdg: r.hdg, mocked: r.mocked === 1 }));
+}
+
 export function eventsFor(sessionId: string): RecordingEvent[] {
   return recordingDb()
     .getAllSync<{ t: number; mono: number | null; kind: RecordingEventKind; after_seq: number; data: string | null }>('select * from events where session_id = ? order by id', [sessionId])

@@ -1,12 +1,12 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { fmtArea, fmtDistance, fmtDuration, splitValue } from '@/lib/format';
-import { ArrowLink, Avatar, Badge, BigNumber, Button, Card, EmptyState, ErrorState, LoadingState, OfflineBanner, ProgressBar, Row, Section, Segmented, Skeleton, Txt } from '@/components/ui';
+import { ArrowLink, Avatar, Badge, BigNumber, Button, Card, CardRail, EmptyState, ErrorState, LoadingState, OfflineBanner, ProgressBar, Row, Section, Segmented, Skeleton, Txt } from '@/components/ui';
 import { BarChart } from '@/components/charts';
 import { Icon } from '@/components/icons';
 import { TopBar } from '@/components/TopBar';
@@ -328,14 +328,14 @@ function FollowingRow({ people }: { people: { user_id: string; handle: string; d
         <Txt variant="headline" style={{ flex: 1 }}>Following</Txt>
         <ArrowLink label="Find runners" onPress={() => router.push('/discover')} />
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.lg, paddingRight: spacing.lg }}>
+      <CardRail gap={spacing.lg}>
         {people.slice(0, 20).map((u) => (
           <Pressable key={u.user_id} onPress={() => router.push({ pathname: '/profile/[id]', params: { id: u.user_id } })} accessibilityRole="button" accessibilityLabel={`Open ${u.display_name}'s profile`} style={({ pressed }) => ({ alignItems: 'center', gap: spacing.xs, width: 68, opacity: pressed ? 0.7 : 1 })}>
             <Avatar name={u.display_name} size={54} ring={p.primary} />
             <Txt variant="caption" color="text" numberOfLines={1} align="center">{u.display_name.split(/\s+/)[0]}</Txt>
           </Pressable>
         ))}
-      </ScrollView>
+      </CardRail>
     </View>
   );
 }

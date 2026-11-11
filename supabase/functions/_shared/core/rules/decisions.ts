@@ -25,6 +25,9 @@ export type ReasonCode =
   | 'mock_location'
   | 'duplicate_evidence'
   | 'suspicious_speed'
+  | 'implausible_speed'
+  | 'no_running_steps'
+  | 'gps_spike_ignored'
   | 'gps_jump'
   | 'interval_missing'
   // territory geometry
@@ -63,9 +66,12 @@ export type ReasonCode =
 
 /** Severity mapping: which reason forces which decision when present. */
 const INVALID: ReadonlySet<ReasonCode> = new Set(['mock_location', 'duplicate_evidence', 'ticket_reused', 'ticket_invalid']);
-const REVIEW: ReadonlySet<ReasonCode> = new Set(['suspicious_speed']);
+const REVIEW: ReadonlySet<ReasonCode> = new Set(['suspicious_speed', 'implausible_speed', 'no_running_steps']);
+/** Explanations that never change a decision (for example a GPS spike that was ignored). */
+const INFO: ReadonlySet<ReasonCode> = new Set(['gps_spike_ignored']);
 
-export function decide(reasons: readonly ReasonCode[]): Decision {
+export function decide(all: readonly ReasonCode[]): Decision {
+  const reasons = all.filter((r) => !INFO.has(r));
   if (reasons.length === 0) return 'eligible';
   if (reasons.some((r) => INVALID.has(r))) return 'invalid';
   if (reasons.every((r) => REVIEW.has(r))) return 'pending_review';
@@ -92,6 +98,9 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   mock_location: 'Simulated or mocked locations were detected.',
   duplicate_evidence: 'This evidence matches an activity that was already submitted.',
   suspicious_speed: 'Sustained speed looks unlike running, so the result is held for review.',
+  implausible_speed: 'The speed was faster than any human has run for that long, so the result is held for review. If this was a GPS error, a reviewer can clear it.',
+  no_running_steps: 'Your phone counted no running steps while you moved at running speed, so the result is held for review.',
+  gps_spike_ignored: 'A brief GPS spike was ignored; it did not affect the result.',
   gps_jump: 'A GPS jump interrupted the interval, so the boundary cannot be trusted.',
   interval_missing: 'The competitive interval was not started and finished explicitly.',
   open_loop: 'The finish was not close enough to the start to close the loop.',
