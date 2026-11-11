@@ -2,7 +2,7 @@
 -- pushed, contested land), friends' runs, new members, announcements, season results, the email outbox
 -- (preferences, dedupe, invitation cap, welcome on confirmation, event registration) and unsubscribe.
 begin;
-select plan(34);
+select plan(38);
 
 insert into auth.users (id, email) values
   ('a1010000-0000-4000-8000-000000000001', 'held@example.test'),
@@ -83,6 +83,11 @@ select is((select data ->> 'district' from public.notifications where user_id = 
           'items name the district, not a street or a point');
 select is(pg_temp.n('a1040000-0000-4000-8000-000000000004', 'territory_lost') + pg_temp.n('a1040000-0000-4000-8000-000000000004', 'territory_contested'), 0,
           'runners who turned off land-loss notifications get none');
+select internal.notify_land('a1020000-0000-4000-8000-000000000002', 'territory_captured', 'activity', 'x', '{}',
+       (select data -> 'layers' -> 0 from public.notifications where user_id = 'a1020000-0000-4000-8000-000000000002' and kind = 'territory_captured'),
+       (select dedupe_key from public.notifications where user_id = 'a1020000-0000-4000-8000-000000000002' and kind = 'territory_captured'), false);
+select is((select jsonb_array_length(data -> 'layers') from public.notifications where user_id = 'a1020000-0000-4000-8000-000000000002' and kind = 'territory_captured'), 1,
+          'a layer published again (after a review) is counted once');
 
 -- ---- Season results ------------------------------------------------------------------------------
 update public.seasons set status = 'settled', settled_at = now() where id = '00000000-0000-4000-8000-000000000041';
@@ -120,6 +125,22 @@ select is(pg_temp.n('a1080000-0000-4000-8000-000000000008', 'friend_run'), 1, 'a
 select is(pg_temp.n('a1090000-0000-4000-8000-000000000009', 'friend_run'), 0, 'a one-way follower sees it in the feed but is not notified');
 select is((select push_state from public.notifications where user_id = 'a1080000-0000-4000-8000-000000000008' and kind = 'friend_run'), 'pending',
           'it is queued for push, where preferences decide (off unless the friend turned it on)');
+-- A shared route stays hidden for the publication delay; friends hear about it only once it is visible.
+create temp table later_post (id uuid);
+with ins as (
+  insert into public.posts (author_id, audience, activity_id, status, published_at, publish_after)
+  select 'a1020000-0000-4000-8000-000000000002', 'public', a.id, 'published', now(), now() + interval '30 minutes'
+    from public.activities a where a.user_id = 'a1020000-0000-4000-8000-000000000002' limit 1
+  returning id)
+insert into later_post select id from ins;
+select is((select count(*)::int from public.notifications where kind = 'friend_run' and object_id = (select id from later_post)::text), 0,
+          'no one is told about a run before its post is visible');
+select ok(exists (select 1 from internal.jobs where kind = 'notify_post' and payload ->> 'post_id' = (select id from later_post)::text and run_at > now() + interval '29 minutes'),
+          'the notice waits for the publication delay');
+update public.posts set publish_after = now() - interval '1 second' where id = (select id from later_post);
+select internal.notify_post_published((select id from later_post));
+select is((select count(*)::int from public.notifications where kind = 'friend_run' and object_id = (select id from later_post)::text), 1, 'and goes out once the post is visible');
+
 
 -- ---- Email outbox --------------------------------------------------------------------------------
 select ok(not internal.enqueue_email('a1010000-0000-4000-8000-000000000001', 'run_summary', '{"activity_id": "x"}', 'runsum:test'),

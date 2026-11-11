@@ -2,6 +2,18 @@
 
 Working file kept current so work survives context limits. Newest first.
 
+## 11 Nov 2026 (evening): enhancement release
+
+* Requested 11 Nov as a 15-section brief (traced as EN1–EN15 in `TRACEABILITY.md`; rules and numbers in `DECISIONS.md`, "Enhancement release"). Built on branch `enhancements` in six stages, each verified and committed (`7dcab99` … `d0b4018`).
+* Stage 1 (run map, integrity, spacing): full-screen live map that follows the runner with recenter and auto-resume, 3D; record-envelope and step-cadence checks with live warnings and auto-pause; held loops, integrity trail, appeals and credit-back on the server; Android last-card spacing; compact actions after a run.
+* Stage 2 (layers): permanent all-time map per region, separate season race, events (territory or distance, individual or club) and club races, from one evaluation per run; layer picker, events screens, standings, results.
+* Stage 3 (shares): route (ends and private areas left out) and land on feed cards with an interactive map; share images in three formats with optional on-device heart rate; revocable public run pages with a QR code.
+* Stage 4 (communities and groups): two products, group chat, branding, admins, ownership offers, hand-over before leaving, succession, deletion; logos across the app.
+* Stage 5 (notifications and email): land items after publication (own captures pushed; losses in-app only), contested land, friends' runs, members, announcements, season results; centre tabs; push policy; branded email with an outbox, preferences, suppressions, failure handling, one-click unsubscribe and security notices. Fixed the email invitation link (it did not match the app route).
+* Stage 6 (avatars): cartoon avatar builder and photo choice; runners' pictures on their land with grouping and a runner card; a stacked-buttons pass.
+* Deployed: backend through the Deploy backend workflow (`deploy/dev` at `d0b4018`, run 43041994519): migrations `20261111000100`–`…000300` applied, 11 functions deployed (new: `email`), every post-deploy check passed.
+* Started: Android pilot build `de44b4c3…` (new native modules, so a new runtime), web deploy and Expo Go preview (see `VERIFICATION.md`, Hosted resources).
+
 ## 11 Nov 2026: movement points, reclaiming, challenges and global ranking
 
 * Requested 6 Nov, outside PRD v1.2 (traced as MP1–MP3, RC1–RC4, AC1–AC3, UI1 in `TRACEABILITY.md`; rules and numbers in `DECISIONS.md`).

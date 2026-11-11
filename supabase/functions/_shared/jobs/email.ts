@@ -36,7 +36,7 @@ class Skip extends Error {}
  */
 export const sendEmailJob: JobHandler = async (payload, ctx, job) => {
   const key = String(payload.key ?? '');
-  const [row] = await ctx.sql`select dedupe_key, user_id, template, data, status from internal.email_outbox where dedupe_key = ${key} for update skip locked`;
+  const [row] = await ctx.sql`select dedupe_key, user_id, template, data, status from internal.email_outbox where dedupe_key = ${key}`;
   if (!row || row.status !== 'queued') return;
   const template = row.template as EmailTemplate;
   const userId = String(row.user_id);
@@ -100,7 +100,8 @@ export const sendEmailJob: JobHandler = async (payload, ctx, job) => {
         await finish('failed', 'not_configured');
         return;
       }
-      if (job.attempts + 1 >= job.max_attempts) await finish('failed', 'retries_exhausted');
+      // claim_jobs counts the current attempt, so this is the last one when attempts reach the maximum.
+      if (job.attempts >= job.max_attempts) await finish('failed', 'retries_exhausted');
       throw err;
     }
   } catch (err) {

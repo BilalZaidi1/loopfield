@@ -12,7 +12,9 @@ import { CARD_SIZE, type CardFormat } from './ShareCard';
 export async function renderCard(ref: RefObject<HostInstance | null>, format: CardFormat): Promise<string> {
   const { w, h } = CARD_SIZE[format];
   if (!ref.current) throw new Error('The card is not ready yet.');
-  return captureRef(ref, { format: 'png', quality: 1, width: w * 3, height: h * 3, result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile' });
+  const out = await captureRef(ref, { format: 'png', quality: 1, width: w * 3, height: h * 3, result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile' });
+  // The share sheet and the photo library need a URI; view-shot can return a bare path on Android.
+  return /^(file|data|content|blob):/.test(out) ? out : `file://${out}`;
 }
 
 /** The system share sheet: Instagram, TikTok, Snapchat, WhatsApp, Facebook, LinkedIn and others appear there. */

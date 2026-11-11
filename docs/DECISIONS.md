@@ -112,3 +112,50 @@ These features were requested after PRD v1.2 and are not in it. Every number bel
 - **Scopes.** Everyone, country (from the home region's country code), region (needs a home city), friends (mutual follows) and club (members only).
 - **Privacy.** Runners with private profiles are ranked but shown as "Private runner" to non-followers. Full private mode removes a runner from rankings. Blocks hide runners in both directions.
 - **No new analytics events.** Nothing about points, reclaims or badges is sent to PostHog or Sentry.
+
+## Enhancement release (11 Nov)
+
+Requested on 11 Nov in a 15-section brief, outside PRD v1.2. Traced as EN1–EN15 in `TRACEABILITY.md`. Every number below is a proposed default; most are rows in `app_config` and change without a release.
+
+**Run map and movement integrity (sections 1 and 3)**
+- **Live map.** The full-screen map follows the runner through Mapbox's own viewport (no JavaScript per frame). Panning, pinching or rotating hands the camera to the runner; the recenter button, or 15 seconds without touching, brings following back. 3D (on by default) adds perspective, a course-up bearing and extruded buildings; terrain stays off while recording to save battery. Where no map can be drawn (browser, Expo Go) the screen leads with the numbers.
+- **What a human can do.** The phone and the server compare speed over 20 s, 60 s, 3 min and 10 min windows with an envelope from the men's outdoor world records (100 m to the marathon) plus 10% for GPS error. One or two fixes that jump away and come back are a GPS spike and are ignored; speeds are median-smoothed over 5 fixes.
+- **On the phone.** 30 s at vehicle speed: warning. 60 s above the record envelope or 120 s at vehicle speed: recording pauses, with the reason on screen. At 10 km/h or faster, under 100 steps a minute for 60 s flags the run (a bike); for 180 s pauses it. Only a yes/no "no running steps" window is uploaded, never step counts.
+- **On the server.** An implausible run never changes land: its loops are held for review, the run is marked on the integrity trail, and the runner sees why and can appeal. A reviewer who finds a GPS error clears the flag and credits the left-out distance back. Thresholds are in `INTEGRITY_RULES`, overridable through `integrity_overrides`.
+
+**All-time map, season races and events (section 5, "Separate season race")**
+- **Layers.** Each region has a permanent *all-time map* (one season that never ends): land stays until someone takes it. The *season race* keeps its seasons and starts empty each time. *Events* (territory or distance, individual or club against club, public or members-only, at most 120 days) and *club races* have their own standings.
+- **One run, several layers.** A run's loop is evaluated once and copied as a derived claim into every layer it belongs to, each scored by that layer's own season boundaries. Decisions on the run (invalidation, restoration, deletion) cascade to every copy.
+- **What carries over.** Badges, points, exploration and the all-time map never reset. Points cannot reclaim land inside events (only running counts there).
+- **One message per run.** Land notifications and digests come from the all-time map and club races only, never once per layer.
+- **Events end cleanly.** At the end, standings are frozen, the event is archived and participants are told their place. Hosts can cancel before the end; participants are told.
+
+**Shared runs (sections 4 and 9, "recommended" route privacy)**
+- **What a share shows.** The route minus its first and last 200 m (`share_route_trim_m`), minus any protected area (buffered 50 m), simplified; published no earlier than the 30-minute delay. Time and pace are shown, as requested, because they say how quickly the area was covered.
+- **Heart rate.** Average heart rate and energy can be added to an exported image only. They are read from the phone at export time and drawn into the image on the phone; they are never uploaded, stored on a post or sent to Supabase, PostHog or Sentry. A post shows no health values.
+- **Links and QR codes.** A public run page (`/a/<token>`) shows exactly what the card shows and stops working the moment the runner turns the link off. Tokens are random and unguessable; pages are not searchable.
+- **Formats.** 9:16, 4:5 and 1:1 images at 1080 px wide, saved or handed to the system share sheet. Direct Instagram Stories needs a Meta app ID (manual step A12); video export is not built.
+
+**Communities and groups (sections 6–8)**
+- **Two products.** A *group* is a private crew of at most 100 people (`group_max_members`), joined only by invitation, with a backend-managed chat (Stream channel type `loopfield_group`; members cannot add themselves). A *community* is public or members-only, with requests, admins, rules, announcements, a members' race and challenges.
+- **Roles.** Owner, admin (stored as `organizer`) and member. Only the owner changes admins. Admins approve requests, invite, remove members and moderate.
+- **Hand-over.** Ownership moves only when the chosen member accepts (offers expire after 7 days); the previous owner stays on as an admin. An owner with members cannot leave without handing over (section 8 step 1). If an owner disappears (account deleted or removed), the longest-serving admin takes over, otherwise the longest-serving member; with nobody left the club closes.
+- **Deletion.** Requires typing the name. Members are notified; posts leave every feed; the members' race ends; running challenges are cancelled; images and the group chat are deleted by a job. Runs, the all-time map and members' posts elsewhere are untouched. An archived row stays for the audit trail only.
+- **Branding.** Logo and cover (or one of six original artworks) in a private bucket, re-encoded on the phone (location metadata removed), previewed before saving, shown on lists, posts, events and profiles.
+
+**Notifications and email (sections 11 and 12)**
+- **Land changes.** A runner's own captures appear and can be pushed once published ("your land is on the map"). Land other runners take appears in the in-app list but is never pushed one by one: the push remains the daily digest (PRD §7, no live invasion alerts). These items never name the other runner and give a district, not a street.
+- **Contested land.** A loss counts as *contested* when at least 2 different runners took cells from you within 7 days (`contested_min_runners`, `contested_window_days`); at most one such item every 3 days.
+- **Friends' runs.** Only mutual follows, only posts they can already see, and pushed only if the runner turns that on (off by default).
+- **Push switches.** Social, messages, communities, your runs and badges, events and challenges, the daily land update, and product news. Quiet hours hold pushes; everything still appears in the list.
+- **Email.** Every email that could be sent has one outbox row keyed by a dedupe key, so it goes out at most once; Resend's idempotency key covers retries. Preferences and suppressions (bounces, complaints) are re-checked at send time. Refusals Resend will not accept again (for example a 4xx) are recorded and not retried; transient failures retry with backoff, then are recorded.
+- **Email defaults.** Account and security email always. Communities and groups, and events and results: on. Run summaries and the daily land email: off (they would be frequent). At most 3 invitation emails a person a day (`invite_emails_per_day`); further invitations stay in the app.
+- **Email content.** Branded, readable on a phone and in dark mode. Emails carry no heart rate, routes, maps or precise places, and buttons open the web version (`APP_WEB_URL`) because most mail apps do not open custom-scheme links.
+- **Unsubscribing.** Optional emails carry a one-click unsubscribe (RFC 8058 headers) and a "Stop these emails" link to a web page. Both use a random per-person token, so no sign-in is needed. Opening the page changes nothing until the button is pressed.
+- **Security notices.** Password, email, phone, sign-in-method and verification-method changes go through the same Send Email Hook as sign-up and recovery; they must also be switched on in the Supabase dashboard (A4). An email change notice goes to the old address.
+- **Retention.** The outbox holds ids and counts, never addresses, for 180 days, like notifications.
+
+**Avatars on the map (section 2)**
+- **One picture.** A runner's picture is a photo or an original cartoon avatar. The cartoon is saved as an image in the runner's own avatars folder, so it shows wherever a profile picture does; its parts are stored to edit it, and the last photo is kept to switch back. The database checks the parts and that every picture path is in the runner's own folder.
+- **On the map.** At zoom 13 or closer, each runner holding land in view (up to 60) gets a circular pin on their own land: the visible cell nearest the middle of their visible cells, so the pin never stands outside oddly shaped land. Pins that would overlap within about 56 px share one, led by the runner with the most land in view, with a count (tapping zooms in); native collision handling hides the rest.
+- **The card.** Tapping a pin shows the runner's land in that layer, their rank, their cells in view and a link to their profile. Blocked runners show no name or picture.

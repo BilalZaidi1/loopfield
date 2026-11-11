@@ -45,7 +45,9 @@ export function AvatarBuilder({ userId, initial, onSaved, onCancel }: {
     try {
       // 512 px square JPEG (the avatars bucket takes JPEG only); the corners carry the background colour.
       const png = await captureRef(shot, { format: 'png', quality: 1, width: 512, height: 512, result: Platform.OS === 'web' ? 'data-uri' : 'tmpfile' });
-      const jpeg = await (await ImageManipulator.ImageManipulator.manipulate(png).renderAsync()).saveAsync({ format: ImageManipulator.SaveFormat.JPEG, compress: 0.9 });
+      // view-shot may return a bare path on Android; the manipulator and fetch need a URI.
+      const source = /^(file|data|content|blob):/.test(png) ? png : `file://${png}`;
+      const jpeg = await (await ImageManipulator.ImageManipulator.manipulate(source).renderAsync()).saveAsync({ format: ImageManipulator.SaveFormat.JPEG, compress: 0.9 });
       const path = `${userId}/avatar-cartoon-${Date.now()}.jpg`;
       await uploadToBucket('avatars', path, jpeg.uri);
       onSaved({ path, spec });

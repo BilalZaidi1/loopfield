@@ -199,6 +199,13 @@ export const configureStream: JobHandler = async (payload, ctx) => {
 
 
 /** Group chat membership follows the group: the backend adds and removes people (members cannot from the app). */
+/** A shared run or announcement whose publication delay has passed: tell friends or members now. */
+export const notifyPost: JobHandler = async (payload, ctx) => {
+  const postId = String(payload.post_id ?? '');
+  if (!postId) return;
+  await ctx.sql`select internal.notify_post_published(${postId}::uuid)`;
+};
+
 export const syncGroupChat: JobHandler = async (payload, ctx) => {
   const clubId = String(payload.club_id ?? '');
   const [club] = await ctx.sql`select id, name, kind, status from public.clubs where id = ${clubId}`;

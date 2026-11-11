@@ -13,10 +13,11 @@ afterAll(async () => {
   await (ctx.sql as unknown as { end(): Promise<void> }).end();
 });
 
-const job = (attempts = 0): JobRow => ({ id: 0, queue: 'email', kind: 'send_email', payload: {}, attempts, max_attempts: 8 });
+// attempts counts the current attempt, as claim_jobs returns it.
+const job = (attempts = 1): JobRow => ({ id: 0, queue: 'email', kind: 'send_email', payload: {}, attempts, max_attempts: 8 });
 
 /** Queue an outbox row the way the triggers do, then run the send job directly (no shared queue). */
-async function send(userId: string, template: string, data: Record<string, unknown>, attempts = 0) {
+async function send(userId: string, template: string, data: Record<string, unknown>, attempts = 1) {
   const key = `test:${template}:${crypto.randomUUID()}`;
   await ctx.sql`insert into internal.email_outbox (dedupe_key, user_id, template, data) values (${key}, ${userId}, ${template}, ${ctx.sql.json(data as never)})`;
   const before = ctx.integrations.calls.email.length;
@@ -78,7 +79,8 @@ describe('email outbox: branded, preference-aware, once only', () => {
     const later = await send(flaky, 'welcome', {});
     expect(later.row.status).toBe('queued');
     expect(later.error).toBeTruthy();
-    const last = await send(flaky, 'welcome', {}, 7);
+    expect((await send(flaky, 'welcome', {}, 7)).row.status).toBe('queued'); // one attempt left
+    const last = await send(flaky, 'welcome', {}, 8);
     expect(last.row).toMatchObject({ status: 'failed', reason: 'retries_exhausted' });
   });
 
