@@ -3,7 +3,7 @@
 -- ping-pong, running retakes, replay, refunds when the capture is invalidated, withdrawal when the
 -- ownership basis is invalid; challenge evaluation, badges, score and leaderboard scopes and privacy.
 begin;
-select plan(73);
+select plan(77);
 
 create temp table g as select 0.0009::float8 as dlat, 0.001::float8 as dlng, 67.0::float8 as lng0, 24.86::float8 as lat0;
 insert into internal.territory_cells (cell, resolution, geom, area_m2, parent_r7)
@@ -238,6 +238,18 @@ select throws_ok($$select public.reclaim_cells(gen_random_uuid(), (select comp f
 reset role;
 select lives_ok($$select internal.run_maintenance()$$, 'the minute job publishes and drains achievement evaluations');
 select is((select count(*)::int from internal.achievement_dirty), 0, 'no runner is left waiting for evaluation');
+
+-- Runs whose points were never evaluated are picked up again, once at a time and at most three times.
+insert into public.activities (id, user_id, started_at, ended_at, status, updated_at) values
+  ('dddddddd-0000-4000-8000-00000000000d', (select a from u), now() - interval '2 hours', now() - interval '80 minutes', 'processed', now() - interval '1 hour'),
+  ('eeeeeeee-0000-4000-8000-00000000000e', (select a from u), now() - interval '3 hours', now() - interval '150 minutes', 'processed', now() - interval '1 hour');
+select internal.award_movement_points('eeeeeeee-0000-4000-8000-00000000000e', 1000, 'movement-test', '{}');
+select is(internal.enqueue_missing_movement(), 1, 'a processed run whose points were never evaluated gets a points job');
+select is(internal.enqueue_missing_movement(), 0, 'not a second one while that job waits, and none for a run already rewarded');
+select is((select count(*)::int from internal.jobs where kind = 'award_movement' and dedupe_key = 'movement:dddddddd-0000-4000-8000-00000000000d'), 1, 'exactly one job for that run');
+update internal.jobs set status = 'dead' where kind = 'award_movement';
+insert into internal.jobs (queue, kind, payload, dedupe_key, status) select 'territory', 'award_movement', '{}', 'movement:dddddddd-0000-4000-8000-00000000000d', 'dead' from generate_series(1, 2);
+select is(internal.enqueue_missing_movement(), 0, 'a run whose points job failed three times is left alone');
 
 select * from finish();
 rollback;

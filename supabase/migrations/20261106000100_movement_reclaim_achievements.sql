@@ -878,22 +878,52 @@ create trigger seasons_settled_dirty after update of status on public.seasons
   for each row when (new.status = 'settled' and old.status is distinct from 'settled') execute function internal.dirty_from_settlement();
 
 -- The minute job also drains achievement evaluations.
+/**
+ * Runs that were processed but never had their points evaluated (the award failed, or the run was
+ * processed by an older job runner during a deploy) get an `award_movement` job. At most three jobs per
+ * run ever, so a run whose evidence cannot be evaluated does not churn; only runs from the last 30 days.
+ */
+create or replace function internal.enqueue_missing_movement(p_limit integer default 100) returns integer
+language plpgsql security definer set search_path = pg_catalog, public, internal as $$
+declare
+  v_n integer := 0;
+  v_id uuid;
+begin
+  for v_id in
+    select a.id from public.activities a
+     where a.status = 'processed' and a.deleted_at is null and a.raw_evidence_purged_at is null
+       and a.started_at > now() - interval '30 days'
+       and a.updated_at < now() - interval '10 minutes'
+       and not exists (select 1 from internal.movement_ledger l where l.activity_id = a.id and l.kind = 'run')
+       and (select count(*) from internal.jobs j where j.kind = 'award_movement' and j.dedupe_key = 'movement:' || a.id::text) < 3
+       and not exists (select 1 from internal.jobs j where j.kind = 'award_movement' and j.dedupe_key = 'movement:' || a.id::text and j.status in ('queued', 'running'))
+     order by a.started_at desc
+     limit p_limit
+  loop
+    perform internal.enqueue_job('territory', 'award_movement', jsonb_build_object('activity_id', v_id), 'movement:' || v_id::text, now());
+    v_n := v_n + 1;
+  end loop;
+  return v_n;
+end $$;
+
 create or replace function internal.run_maintenance() returns jsonb
 language plpgsql security definer set search_path = pg_catalog, public, internal as $$
 declare
   v_t integer;
   v_s integer;
   v_a integer;
+  v_m integer;
 begin
   perform internal.maintain_seasons();
   v_t := internal.publish_due_territory(500);
   v_s := internal.publish_due_titles(500);
   v_a := internal.evaluate_dirty_achievements(300);
+  v_m := internal.enqueue_missing_movement(100);
   -- Digest dispatch is per user local time; the worker groups pending items (see notifications job).
   if exists (select 1 from internal.digest_items where digested_at is null) then
     perform internal.enqueue_job('notifications', 'dispatch_digests', '{}', 'digests', now());
   end if;
-  return jsonb_build_object('territory_events', v_t, 'titles', v_s, 'achievements', v_a);
+  return jsonb_build_object('territory_events', v_t, 'titles', v_s, 'achievements', v_a, 'movement_jobs', v_m);
 end $$;
 
 -- ---------------------------------------------------------------------------------------------
@@ -1040,7 +1070,9 @@ end $$;
 grant execute on all functions in schema public to service_role;
 
 -- Runs recorded before this release earn points once, from their stored evidence (where it still exists).
-select internal.enqueue_job('territory', 'award_movement', jsonb_build_object('activity_id', a.id), 'movement:' || a.id::text, now())
+-- Delayed ten minutes so a job runner deployed before this migration (which has no handler for it and
+-- would dead-letter it) cannot pick it up while the new edge functions are still being deployed.
+select internal.enqueue_job('territory', 'award_movement', jsonb_build_object('activity_id', a.id), 'movement:' || a.id::text, now() + interval '10 minutes')
   from public.activities a
  where a.status = 'processed' and a.deleted_at is null and a.raw_evidence_purged_at is null
    and not exists (select 1 from internal.movement_ledger l where l.activity_id = a.id and l.kind = 'run');

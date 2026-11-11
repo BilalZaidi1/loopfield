@@ -3,15 +3,16 @@ import { StyleSheet, View } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { fmtDate } from '@/lib/format';
 import { ArrowLink, BigNumber, Button, Card, ChipGroup, EmptyState, ErrorState, LoadingState, PressableScale, ProgressBar, Screen, Segmented, Sheet, Txt } from '@/components/ui';
-import { BadgeMedal, ChallengeCard, RankingExplainer } from '@/features/achievements/Badges';
+import { BadgeMedal, CATEGORY_ICON, ChallengeCard, RankingExplainer } from '@/features/achievements/Badges';
+import type { IconName } from '@/components/icons';
 import { CATEGORY_LABEL, progressText, TIER_LABEL, useAchievementProfile, useMyChallenges, useRankingRules, useRefreshAchievements, type Challenge, type ChallengeCategory } from '@/features/achievements/api';
 import { useLayout } from '@/theme/layout';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 
 type Filter = 'all' | ChallengeCategory;
-const FILTERS: { value: Filter; label: string }[] = [
+const FILTERS: { value: Filter; label: string; icon?: IconName }[] = [
   { value: 'all', label: 'All' },
-  ...(['distance', 'consistency', 'territory', 'exploration', 'community', 'competitive'] as const).map((c) => ({ value: c as Filter, label: CATEGORY_LABEL[c] }))
+  ...(['distance', 'consistency', 'territory', 'exploration', 'community', 'competitive'] as const).map((c) => ({ value: c as Filter, label: CATEGORY_LABEL[c], icon: CATEGORY_ICON[c] }))
 ];
 
 /** Challenges and badges: what to aim for next, progress on every challenge, and the badge collection. */
@@ -61,7 +62,7 @@ export default function Achievements() {
       </Card>
 
       <Segmented label="Show" value={tab} onChange={setTab} options={[{ value: 'progress', label: 'Challenges' }, { value: 'badges', label: 'Badges' }]} />
-      <ChipGroup label="Category" showLabel={false} value={filter} onChange={setFilter} options={FILTERS} />
+      <ChipGroup label="Category" showLabel={false} scroll value={filter} onChange={setFilter} options={FILTERS} />
 
       {challenges.isLoading ? <LoadingState variant="cards" /> : challenges.error ? <ErrorState error={challenges.error} onRetry={() => void challenges.refetch()} /> : tab === 'progress' ? (
         <View style={{ gap: spacing.md }}>
@@ -89,7 +90,7 @@ export default function Achievements() {
         {open ? (
           <View style={{ gap: spacing.lg, alignItems: 'center' }}>
             <BadgeMedal tier={open.tier} category={open.category} size={112} earned={Boolean(open.completed_at)} />
-            <Txt variant="label" color="textMuted">{`${TIER_LABEL[open.tier]} · ${CATEGORY_LABEL[open.category]}${rules.data ? ` · ${rules.data.tierPoints[open.tier]} ranking points` : ''}`}</Txt>
+            <Txt variant="label" color="textMuted">{`${TIER_LABEL[open.tier]} · ${CATEGORY_LABEL[open.category]}${rules.data ? ` · adds ${rules.data.tierPoints[open.tier]} to your score` : ''}`}</Txt>
             <Txt align="center">{open.description}</Txt>
             {open.completed_at ? (
               <Txt variant="bodyStrong" style={{ color: p.greenText }}>{`Earned ${fmtDate(open.completed_at)}`}</Txt>

@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { latLngToCell } from 'h3-js';
 import { BarChart } from '@/components/charts';
 import { Button } from '@/components/ui';
-import { RankingExplainer } from '@/features/achievements/Badges';
+import { BadgeMedal, byTier, medalsThatFit, RankingExplainer } from '@/features/achievements/Badges';
 import { progressText } from '@/features/achievements/api';
 import { groupLost, type LostCell } from '@/features/movement/api';
 import { ReclaimReceipt } from '@/features/movement/Reclaim';
@@ -16,7 +16,7 @@ jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn() 
 function widths(node: unknown, out: number[] = []): number[] {
   const n = node as { type?: string; props?: { style?: unknown }; children?: unknown[] } | null;
   if (!n || typeof n !== 'object') return out;
-  const flat = ([] as unknown[]).concat(n.props?.style ?? []).flat(4) as Array<{ width?: number } | null>;
+  const flat = ([] as unknown[]).concat(n.props?.style ?? []).flat(4) as ({ width?: number } | null)[];
   const w = flat.reduce<number | undefined>((acc, s) => (s && typeof s.width === 'number' ? s.width : acc), undefined);
   if (n.type === 'View' && w !== undefined) out.push(w);
   for (const c of n.children ?? []) widths(c, out);
@@ -125,5 +125,42 @@ describe('achievements', () => {
     expect(fmtCount(9_999)).toBe((9_999).toLocaleString());
     expect(fmtCount(12_345)).toBe('12.3k');
     expect(fmtCount(250_000)).toBe('250k');
+  });
+});
+
+describe('badge medals and strips', () => {
+  /** Host views that sit on their own layer (zIndex), where the medal's mark is drawn. */
+  const layers = (node: unknown, out: number[] = []): number[] => {
+    const n = node as { type?: string; props?: { style?: unknown }; children?: unknown[] } | null;
+    if (!n || typeof n !== 'object') return out;
+    const flat = ([] as unknown[]).concat(n.props?.style ?? []).flat(4) as ({ zIndex?: number } | null)[];
+    if (n.type === 'View' && flat.some((st) => st && st.zIndex === 1)) out.push(1);
+    for (const c of n.children ?? []) layers(c, out);
+    return out;
+  };
+
+  it('draws the category mark on its own layer above the medal (the web paints bare SVG underneath)', async () => {
+    await render(<BadgeMedal tier="gold" category="distance" size={56} />);
+    expect(layers(screen.toJSON())).toHaveLength(1);
+  });
+
+  it('shows a lock on locked medals and no mark on tier-only medals', async () => {
+    await render(<BadgeMedal tier="silver" category="territory" earned={false} />);
+    expect(layers(screen.toJSON())).toHaveLength(1);
+    await render(<BadgeMedal tier="platinum" size={22} />);
+    expect(layers(screen.toJSON())).toHaveLength(0);
+  });
+
+  it('fits as many medals as the width allows and keeps room for the remaining count', () => {
+    // 6 × 44 + 5 × 8 = 304 fits 318; with 10 badges, 5 medals + "+5" (5 × 52 + 36 = 296).
+    expect(medalsThatFit(318, 6, 44)).toBe(6);
+    expect(medalsThatFit(318, 10, 44)).toBe(5);
+    expect(medalsThatFit(0, 3, 44)).toBe(0);
+    expect(medalsThatFit(40, 3, 44)).toBe(1);
+  });
+
+  it('orders badges by tier, then most recent first', () => {
+    const b = (id: string, tier: 'bronze' | 'silver' | 'gold' | 'platinum', on: string) => ({ id, tier, category: 'distance' as const, title: id, completed_on: on });
+    expect(byTier([b('a', 'bronze', '2026-11-01'), b('b', 'gold', '2026-10-01'), b('c', 'bronze', '2026-11-05'), b('d', 'platinum', '2026-09-01')]).map((x) => x.id)).toEqual(['d', 'b', 'c', 'a']);
   });
 });

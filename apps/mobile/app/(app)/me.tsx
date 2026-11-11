@@ -4,8 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { formatDuration } from '@loopfield/core';
 import { rpc } from '@/lib/api';
 import { fmtArea, splitValue } from '@/lib/format';
-import { Avatar, BigNumber, Button, Card, EmptyState, IconButton, ListGroup, LoadingState, Medal, Row, Screen, Section, Txt } from '@/components/ui';
-import { Icon } from '@/components/icons';
+import { Avatar, BigNumber, Button, Card, EmptyState, IconButton, ListGroup, LoadingState, Row, Screen, Section, Txt } from '@/components/ui';
+import { Icon, type IconName } from '@/components/icons';
 import { ClubMonogram, clubTone } from '@/features/clubs/ClubBits';
 import { BadgeStrip } from '@/features/achievements/Badges';
 import { useAchievementProfile, useMyChallenges } from '@/features/achievements/api';
@@ -90,23 +90,12 @@ export default function MyProfile() {
           <BadgeStrip badges={achievements.data?.earned ?? []} onPress={() => router.push('/achievements')} empty="No badges yet. Every verified run counts toward the distance challenges." />
         </Card>
         <View style={{ flexDirection: 'row', gap: spacing.md }}>
-          <Card style={{ flex: 1, alignItems: 'center' }} onPress={() => router.push('/points')} accessibilityLabel={`${movement.data?.balance ?? 0} movement points. Open points`}>
-            <View style={[styles.pointsBadge, { backgroundColor: p.greenSoft }]}>
-              <Icon name="bolt" color={p.greenText} size={26} />
-            </View>
-            <Txt variant="metric" tabular align="center" style={{ fontSize: 24, lineHeight: 28 }}>{(movement.data?.balance ?? 0).toLocaleString()}</Txt>
-            <Txt variant="caption" align="center">Movement points</Txt>
-          </Card>
-          <Card style={{ flex: 1, alignItems: 'center' }} onPress={() => router.push('/map')} accessibilityLabel={area ? `Land this season: ${area.value} ${area.unit}` : 'No land this season yet'}>
-            <Medal label={area ? area.value : '0'} tone="violet" size={56} earned={Boolean(land.data?.published_area_m2)} />
-            <Txt variant="label" align="center">{area ? `${area.unit} of land` : 'Land'}</Txt>
-            <Txt variant="caption" align="center">{season ? `Season ${season.number}` : 'No season'}</Txt>
-          </Card>
-          <Card style={{ flex: 1, alignItems: 'center' }} onPress={() => router.push('/seasons')} accessibilityLabel={`${titles.data?.length ?? 0} route titles held`}>
-            <Medal label={String(titles.data?.length ?? 0)} tone="orange" size={56} earned={Boolean(titles.data?.length)} />
-            <Txt variant="label" align="center">Route titles</Txt>
-            <Txt variant="caption" align="center">Held now</Txt>
-          </Card>
+          <StatTile icon="bolt" bg={p.greenSoft} fg={p.greenText} value={(movement.data?.balance ?? 0).toLocaleString()} label="Movement points" caption="To spend"
+            onPress={() => router.push('/points')} accessibilityLabel={`${movement.data?.balance ?? 0} movement points. Open points`} />
+          <StatTile icon="hexagon" bg={p.primarySoft} fg={p.primary} value={area ? area.value : '0'} label={area ? `${area.unit} of land` : 'Land'} caption={season ? `Season ${season.number}` : 'No season'}
+            onPress={() => router.push('/map')} accessibilityLabel={area ? `Land this season: ${area.value} ${area.unit}` : 'No land this season yet'} />
+          <StatTile icon="crown" bg={p.orangeSoft} fg={p.orangeText} value={String(titles.data?.length ?? 0)} label={titles.data?.length === 1 ? 'Route title' : 'Route titles'} caption="Held now"
+            onPress={() => router.push('/seasons')} accessibilityLabel={`${titles.data?.length ?? 0} route titles held`} />
         </View>
       </Section>
       <Card tone="violet" accessibilityLabel="Your land">
@@ -160,8 +149,22 @@ export default function MyProfile() {
   );
 }
 
+/** One of the three equal profile tiles: icon, number, what it counts, and its scope. */
+function StatTile({ icon, bg, fg, value, label, caption, onPress, accessibilityLabel }: { icon: IconName; bg: string; fg: string; value: string; label: string; caption: string; onPress: () => void; accessibilityLabel: string }) {
+  return (
+    <Card style={{ flex: 1, alignItems: 'center', gap: spacing.xs }} onPress={onPress} accessibilityLabel={accessibilityLabel}>
+      <View style={[styles.tileIcon, { backgroundColor: bg }]}>
+        <Icon name={icon} color={fg} size={24} />
+      </View>
+      <Txt variant="metric" tabular align="center" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={{ fontSize: 26, lineHeight: 30, alignSelf: 'stretch' }}>{value}</Txt>
+      <Txt variant="label" align="center" numberOfLines={2}>{label}</Txt>
+      <Txt variant="caption" align="center" numberOfLines={2}>{caption}</Txt>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   count: { flex: 1, alignItems: 'center', gap: 2, minHeight: 48, justifyContent: 'center' },
-  pointsBadge: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  tileIcon: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs },
   editBadge: { position: 'absolute', right: 0, bottom: 0, width: 34, height: 34, borderRadius: 17, borderWidth: 3, alignItems: 'center', justifyContent: 'center' }
 });

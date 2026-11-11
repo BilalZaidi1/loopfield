@@ -82,6 +82,18 @@ export function evaluateMovement(raw: readonly LocationSample[], events: readonl
   return { decision: 'eligible', reasons: [...reasons], verifiedDistanceM: round1(verified), excludedDistanceM: round1(excluded), ruleVersion: rules.version };
 }
 
+/**
+ * Why a run earned fewer points than its recorded distance, in the words a runner sees on the run.
+ * (The territory texts in REASON_TEXT describe loop boundaries, which do not apply to points.)
+ */
+export const MOVEMENT_REASON_TEXT: Readonly<Partial<Record<ReasonCode, string>>> = {
+  mock_location: 'Simulated or mocked locations were detected, so this run earns no points.',
+  insufficient_samples: 'Too few accurate GPS fixes to verify any distance.',
+  gps_jump: 'Distance across GPS jumps was not counted.',
+  suspicious_speed: 'Stretches at vehicle speed were not counted.',
+  movement_too_short: `Less than ${MOVEMENT_RULES.minVerifiedDistanceMeters.value} m of verified distance, so this run earned no points.`
+};
+
 /** Points for a verified distance (whole points, rounded down) before the server's daily cap. */
 export function pointsForDistance(verifiedDistanceM: number, pointsPerKm: number = MOVEMENT_RULES.pointsPerKm.value): number {
   return Math.max(0, Math.floor((Math.max(0, verifiedDistanceM) * pointsPerKm) / 1000));

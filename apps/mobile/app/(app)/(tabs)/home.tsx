@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { FlatList, Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -278,10 +278,16 @@ function NextBadgeCard() {
           {next ? <Txt variant="micro" color="textMuted" tabular>{progressText(next)}</Txt> : null}
         </View>
       </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-        <Icon name="bolt" color={p.greenText} size={18} />
-        <Txt variant="label" style={{ flex: 1 }} tabular>{movement.data ? `${movement.data.balance.toLocaleString()} movement points · ${earned} ${earned === 1 ? 'badge' : 'badges'}` : `${earned} ${earned === 1 ? 'badge' : 'badges'}`}</Txt>
-        <ArrowLink label="Challenges" onPress={() => router.push('/achievements')} />
+      <View style={[styles.badgeFoot, { borderTopColor: p.border }]}>
+        <View style={styles.footStat} accessible accessibilityLabel={movement.data ? `${movement.data.balance} movement points` : 'Movement points loading'}>
+          <Icon name="bolt" color={p.greenText} size={18} />
+          <Txt variant="label" tabular numberOfLines={1}>{movement.data ? `${movement.data.balance.toLocaleString()} points` : '–'}</Txt>
+        </View>
+        <View style={[styles.footStat, { flex: 1 }]} accessible accessibilityLabel={`${earned} of ${challenges.data.length} badges earned`}>
+          <Icon name="medal" color={p.primary} size={18} />
+          <Txt variant="label" tabular numberOfLines={1}>{`${earned} of ${challenges.data.length} badges`}</Txt>
+        </View>
+        <Icon name="chevron-right" color={p.textSubtle} size={20} />
       </View>
     </Card>
   );
@@ -333,3 +339,8 @@ function FollowingRow({ people }: { people: { user_id: string; handle: string; d
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  badgeFoot: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md },
+  footStat: { flexDirection: 'row', alignItems: 'center', gap: 6 }
+});

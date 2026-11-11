@@ -156,9 +156,15 @@ export default function TerritoryMap() {
             </View>
             <Icon name="chevron-down" color={p.textMuted} size={20} />
           </Pressable>
-          <PointsChip balance={movement.data?.balance} loading={movement.isLoading} onPress={() => router.push('/points')} />
+          {isWide ? <PointsChip balance={movement.data?.balance} loading={movement.isLoading} onPress={() => router.push('/points')} /> : null}
           <IconButton icon="medal" label="Leaderboard" variant="surface" onPress={() => router.push('/leaderboard')} />
         </View>
+        {/* On phones the balance gets its own line so the competition name keeps the full width. */}
+        {isWide ? null : (
+          <View pointerEvents="box-none" style={{ flexDirection: 'row' }}>
+            <PointsChip balance={movement.data?.balance} loading={movement.isLoading} onPress={() => router.push('/points')} />
+          </View>
+        )}
       </View>
 
       <View pointerEvents="box-none" style={[styles.controls, { top: insets.top + 88 }]}>

@@ -250,15 +250,26 @@ export function Chip({ label, selected, onPress, icon, count }: { label: string;
 }
 
 /** Single choice from wrapping chips: for option sets too long or too many for a segmented control. */
-export function ChipGroup<T extends string>({ label, value, onChange, options, showLabel = true }: { label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string; icon?: IconName }[]; showLabel?: boolean }) {
+/**
+ * One choice from a set of chips. `scroll` keeps long sets on one line that scrolls sideways to the
+ * screen edges (use it only directly inside a Screen, whose gutter it bleeds into).
+ */
+export function ChipGroup<T extends string>({ label, value, onChange, options, showLabel = true, scroll = false }: { label: string; value: T; onChange: (v: T) => void; options: { value: T; label: string; icon?: IconName }[]; showLabel?: boolean; scroll?: boolean }) {
+  const { gutter } = useLayout();
+  const chips = options.map((o) => <Chip key={o.value} label={o.label} icon={o.icon} selected={o.value === value} onPress={() => onChange(o.value)} />);
   return (
     <View style={{ gap: spacing.sm }}>
       {showLabel ? <Txt variant="label">{label}</Txt> : null}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }} accessibilityRole="radiogroup" accessibilityLabel={label}>
-        {options.map((o) => (
-          <Chip key={o.value} label={o.label} icon={o.icon} selected={o.value === value} onPress={() => onChange(o.value)} />
-        ))}
-      </View>
+      {scroll ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityRole="radiogroup" accessibilityLabel={label}
+          style={{ marginHorizontal: -gutter, flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: gutter, gap: spacing.sm }}>
+          {chips}
+        </ScrollView>
+      ) : (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }} accessibilityRole="radiogroup" accessibilityLabel={label}>
+          {chips}
+        </View>
+      )}
     </View>
   );
 }

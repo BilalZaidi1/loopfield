@@ -86,7 +86,7 @@ export default function Points() {
                       icon={e.kind === 'run' ? 'route' : e.kind === 'reclaim' ? 'hexagon' : e.kind === 'refund' ? 'refresh' : 'alert'}
                       title={text.title}
                       subtitle={text.subtitle}
-                      value={`${e.amount > 0 ? '+' : ''}${e.amount.toLocaleString()}`}
+                      value={`${e.amount > 0 ? '+' : e.amount < 0 ? '\u2212' : ''}${Math.abs(e.amount).toLocaleString()}`}
                       onPress={e.kind === 'run' && e.activity_id ? () => router.push({ pathname: '/activities/[id]', params: { id: e.activity_id! } }) : undefined}
                     />
                   );

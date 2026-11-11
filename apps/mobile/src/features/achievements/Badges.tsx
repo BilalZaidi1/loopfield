@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Polygon, Stop } from 'react-native-svg';
 import { achievementScore } from '@loopfield/core';
@@ -32,8 +33,11 @@ const HEX = (s: number, inset = 0) => {
   }).join(' ');
 };
 
-/** A badge: a hexagonal medal in its tier's metal with the category mark; grey and locked until earned. */
-export function BadgeMedal({ tier, category, size = 64, earned = true }: { tier: BadgeTier; category: ChallengeCategory; size?: number; earned?: boolean }) {
+/**
+ * A badge: a hexagonal medal in its tier's metal with the category mark; grey and locked until earned.
+ * Without a category it shows the tier alone (rankings, the scoring key).
+ */
+export function BadgeMedal({ tier, category, size = 64, earned = true }: { tier: BadgeTier; category?: ChallengeCategory; size?: number; earned?: boolean }) {
   const { palette: p, scheme } = useTheme();
   const m = METAL[tier];
   const id = `b-${tier}-${earned ? 1 : 0}-${scheme}`;
@@ -51,7 +55,12 @@ export function BadgeMedal({ tier, category, size = 64, earned = true }: { tier:
         <Polygon points={HEX(size, 1.5)} fill={`url(#${id})`} stroke={earned ? m.edge : p.borderStrong} strokeWidth={2} strokeLinejoin="round" />
         <Polygon points={HEX(size, size * 0.17)} fill="none" stroke={earned ? m.mark : p.textSubtle} strokeOpacity={0.35} strokeWidth={1.5} strokeLinejoin="round" />
       </Svg>
-      <Icon name={earned ? CATEGORY_ICON[category] : 'lock'} color={earned ? m.mark : p.textSubtle} size={Math.round(size * 0.36)} strokeWidth={2.2} />
+      {/* Own layer above the absolutely placed medal: on the web a bare SVG would paint underneath it. */}
+      {!earned || category ? (
+        <View style={{ zIndex: 1 }}>
+          <Icon name={earned && category ? CATEGORY_ICON[category] : 'lock'} color={earned ? m.mark : p.textSubtle} size={Math.round(size * 0.36)} strokeWidth={2.2} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -87,17 +96,33 @@ export function ChallengeCard({ c }: { c: Challenge }) {
   );
 }
 
-/** A row of earned badges (profiles); `onPress` opens the full collection. */
-export function BadgeStrip({ badges, onPress, empty }: { badges: EarnedBadge[]; onPress?: () => void; empty: string }) {
-  const order: BadgeTier[] = ['platinum', 'gold', 'silver', 'bronze'];
-  const sorted = [...badges].sort((a, b) => order.indexOf(a.tier) - order.indexOf(b.tier));
-  const shown = sorted.slice(0, 6);
+const TIER_ORDER: BadgeTier[] = ['platinum', 'gold', 'silver', 'bronze'];
+
+/** Highest tiers first, then the most recent. */
+export function byTier<T extends { tier: BadgeTier; completed_on?: string }>(badges: readonly T[]): T[] {
+  return [...badges].sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier) || (b.completed_on ?? '').localeCompare(a.completed_on ?? ''));
+}
+
+/** How many medals of `size` fit in `width`, keeping room for a "+N" count when some are left over. */
+export function medalsThatFit(width: number, count: number, size: number, gap: number = spacing.sm, more = 36): number {
+  if (width <= 0) return 0;
+  const fit = Math.max(1, Math.floor((width + gap) / (size + gap)));
+  // n medals plus the count need n × (size + gap) + `more`.
+  return count <= fit ? count : Math.max(1, Math.floor((width - more) / (size + gap)));
+}
+
+/** A row of earned badges (profiles), as many as fit the width; `onPress` opens the full collection. */
+export function BadgeStrip({ badges, onPress, empty, size = 44 }: { badges: EarnedBadge[]; onPress?: () => void; empty: string; size?: number }) {
+  const [width, setWidth] = useState(0);
+  const sorted = byTier(badges);
+  const shown = sorted.slice(0, medalsThatFit(width, sorted.length, size));
   return (
     <PressableScale onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : 'text'}
-      accessibilityLabel={badges.length ? `${badges.length} badges: ${sorted.map((b) => `${TIER_LABEL[b.tier]} ${b.title}`).join(', ')}` : empty}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-      {shown.length ? shown.map((b) => <BadgeMedal key={b.id} tier={b.tier} category={b.category} size={44} />) : <Txt color="textMuted" style={{ flex: 1 }}>{empty}</Txt>}
-      {badges.length > shown.length ? <Txt variant="label" color="textMuted">{`+${badges.length - shown.length}`}</Txt> : null}
+      accessibilityLabel={badges.length ? `${badges.length} badges: ${sorted.map((b) => `${TIER_LABEL[b.tier]} ${b.title}`).join(', ')}` : empty}>
+      <View onLayout={(e) => setWidth(Math.floor(e.nativeEvent.layout.width))} style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: badges.length ? size : undefined }}>
+        {badges.length ? shown.map((b) => <BadgeMedal key={b.id} tier={b.tier} category={b.category} size={size} />) : <Txt color="textMuted" style={{ flex: 1 }}>{empty}</Txt>}
+        {width && badges.length > shown.length ? <Txt variant="label" color="textMuted" tabular>{`+${badges.length - shown.length}`}</Txt> : null}
+      </View>
     </PressableScale>
   );
 }
@@ -112,8 +137,8 @@ export function RankingExplainer({ rules, badges }: { rules: RankingRules; badge
       <Txt color="textMuted">Your rank comes only from challenge badges. Movement points never count, so spending them never costs you a place.</Txt>
       <View style={{ flexDirection: 'row', gap: spacing.sm }}>
         {tiers.map((t) => (
-          <View key={t} style={{ flex: 1, alignItems: 'center', gap: 4 }} accessible accessibilityLabel={`${TIER_LABEL[t]} badge: ${rules.tierPoints[t]} points`}>
-            <BadgeMedal tier={t} category="distance" size={44} />
+          <View key={t} style={{ flex: 1, alignItems: 'center', gap: 4 }} accessible accessibilityLabel={`${TIER_LABEL[t]} badge adds ${rules.tierPoints[t]} to your score`}>
+            <BadgeMedal tier={t} size={44} />
             <Txt variant="label" tabular>{`${rules.tierPoints[t]}`}</Txt>
             <Txt variant="micro" color="textMuted">{TIER_LABEL[t]}</Txt>
           </View>

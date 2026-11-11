@@ -51,3 +51,64 @@ Raw competitive evidence: through the season plus 30 days after settlement, long
 - **First-run tour** (`(app)/tour.tsx`) shows once per account per device after onboarding and can be replayed from Help or Settings.
 - **Reduce Motion** turns off the splash animation, press squeezes, the GO pulse, chart growth and the run-saved burst.
 
+
+## Movement points, reclaiming and achievements (11 Nov)
+
+These features were requested after PRD v1.2 and are not in it. Every number below is a proposed default kept in `app_config` (authoritative, changeable without a release) and mirrored in `MOVEMENT_RULES` / `ACHIEVEMENT_RULES` in `packages/core/src/rules/config.ts` (version `movement-2026.11.0-proposed`).
+
+**Earning points**
+- **Server-verified distance only.** The `jobs` runner evaluates each run's first-party evidence with `evaluateMovement` (core) after the run is processed, for public and private runs alike, and awards `floor(km × 10)` points once per run (`internal.award_movement_points`, one ledger row per run).
+- **What does not count:**
+  - A run with mocked locations earns nothing.
+  - Distance is never bridged across a gap of more than 10 s or across a pause, so unrecorded movement is never reconstructed.
+  - Segments faster than 12 m/s (GPS jumps) and stretches above 6.5 m/s sustained for 60 s (a vehicle) are left out. The rest of an honest run still counts.
+  - A run with fewer than 30 usable fixes, or under 200 m of verified distance, earns nothing.
+- **Daily cap.** 400 points per UTC day limits farming. A capped award is labelled on the run.
+- **Self-healing.** The minute maintenance job gives any run from the last 30 days that was processed but never had its points evaluated another points job: at most three jobs per run, and never two at once. The one-off backfill for runs recorded before this release starts ten minutes after the migration, so a job runner still running the previous code cannot dead-letter it during a deploy.
+- **Imported health workouts never earn points.** They never reach the server (health data stays on the device), and they remain personal history only.
+- **Private stays private.** A private run earns points but still never posts, claims land or appears on a map or leaderboard. Only the runner can read their balance, ledger and per-run points (pgTAP).
+- **Integrity reversals.**
+  - Points are revoked when a run is deleted or its result is ruled invalid, and restored if that ruling is overturned.
+  - The balance may go below zero rather than undoing cells already reclaimed.
+  - Movement points never affect the ranking.
+
+**Reclaiming**
+- **Eligibility.** A cell is reclaimable only when all of these hold:
+  - It is currently held by another runner through their loop.
+  - The reclaiming runner held it earlier in the same season, through a claim that is still valid.
+  - The season is active, reclaiming and capture are enabled, the region is active, and the runner shares territory.
+- **Points buy back only what you lost.** Points can never buy ground the runner never held, and the server re-checks every cell in the reclaim transaction. Cells that changed hands meanwhile are skipped and not charged.
+- **Reclaim mechanics.**
+  - A reclaim is a one-cell claim (`loop_claims.source = 'reclaim'`) applied by the same engine as loops, so "the newest eligible claim wins" still holds.
+  - Any later loop takes the cell again, so running beats points.
+  - It is published at once, because a reclaim reveals no live position. The 30-minute delay exists for runs.
+- **No ping-pong.** A cell someone took back from you with points can only be won back by running.
+- **Atomic and idempotent.**
+  - Each request runs in one transaction under the runner's movement lock, then the territory partition locks, in a fixed order.
+  - The client sends one request ID per selection, so a retry returns the first result and charges once.
+  - Limits: 30 requests an hour and 200 cells per request. `reclaim_enabled` is a kill switch.
+- **Corrections.**
+  - If the loop that took a cell is later ruled invalid, the points spent reclaiming it are refunded, with one notification.
+  - If the runner's own earlier claim (the reason they could reclaim) is ruled invalid, every reclaim based on it is withdrawn.
+- **Cost and balance.**
+  - Cost is proportional to area: 1 point per 1,000 m², rounded up, which is 3 points for a resolution-11 cell (about 2,150 m²).
+  - 1 km of verified running (10 points) therefore buys back about 3 cells, roughly 6,400 m². A 1 km loop can enclose up to about 80,000 m².
+  - So running stays the main way to gain ground. Points soften a loss; they do not replace running.
+
+**Challenges and ranking**
+- **Challenges.** 24 challenges, four per category (distance, consistency, territory, exploration, community, competitive), one per tier (bronze, silver, gold, platinum). Progress comes only from server-side, still-valid evidence:
+  - verified distance;
+  - weeks with a run;
+  - loop captures and defended cells;
+  - exploration cells;
+  - club membership, club-season loops and organised clubs;
+  - route attempts and titles;
+  - settled season placings.
+- **Award and removal.** Badges are awarded automatically. Runners whose evidence changed are re-evaluated by triggers plus the minute maintenance sweep. A badge whose evidence is invalidated is removed. Each new badge notifies once.
+- **Score.**
+  - Score = sum of tier points (10 / 25 / 60 / 150) + 25 for each category with at least one badge.
+  - It rewards difficulty and breadth, and equal scores share a rank.
+  - The formula and the runner's own breakdown are shown in the app from the published config.
+- **Scopes.** Everyone, country (from the home region's country code), region (needs a home city), friends (mutual follows) and club (members only).
+- **Privacy.** Runners with private profiles are ranked but shown as "Private runner" to non-followers. Full private mode removes a runner from rankings. Blocks hide runners in both directions.
+- **No new analytics events.** Nothing about points, reclaims or badges is sent to PostHog or Sentry.

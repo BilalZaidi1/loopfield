@@ -29,6 +29,20 @@ Figtree: 500 body, 600 labels, 700 headings, 800 titles, 900 italic for numerals
 - Your cells: violet fill with a soft glow outline. Rival cells: warm hues, one per runner, never violet. Unavailable areas: grey with a dashed edge. Unclaimed ground is unmarked; a faint cell grid appears from zoom 14.5 to show the board.
 - Routes: green line on a white (light) or dark (dark) casing; violet when you hold the title; dashed when suspended. Your live path: violet with a casing. Your location: pulsing puck.
 - Floating controls (locate, routes, grid, key), a competition chip, a bottom sheet with the text summary of what is in view, and panels for a tapped cell or route. The Mapbox logo and attribution stay visible above the sheet.
+- Ground you lost this season: a dashed outline in your own colour over the rival's fill, faded when it cannot be reclaimed (taken back with points, season closed). Selected cells get a solid violet casing. The key explains both.
+- Movement points: a green bolt pill under the competition chip on phones (beside it on wide screens). Green means points everywhere: the pill, the points screen, a run's points card.
+- Reclaiming happens in the bottom sheet: tap dashed cells, and the sheet keeps a receipt (selected, cost per cell, total, your balance, after reclaiming) above one button that names the count and the price. Where the map cannot be drawn (browser, Expo Go) the same choice is a list grouped by who took the cells and when, with round checkboxes and "select all" as a row in the same style.
+
+## Badges and ranking
+
+- Badges are hexagons (the shape of a cell) in the tier's metal: bronze, silver, gold and a cool platinum, with the category's line icon in the centre (route, calendar, cell, compass, people, trophy). Locked badges are grey with a lock. A tier-only hexagon (no icon) marks a runner's highest tier in rankings and the scoring key.
+- Violet is the ranking colour (the global ranking card and your rank), consistent with violet meaning "you".
+- Ranking rows: rank, avatar with the highest tier pinned to its corner, name, "N badges · N categories", score. Scope chips (everyone, country, region, friends, club) and challenge categories sit on one line that scrolls sideways.
+- Profile: the ranking card (rank, challenges done, badges that fit the width with "+N"), then three equal tiles in one layout: icon, number, what it counts, its scope.
+
+## Number tables
+
+"Show numbers" under every chart opens a table that names each period in full (Mon, "Week of Nov 2"), right-aligns values with tabular figures, adds a short magnitude bar, a comparison column when the chart compares (last week), a tag on the current period and a total row. Missing data shows a dash, never zero.
 
 ## Layout and navigation
 

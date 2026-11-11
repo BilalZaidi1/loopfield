@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { destination } from '../src/geo/geo.ts';
-import { achievementScore, evaluateMovement, pointsForDistance, quoteReclaim, reclaimCostPerCell } from '../src/movement/points.ts';
+import { achievementScore, evaluateMovement, MOVEMENT_REASON_TEXT, pointsForDistance, quoteReclaim, reclaimCostPerCell } from '../src/movement/points.ts';
 import type { LocationSample, RecordingEvent } from '../src/recording/types.ts';
 import { ORIGIN, T0, samplePath } from './fixtures.ts';
 
@@ -126,5 +126,15 @@ describe('achievement score', () => {
     ]);
     expect(r).toEqual({ score: 10 + 25 + 60 + 2 * 25, tierTotal: 95, categories: 2, bonus: 50 });
     expect(achievementScore([]).score).toBe(0);
+  });
+});
+
+describe('movement reason texts', () => {
+  it('explains, in points terms, every reason the points evaluation returns', () => {
+    for (const r of ['mock_location', 'insufficient_samples', 'gps_jump', 'suspicious_speed', 'movement_too_short'] as const) {
+      expect(MOVEMENT_REASON_TEXT[r], r).toMatch(/\.$/);
+    }
+    expect(MOVEMENT_REASON_TEXT.gps_jump).not.toMatch(/boundary/);
+    expect(MOVEMENT_REASON_TEXT.movement_too_short).toContain('200 m');
   });
 });

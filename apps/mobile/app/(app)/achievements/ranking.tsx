@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { friendlyError } from '@/lib/api';
 import { ArrowLink, Avatar, Banner, Card, Chip, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Sheet, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
-import { BadgeMedal, CATEGORY_ICON, RankingExplainer } from '@/features/achievements/Badges';
+import { BadgeMedal, byTier, CATEGORY_ICON, RankingExplainer } from '@/features/achievements/Badges';
 import { useAchievementLeaderboard, useAchievementProfile, useRankingRules, type RankingRow, type RankingScope } from '@/features/achievements/api';
 import { useMyClubs } from '@/features/clubs/api';
 import { useSignedUrl } from '@/features/social/media';
+import { useLayout } from '@/theme/layout';
 import { spacing, usePalette } from '@/theme/tokens';
 
 const SCOPES: { value: Exclude<RankingScope, 'club'>; label: string; icon: 'globe' | 'pin' | 'compass' | 'heart' }[] = [
@@ -24,20 +25,21 @@ function RankRow({ r }: { r: RankingRow }) {
     <Row
       rank={r.rank}
       highlight={r.is_me}
-      leading={r.hidden ? (
-        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: p.surfaceSunken, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="eye-off" color={p.textSubtle} size={18} />
-        </View>
-      ) : <Avatar name={r.display_name} uri={avatar.data} size={40} />}
-      title={r.is_me ? `${r.display_name} (you)` : r.display_name}
-      subtitle={`${r.handle ? `@${r.handle} · ` : ''}${r.badges} ${r.badges === 1 ? 'badge' : 'badges'} · ${r.categories} of 6 categories`}
-      right={
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
-          {r.top_tier ? <BadgeMedal tier={r.top_tier} category="competitive" size={30} /> : null}
-          <Txt variant="headline" tabular>{r.score.toLocaleString()}</Txt>
+      leading={
+        <View style={{ width: 44, height: 44 }}>
+          {r.hidden ? (
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: p.surfaceSunken, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="eye-off" color={p.textSubtle} size={18} />
+            </View>
+          ) : <Avatar name={r.display_name} uri={avatar.data} size={40} />}
+          {/* Their highest badge tier, pinned to the avatar. */}
+          {r.top_tier ? <View style={{ position: 'absolute', right: -2, bottom: -2 }}><BadgeMedal tier={r.top_tier} size={22} /></View> : null}
         </View>
       }
-      accessibilityLabel={`${r.rank}. ${r.is_me ? 'You' : r.display_name}, score ${r.score}, ${r.badges} badges`}
+      title={r.is_me ? `${r.display_name} (you)` : r.display_name}
+      subtitle={`${r.badges} ${r.badges === 1 ? 'badge' : 'badges'} · ${r.categories} ${r.categories === 1 ? 'category' : 'categories'}`}
+      right={<Txt variant="headline" tabular>{r.score.toLocaleString()}</Txt>}
+      accessibilityLabel={`${r.rank}. ${r.is_me ? 'You' : r.display_name}, score ${r.score}, ${r.badges} badges in ${r.categories} of 6 categories${r.top_tier ? `, highest ${r.top_tier}` : ''}`}
       onPress={r.user_id && !r.is_me ? () => router.push({ pathname: '/profile/[id]', params: { id: r.user_id! } }) : undefined}
     />
   );
@@ -46,6 +48,7 @@ function RankRow({ r }: { r: RankingRow }) {
 /** Global ranking by challenge badges (never movement points), for everyone or a narrower circle. */
 export default function Ranking() {
   const p = usePalette();
+  const { gutter } = useLayout();
   const [scope, setScope] = useState<RankingScope>('everyone');
   const [club, setClub] = useState<string | null>(null);
   const [pickClub, setPickClub] = useState(false);
@@ -63,10 +66,11 @@ export default function Ranking() {
   return (
     <Screen onRefresh={() => void board.refetch()} refreshing={board.isRefetching}>
       <Stack.Screen options={{ title: 'Global ranking' }} />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }} accessibilityRole="radiogroup" accessibilityLabel="Compare with">
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} accessibilityRole="radiogroup" accessibilityLabel="Compare with"
+        style={{ marginHorizontal: -gutter, flexGrow: 0 }} contentContainerStyle={{ paddingHorizontal: gutter, gap: spacing.sm }}>
         {SCOPES.map((s) => <Chip key={s.value} label={s.label} icon={s.icon} selected={scope === s.value} onPress={() => setScope(s.value)} />)}
         {myClubs.length ? <Chip label={scope === 'club' && clubName ? clubName : 'Club'} icon="clubs" selected={scope === 'club'} onPress={() => setPickClub(true)} /> : null}
-      </View>
+      </ScrollView>
 
       <Card tone="violet" accessibilityLabel={mine ? `Your rank: ${mine.rank} of ${mine.total}` : 'You are not ranked here yet'}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
@@ -76,7 +80,7 @@ export default function Ranking() {
             <Txt variant="caption">{mine ? `of ${mine.total.toLocaleString()} ${mine.total === 1 ? 'runner' : 'runners'} · score ${mine.score}` : 'Complete a challenge to appear here'}</Txt>
           </View>
           <View style={{ flexDirection: 'row', gap: 4 }}>
-            {(me.data?.earned ?? []).slice(0, 3).map((b) => <BadgeMedal key={b.id} tier={b.tier} category={b.category} size={40} />)}
+            {byTier(me.data?.earned ?? []).slice(0, 3).map((b) => <BadgeMedal key={b.id} tier={b.tier} category={b.category} size={40} />)}
           </View>
         </View>
         <ArrowLink label="How ranking works" onPress={() => setExplain(true)} />

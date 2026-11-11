@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
-import { REASON_TEXT } from '@loopfield/core';
+import { MOVEMENT_REASON_TEXT } from '@loopfield/core';
 import Svg, { Polygon } from 'react-native-svg';
 import { friendlyError } from '@/lib/api';
 import { fmtDate, fmtDistance } from '@/lib/format';
 import { useUnits } from '@/state/session';
-import { Banner, Button, Chip, confirm, EmptyState, ErrorState, LoadingState, PressableScale, Sheet, Txt } from '@/components/ui';
+import { Banner, Button, confirm, EmptyState, ErrorState, LoadingState, PressableScale, Sheet, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { Celebration } from '@/features/run/Celebration';
 import { controllerColor, radius, spacing, useTheme } from '@/theme/tokens';
@@ -96,6 +96,16 @@ export function ReclaimDone({ result, onDone }: { result: ReclaimResult; onDone:
   );
 }
 
+/** Round checkbox used by the list rows and by "select all". */
+function Check({ on }: { on: boolean }) {
+  const { palette: p } = useTheme();
+  return (
+    <View style={[styles.check, { borderColor: on ? p.primaryFill : p.borderStrong, backgroundColor: on ? p.primaryFill : 'transparent' }]}>
+      {on ? <Icon name="check" color="#FFFFFF" size={16} strokeWidth={3} /> : null}
+    </View>
+  );
+}
+
 const BLOCKED: Record<string, string> = {
   taken_with_points: 'Taken back with points: only a run can win it back',
   season_closed: 'The season is closed',
@@ -131,6 +141,7 @@ export function ReclaimSheet({ visible, onClose, competitionId, seasonId }: { vi
     onClose();
   };
   const shortBy = quote.total - quote.balance;
+  const allOn = reclaimable.length > 0 && reclaimable.every((c) => picked.has(c.cell));
 
   return (
     <Sheet visible={visible} title="Reclaim lost ground" onClose={close}>
@@ -146,7 +157,11 @@ export function ReclaimSheet({ visible, onClose, competitionId, seasonId }: { vi
         <View style={{ gap: spacing.md }}>
           <Txt color="textMuted">Choose ground you held earlier this season. Each cell returns to you straight away.</Txt>
           {reclaimable.length > 1 ? (
-            <Chip label={reclaimable.every((c) => picked.has(c.cell)) ? 'Clear selection' : `Select all ${reclaimable.length} reclaimable`} selected={reclaimable.every((c) => picked.has(c.cell))} onPress={() => toggle(reclaimable)} />
+            <PressableScale onPress={() => toggle(reclaimable)} accessibilityRole="checkbox" accessibilityState={{ checked: allOn }}
+              accessibilityLabel={`Select all ${reclaimable.length} reclaimable cells`} style={styles.selectAll}>
+              <Txt variant="label" style={{ flex: 1 }}>{allOn ? `All ${reclaimable.length} reclaimable cells selected` : `Select all ${reclaimable.length} reclaimable cells`}</Txt>
+              <Check on={allOn} />
+            </PressableScale>
           ) : null}
           <ScrollView style={{ maxHeight: 300 }} contentContainerStyle={{ gap: spacing.sm }}>
             {groups.map((g) => {
@@ -165,11 +180,7 @@ export function ReclaimSheet({ visible, onClose, competitionId, seasonId }: { vi
                     <Txt variant="bodyStrong" numberOfLines={1}>{`Taken by ${g.name}`}</Txt>
                     <Txt variant="caption" numberOfLines={2}>{reason ?? `${fmtDate(g.lostOn)} · ${g.cells.length} ${g.cells.length === 1 ? 'cell' : 'cells'}${g.reclaimable.length < g.cells.length ? ` (${g.reclaimable.length} reclaimable)` : ''}`}</Txt>
                   </View>
-                  {blocked ? <Icon name="lock" color={p.textSubtle} size={20} /> : (
-                    <View style={[styles.check, { borderColor: on ? p.primaryFill : p.borderStrong, backgroundColor: on ? p.primaryFill : 'transparent' }]}>
-                      {on ? <Icon name="check" color="#FFFFFF" size={16} strokeWidth={3} /> : null}
-                    </View>
-                  )}
+                  {blocked ? <Icon name="lock" color={p.textSubtle} size={20} /> : <Check on={on} />}
                 </PressableScale>
               );
             })}
@@ -199,7 +210,7 @@ export function RunPointsCard({ activityId }: { activityId: string | undefined }
   const m = useActivityMovement(activityId);
   const d = m.data;
   if (!activityId || m.isLoading) return null;
-  const why = d?.reasons.length ? d.reasons.map((r) => REASON_TEXT[r as keyof typeof REASON_TEXT] ?? null).filter(Boolean).join(' ') : '';
+  const why = d?.reasons.length ? d.reasons.map((r) => MOVEMENT_REASON_TEXT[r as keyof typeof MOVEMENT_REASON_TEXT] ?? null).filter(Boolean).join(' ') : '';
   const line = !d || !d.processed
     ? 'Points appear once the server has verified this run.'
     : d.removed
@@ -229,5 +240,6 @@ const styles = StyleSheet.create({
   rule: { height: StyleSheet.hairlineWidth, marginVertical: 2 },
   group: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, borderWidth: 1.5, minHeight: 64 },
   check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  selectAll: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 48, paddingHorizontal: spacing.md },
   runPoints: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.lg, minHeight: 60 }
 });
