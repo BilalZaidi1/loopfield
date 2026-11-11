@@ -1,7 +1,7 @@
 -- Avatars: cartoon parts are validated, pictures must live in the runner's own folder, and the map lists the
 -- runners holding land in view with their picture and their totals in that layer (blocked runners anonymous).
 begin;
-select plan(10);
+select plan(11);
 
 insert into auth.users (id, email) values
   ('a1210000-0000-4000-8000-000000000001', 'cartoon@example.test'),
@@ -69,5 +69,10 @@ select throws_ok($$select * from public.territory_owners_in_view('00000000-0000-
                  '42501', null, 'signed-out visitors cannot list runners');
 reset role;
 
+select ok(not has_function_privilege('authenticated', 'internal.enqueue_email(uuid,text,jsonb,text,timestamptz)', 'execute')
+          and not has_function_privilege('authenticated', 'internal.notify_land(uuid,text,text,text,jsonb,jsonb,text,boolean)', 'execute')
+          and not has_function_privilege('anon', 'internal.email_unsubscribe(text,text)', 'execute')
+          and has_function_privilege('authenticated', 'internal.valid_avatar_style(jsonb)', 'execute'),
+          'app users cannot run internal email or notification functions; only the avatar check used by a constraint is open');
 select * from finish();
 rollback;
