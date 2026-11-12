@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { kindLabel, roleLabel, type ClubDetail } from '@/features/clubs/api';
-import { ClubCover, ClubLogo } from '@/features/clubs/ClubBits';
+import { ClubCover, ClubLogo, clubTone } from '@/features/clubs/ClubBits';
+import CreateClub from '../app/(app)/club/create';
 import Manage from '../app/(app)/club/[id]/organizer';
 
 // jest.mock factories are hoisted above imports, so they load their stand-ins with require.
@@ -13,18 +14,20 @@ jest.mock('@react-native-community/netinfo', () => require('@react-native-commun
 jest.mock('@/lib/supabase', () => ({ supabase: jest.fn() }));
 jest.mock('@/lib/api', () => ({ ...jest.requireActual('@/lib/api'), rpc: jest.fn(async () => []) }));
 jest.mock('@/state/session', () => ({ useSession: () => ({ userId: 'me' }), useUnits: () => 'metric' }));
-jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn() }, Stack: { Screen: () => null }, useLocalSearchParams: () => ({ id: 'c1' }) }));
+jest.mock('expo-router', () => ({ router: { push: jest.fn(), replace: jest.fn() }, Stack: { Screen: () => null }, useLocalSearchParams: () => mockParams }));
 jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }));
 jest.mock('@/features/social/media', () => ({ useSignedUrl: () => ({ data: null }), prepareImage: jest.fn(), uploadToBucket: jest.fn() }));
 jest.mock('@/features/social/PostCard', () => ({ useFeed: () => ({ data: { pages: [[]] } }) }));
 
 const mockState: { club: ClubDetail | null } = { club: null };
 const mockRemove = jest.fn();
+const mockBranding = jest.fn(async () => {});
+const mockParams: { id?: string; kind?: string } = { id: 'c1' };
 const mutation = () => ({ mutate: jest.fn(), mutateAsync: jest.fn(), isPending: false, error: null });
 jest.mock('@/features/clubs/api', () => ({
   ...jest.requireActual('@/features/clubs/api'),
   useClub: () => ({ data: mockState.club, isLoading: false }),
-  useClubAdmin: () => ({ branding: mutation(), details: mutation(), visibility: mutation(), setRole: mutation(), offer: mutation(), cancelOffer: mutation(), respondOffer: mutation(), remove: { ...mutation(), mutate: mockRemove } })
+  useClubAdmin: () => ({ branding: { ...mutation(), mutateAsync: mockBranding }, details: mutation(), visibility: mutation(), setRole: mutation(), offer: mutation(), cancelOffer: mutation(), respondOffer: mutation(), remove: { ...mutation(), mutate: mockRemove } })
 }));
 
 const club = (extra: Partial<ClubDetail>): ClubDetail => ({
@@ -51,8 +54,33 @@ describe('community and group words', () => {
     await render(<ClubCover club={{ id: 'c1', cover_path: null, artwork: 'tide' }} width={320} height={120} />);
     expect(JSON.stringify(screen.toJSON())).toContain('RNSVGPath');
     expect(screen.queryByLabelText('Cover photo')).toBeNull();
-    await render(<ClubCover club={{ id: 'c1', cover_path: null, artwork: 'tide' }} width={320} height={120} override={{ uri: 'file:///new-cover.jpg' }} />);
+    await render(<ClubCover club={{ id: 'c1', cover_path: null, artwork: 'tide' }} width={320} height={120} preview={{ photoUri: 'file:///new-cover.jpg' }} />);
     expect(screen.getByLabelText('Cover photo')).toBeTruthy();
+  });
+
+  it("uses the colour the owner chose, and a stable one until they choose", () => {
+    expect(clubTone({ id: 'c1', tone: 'green' })).toBe('green');
+    expect(clubTone({ id: 'c1' })).toBe(clubTone({ id: 'c1', tone: null }));
+    expect(['violet', 'blue', 'green', 'orange']).toContain(clubTone({ id: 'c1' }));
+  });
+});
+
+describe('starting a community or a group', () => {
+  it('starts only a community from "New community"', async () => {
+    mockParams.kind = 'community';
+    await render(wrap(<CreateClub />));
+    expect(screen.getByText(/A club or local community/)).toBeTruthy();
+    expect(screen.queryByText(/A private crew/)).toBeNull();
+    expect(screen.getByText('Who can see it')).toBeTruthy();
+  });
+
+  it('starts only a group from "New group"', async () => {
+    mockParams.kind = 'group';
+    await render(wrap(<CreateClub />));
+    expect(screen.getByText(/A private crew/)).toBeTruthy();
+    expect(screen.queryByText(/A club or local community/)).toBeNull();
+    expect(screen.queryByText('Who can see it')).toBeNull();
+    delete mockParams.kind;
   });
 });
 
@@ -100,6 +128,18 @@ describe('managing a community or group', () => {
     await fireEvent.changeText(screen.getByLabelText('Type "Harbour Striders" to confirm'), 'harbour striders');
     await fireEvent.press(screen.getByRole('button', { name: /Delete community/ }));
     expect(mockRemove).toHaveBeenCalledWith('harbour striders', expect.anything());
+  });
+
+  it('lets admins choose a colour and a plain cover, and saves both at once', async () => {
+    mockBranding.mockClear();
+    mockState.club = club({ my_role: 'organizer', artwork: 'tide' });
+    await render(wrap(<Manage />));
+    await settle();
+    await fireEvent.press(screen.getByRole('radio', { name: 'Green' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Plain' }));
+    await fireEvent.press(screen.getByRole('button', { name: /Save the new look/ }));
+    await settle();
+    expect(mockBranding).toHaveBeenCalledWith(expect.objectContaining({ tone: 'green', clearArtwork: true, artwork: null, clearCover: false }));
   });
 
   it('turns members away from the manage screen', async () => {

@@ -72,7 +72,8 @@ export const EVENT_SCHEMA = {
     format: oneOf('9:16', '4:5', '1:1'),
     with_route: bool,
     with_land: bool,
-    with_qr: bool
+    with_qr: bool,
+    with_map: bool
   },
   event_action: {
     action: oneOf('joined', 'left', 'created', 'cancelled', 'standings_viewed', 'shown_on_map'),

@@ -1,18 +1,14 @@
 import { useState } from 'react';
-import { Alert, useWindowDimensions, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError, rpc } from '@/lib/api';
-import { Avatar, Banner, Button, Card, ChipGroup, confirm, EmptyState, ListGroup, LoadingState, Row, Screen, Section, Segmented, TextField, Txt } from '@/components/ui';
+import { Avatar, Banner, Button, Card, confirm, EmptyState, ListGroup, LoadingState, Row, Screen, Section, Segmented, TextField, Txt } from '@/components/ui';
 import { spacing } from '@/theme/tokens';
-import { useLayout } from '@/theme/layout';
 import { fmtDate } from '@/lib/format';
 import { useSession } from '@/state/session';
-import { prepareImage, uploadToBucket } from '@/features/social/media';
-import { ARTWORKS, ClubCover, ClubLogo } from '@/features/clubs/ClubBits';
-import { useClub, useClubAdmin, type ClubArtwork, type ClubDetail } from '@/features/clubs/api';
+import { BrandingEditor } from '@/features/clubs/BrandingEditor';
+import { useClub, useClubAdmin, type ClubDetail } from '@/features/clubs/api';
 import { useFeed } from '@/features/social/PostCard';
 
 interface Pending {
@@ -100,71 +96,6 @@ export default function Organizer() {
       {owner ? <OwnershipSection club={c} /> : null}
       {owner ? <DeleteSection club={c} /> : null}
     </Screen>
-  );
-}
-
-/** Logo and cover (photo or artwork), previewed exactly as members will see them, saved only on confirm. */
-function BrandingEditor({ club }: { club: ClubDetail }) {
-  const { width } = useWindowDimensions();
-  const { gutter, contentMax } = useLayout();
-  const admin = useClubAdmin(club);
-  const [logo, setLogo] = useState<{ uri: string } | null>(null);
-  const [cover, setCover] = useState<{ uri: string } | null>(null);
-  const [artwork, setArtwork] = useState<ClubArtwork | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const dirty = Boolean(logo || cover || artwork);
-  const coverWidth = Math.min(contentMax, width) - gutter * 2;
-  const pick = async (aspect: [number, number]) => {
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect, quality: 0.9, exif: false });
-    return res.canceled || !res.assets[0] ? null : (await prepareImage(res.assets[0].uri)).uri;
-  };
-  const save = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      let logoPath: string | null = null;
-      let coverPath: string | null = null;
-      if (logo) {
-        logoPath = `${club.id}/logo-${Date.now()}.jpg`;
-        await uploadToBucket('club-media', logoPath, logo.uri);
-      }
-      if (cover) {
-        coverPath = `${club.id}/cover-${Date.now()}.jpg`;
-        await uploadToBucket('club-media', coverPath, cover.uri);
-      }
-      await admin.branding.mutateAsync({ logoPath, coverPath, artwork, clearCover: Boolean(artwork && !cover) });
-      setLogo(null);
-      setCover(null);
-      setArtwork(null);
-    } catch (e) {
-      setError(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Section title="Look" icon="image">
-      <View>
-        <ClubCover club={club} width={coverWidth} height={club.kind === 'group' ? 104 : 148} override={cover || artwork ? { uri: cover?.uri ?? null, artwork } : null} />
-        <View style={{ marginTop: -32, marginLeft: spacing.lg, alignSelf: 'flex-start' }}>
-          {logo ? <Image source={{ uri: logo.uri }} style={{ width: 64, height: 64, borderRadius: 20 }} accessibilityLabel="New logo preview" accessible /> : <ClubLogo club={club} size={64} />}
-        </View>
-      </View>
-      <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>
-        <Button label={club.kind === 'group' ? 'Choose picture' : 'Choose logo'} size="sm" variant="secondary" icon="camera" onPress={() => void pick([1, 1]).then((uri) => uri && setLogo({ uri }))} />
-        {club.kind === 'community' ? <Button label="Choose cover photo" size="sm" variant="secondary" icon="image" onPress={() => void pick([5, 2]).then((uri) => { if (uri) { setCover({ uri }); setArtwork(null); } })} /> : null}
-      </View>
-      <ChipGroup<ClubArtwork | 'none'> label="Or use artwork" value={artwork ?? 'none'} onChange={(v) => { setArtwork(v === 'none' ? null : v); if (v !== 'none') setCover(null); }} scroll
-        options={[{ value: 'none', label: club.cover_path || club.artwork ? 'Keep current' : 'None' }, ...ARTWORKS.map((a) => ({ value: a.id, label: a.label }))]} />
-      {error ? <Banner tone="danger" text={error} /> : null}
-      {dirty ? (
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <Button label="Save the new look" arrow style={{ flex: 1 }} loading={busy} onPress={() => void save()} />
-          <Button label="Discard" variant="ghost" onPress={() => { setLogo(null); setCover(null); setArtwork(null); }} />
-        </View>
-      ) : <Txt variant="caption">Shown on the page, in lists, rankings, posts, invitations and challenge cards. Photos are re-encoded on your phone (location data removed) before upload.</Txt>}
-    </Section>
   );
 }
 

@@ -63,7 +63,7 @@ export default function Home() {
       <View style={isTablet ? { flexDirection: 'row', gap: spacing.lg, alignItems: 'stretch' } : { gap: spacing.lg }}>
         <View style={{ flex: isTablet ? 1 : undefined, gap: spacing.lg }}>
           <WeekCard acts={acts} />
-          <Button label="Start a run" variant="ink" size="lg" arrow icon="record" onPress={() => router.push('/record')} />
+          <Button label="Start a run" variant="ink" size="lg" arrow icon="record" onPress={() => router.push('/run/active')} />
         </View>
         <View style={{ flex: isTablet ? 1 : undefined, gap: spacing.lg }}>
           <GroundCard />

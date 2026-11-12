@@ -26,7 +26,7 @@ export function EventCard({ event: e }: { event: EventRow }) {
           <Txt variant="headline" numberOfLines={1}>{e.name}</Txt>
           {e.host_club_id && e.host_club_name ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs }}>
-              <ClubLogo club={{ id: e.host_club_id, name: e.host_club_name, avatar_path: e.host_avatar_path }} size={18} />
+              <ClubLogo club={{ id: e.host_club_id, name: e.host_club_name, avatar_path: e.host_avatar_path, tone: e.host_tone }} size={18} />
               <Txt variant="caption" numberOfLines={1} style={{ flexShrink: 1 }}>{`${e.host_club_name} · ${kind}`}</Txt>
             </View>
           ) : <Txt variant="caption" numberOfLines={1}>{`${kind} · ${where}`}</Txt>}

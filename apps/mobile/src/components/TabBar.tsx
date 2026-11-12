@@ -39,12 +39,15 @@ export function AppTabBar(props: BottomTabBarProps) {
 function useTabPress({ state, emitter, navigateToTab }: BottomTabBarProps) {
   return (index: number) => {
     const route = state.routes[index]!;
+    // Record opens the full-screen recorder (run type, GO and the live run on one map), over any tab.
+    if (route.name === 'record') {
+      tick('light');
+      router.push('/run/active');
+      return;
+    }
     const focused = state.index === index;
     const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-    if (!focused && !event.defaultPrevented) {
-      if (route.name === 'record') tick('light');
-      navigateToTab(route.key);
-    }
+    if (!focused && !event.defaultPrevented) navigateToTab(route.key);
   };
 }
 

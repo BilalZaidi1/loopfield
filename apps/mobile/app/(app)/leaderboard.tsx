@@ -104,7 +104,7 @@ export default function Leaderboard() {
           <Txt variant="caption">{allTime ? 'Published land held now.' : 'Published land held in this season\'s race.'}</Txt>
         </>
       ) : (
-        <EmptyState icon="hexagon" title="No published land yet" body={profile?.district_id ? (allTime ? 'Be the first to close a loop here.' : 'Be the first to close a loop this season.') : undefined} action={{ label: 'Start a run', onPress: () => router.push('/record') }} />
+        <EmptyState icon="hexagon" title="No published land yet" body={profile?.district_id ? (allTime ? 'Be the first to close a loop here.' : 'Be the first to close a loop this season.') : undefined} action={{ label: 'Start a run', onPress: () => router.push('/run/active') }} />
       )}
       <ListGroup>
         <Row icon="flag" title="Events" subtitle="Weekend challenges, city takeovers and distance months, with their own standings" onPress={() => router.push('/events')} />

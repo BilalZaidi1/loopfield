@@ -20,7 +20,7 @@ export interface PostJson {
   body: string | null;
   status: string;
   author: { id: string; handle: string; display_name: string; avatar_path: string | null };
-  club: { id: string; name: string; kind: string; avatar_path?: string | null } | null;
+  club: { id: string; name: string; kind: string; avatar_path?: string | null; tone?: import('@/features/clubs/api').ClubTone | null } | null;
   shared_summary: {
     distance_m?: number;
     elapsed_ms?: number;

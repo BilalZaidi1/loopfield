@@ -117,7 +117,7 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
           <Txt variant="caption">Optional. Your picture marks your land on the map and shows on your profile, posts and rankings.</Txt>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
             <Button label={avatarKind === 'photo' ? 'New photo' : 'Photo'} icon="camera" size="sm" variant="secondary" onPress={() => void pickAvatar()} />
-            <Button label={avatarKind === 'cartoon' ? 'Edit avatar' : 'Cartoon avatar'} icon="sparkle" size="sm" variant="secondary" onPress={() => setBuilding(true)} />
+            <Button label={avatarKind === 'cartoon' ? 'Edit avatar' : 'Avatar'} icon="sparkle" size="sm" variant="secondary" onPress={() => setBuilding(true)} />
             {avatarKind === 'cartoon' && photoPath ? (
               <Button label="Use my photo" size="sm" variant="ghost" onPress={() => { setAvatarPath(photoPath); setAvatarKind('photo'); }} />
             ) : null}

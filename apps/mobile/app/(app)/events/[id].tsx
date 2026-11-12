@@ -62,7 +62,7 @@ export default function EventDetail() {
         {e.host_club_id && e.host_club_name ? (
           <Pressable onPress={() => router.push({ pathname: '/club/[id]', params: { id: e.host_club_id! } })} accessibilityRole="link" accessibilityLabel={`Hosted by ${e.host_club_name}. Open it`}
             style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, alignSelf: 'flex-start', minHeight: 36 }}>
-            <ClubLogo club={{ id: e.host_club_id, name: e.host_club_name, avatar_path: e.host_avatar_path }} size={28} inverted />
+            <ClubLogo club={{ id: e.host_club_id, name: e.host_club_name, avatar_path: e.host_avatar_path, tone: e.host_tone }} size={28} inverted />
             <Txt variant="bodyStrong" numberOfLines={1} style={{ flexShrink: 1 }}>{`Hosted by ${e.host_club_name}`}</Txt>
           </Pressable>
         ) : null}

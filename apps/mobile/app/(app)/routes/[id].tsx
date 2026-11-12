@@ -101,7 +101,7 @@ export default function RouteDetailScreen() {
         ) : (
           <Txt variant="headline">No title holder yet. The first eligible attempt sets the record.</Txt>
         )}
-        <Button label="Attempt this route" arrow onPress={() => router.push({ pathname: '/record', params: { course: d.course_id } })} disabled={!canAttempt} hint={!settings?.speed_competition_enabled ? 'Turn on route titles in Privacy settings first.' : undefined} />
+        <Button label="Attempt this route" arrow onPress={() => router.dismissTo({ pathname: '/run/active', params: { course: d.course_id } })} disabled={!canAttempt} hint={!settings?.speed_competition_enabled ? 'Turn on route titles in Privacy settings first.' : undefined} />
         {!settings?.speed_competition_enabled ? <Txt variant="caption">Turn on route titles in Privacy settings to attempt it.</Txt> : null}
         <Txt variant="caption">Speed titles never move or protect land. Thresholds are proposed pilot values.</Txt>
       </Card>

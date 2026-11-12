@@ -44,6 +44,10 @@ Figtree: 500 body, 600 labels, 700 headings, 800 titles, 900 italic for numerals
 
 "Show numbers" under every chart opens a table that names each period in full (Mon, "Week of Nov 2"), right-aligns values with tabular figures, adds a short magnitude bar, a comparison column when the chart compares (last week), a tag on the current period and a total row. Missing data shows a dash, never zero.
 
+## Health charts
+
+Health screens use a calmer figure: the sans face (Figtree ExtraBold, 48 px) rather than the black italic used for runs. Charts are one series in the health green (`#3A944F` columns and `#257539` lines in light, `#55AE66` and `#7CCB88` in dark). The calendar uses a five-step ramp (light `#7CC88B`→`#145628`, dark `#2E6A3B`→`#B4EBBC`). Sleep stages are deep, light, REM and awake (light `#5B57E3`, `#1BAF7A`, `#2A78D6`, `#EB6834`; dark `#6762F0`, `#199E70`, `#3987E5`, `#D95926`), always with a list naming each stage and its time. All were checked with the dataviz validator. Text never takes a series colour.
+
 ## Layout and navigation
 
 Phones: bottom tab bar (Home, Map, Record, Progress, Clubs) with Record as a raised round button. ≥ 1024 px: a sidebar with the same tabs plus Start a run, Messages, Notifications and your profile. Content is centred at a reading width on tablets and desktops; Home and Clubs switch to two columns at ≥ 700 px. Pushed screens use one header with a Back button and the screen title.

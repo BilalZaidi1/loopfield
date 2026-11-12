@@ -4,7 +4,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { friendlyError, rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
-import { Badge, Banner, Button, PressableScale, Screen, Segmented, TextField, Txt } from '@/components/ui';
+import { Badge, Banner, Button, Screen, Segmented, TextField, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import type { ClubKind } from '@/features/clubs/api';
 import { useDistricts } from '@/features/profile/ProfileForm';
@@ -14,7 +14,8 @@ import { radius, spacing, usePalette } from '@/theme/tokens';
 /**
  * Start a group (a private crew: you add the people, it has a chat) or a community (a club or local
  * community that can be public, private or invitation-only, with admins, announcements, races and
- * challenges). The creator becomes the owner. Logo and cover are added afterwards in Manage.
+ * challenges), whichever the entry point asked for. The creator becomes the owner. Logo, cover and
+ * colour are added afterwards in Manage.
  */
 export default function CreateClub() {
   const p = usePalette();
@@ -22,7 +23,7 @@ export default function CreateClub() {
   const params = useLocalSearchParams<{ kind?: ClubKind }>();
   const { profile } = useSession();
   const districts = useDistricts();
-  const [kind, setKind] = useState<ClubKind>(params.kind === 'group' ? 'group' : 'community');
+  const kind: ClubKind = params.kind === 'group' ? 'group' : 'community';
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [rules, setRules] = useState('');
@@ -61,20 +62,12 @@ export default function CreateClub() {
   return (
     <Screen footer={<Button label={group ? 'Start the group' : 'Start the community'} size="lg" arrow onPress={create} loading={busy} disabled={name.trim().length < 3 || busy} />}>
       <Stack.Screen options={{ title: group ? 'New group' : 'New community' }} />
-      <View style={{ flexDirection: 'row', gap: spacing.md }} accessibilityRole="radiogroup" accessibilityLabel="What to start">
-        {([
-          { value: 'group', icon: 'chat', title: 'Group', body: 'A private crew. You add people; it has a chat.' },
-          { value: 'community', icon: 'clubs', title: 'Community', body: 'A club or local community with admins, races and challenges.' }
-        ] as const).map((o) => {
-          const selected = kind === o.value;
-          return (
-            <PressableScale key={o.value} onPress={() => setKind(o.value)} accessibilityRole="radio" accessibilityState={{ checked: selected }} accessibilityLabel={`${o.title}. ${o.body}`} style={{ flex: 1, gap: spacing.xs, padding: spacing.lg, borderRadius: radius.lg, borderWidth: 2, borderColor: selected ? p.primary : 'transparent', backgroundColor: selected ? p.primarySoft : p.surface }}>
-              <Icon name={o.icon} color={selected ? p.primary : p.textMuted} size={24} />
-              <Txt variant="heading">{o.title}</Txt>
-              <Txt variant="caption">{o.body}</Txt>
-            </PressableScale>
-          );
-        })}
+      {/* Each entry point starts one kind: "New community" never offers a group, and the other way round. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+        <View style={{ width: 44, height: 44, borderRadius: radius.md, backgroundColor: p.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name={group ? 'chat' : 'clubs'} color={p.primary} size={22} />
+        </View>
+        <Txt color="textMuted" style={{ flex: 1 }}>{group ? 'A private crew: you add the people, and it has its own chat.' : 'A club or local community, with admins, announcements, races and challenges.'}</Txt>
       </View>
       <TextField label="Name" value={name} onChangeText={setName} maxLength={60} placeholder={group ? 'Tuesday Crew' : 'Harbour Striders'} />
       <TextField label="Description (optional)" value={description} onChangeText={setDescription} multiline maxLength={1000} />

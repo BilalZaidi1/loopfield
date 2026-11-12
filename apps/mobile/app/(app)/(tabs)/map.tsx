@@ -297,7 +297,7 @@ export default function TerritoryMap() {
             <Txt variant="caption">Unmarked ground is unclaimed. Grey areas are unavailable for competition (for example private or restricted land). Land shown is published at least 30 minutes after a run.</Txt>
           </ScrollView>
         ) : null}
-        {reclaiming ? null : <Button label="Start a run" size="lg" arrow icon="record" onPress={() => router.push('/record')} />}
+        {reclaiming ? null : <Button label="Start a run" size="lg" arrow icon="record" onPress={() => router.push('/run/active')} />}
       </Animated.View>
 
       <ReclaimSheet visible={listOpen} onClose={() => setListOpen(false)} competitionId={layer?.id} seasonId={layerSeason?.id} />

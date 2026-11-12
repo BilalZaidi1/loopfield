@@ -6,14 +6,24 @@ import { Badge, Card, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { useSignedUrl } from '@/features/social/media';
 import { radius, spacing, useTheme, type BlockTone } from '@/theme/tokens';
-import { kindLabel, roleLabel, type ClubArtwork, type MyClub } from './api';
+import { kindLabel, roleLabel, type ClubArtwork, type ClubTone, type MyClub } from './api';
 
 const TONES: BlockTone[] = ['violet', 'blue', 'green', 'orange'];
 
-/** Stable colour for a community or group, so its card looks the same everywhere. */
-export function clubTone(id: string): BlockTone {
+/** The colours an owner or admin can choose, in the order the picker shows them. */
+export const CLUB_TONES: { id: ClubTone; label: string }[] = [
+  { id: 'violet', label: 'Violet' },
+  { id: 'blue', label: 'Blue' },
+  { id: 'green', label: 'Green' },
+  { id: 'orange', label: 'Orange' },
+  { id: 'ink', label: 'Ink' }
+];
+
+/** A community's or group's colour: the one its owner chose, otherwise a stable one derived from its id. */
+export function clubTone(club: { id: string; tone?: ClubTone | null }): BlockTone {
+  if (club.tone) return club.tone;
   let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < club.id.length; i++) h = (h * 31 + club.id.charCodeAt(i)) >>> 0;
   return TONES[h % TONES.length]!;
 }
 
@@ -29,7 +39,7 @@ export function ClubMonogram({ name, tone, size = 48, inverted }: { name: string
 }
 
 /** The logo when there is one (a private image, shown through a short-lived link), the monogram otherwise. */
-export function ClubLogo({ club, size = 48, inverted }: { club: { id: string; name: string; avatar_path?: string | null }; size?: number; inverted?: boolean }) {
+export function ClubLogo({ club, size = 48, inverted }: { club: { id: string; name: string; avatar_path?: string | null; tone?: ClubTone | null }; size?: number; inverted?: boolean }) {
   const t = useTheme();
   const url = useSignedUrl('club-media', club.avatar_path ?? null);
   if (club.avatar_path && url.data) {
@@ -38,7 +48,7 @@ export function ClubLogo({ club, size = 48, inverted }: { club: { id: string; na
         contentFit="cover" accessibilityLabel={`${club.name} logo`} accessible />
     );
   }
-  return <ClubMonogram name={club.name} tone={clubTone(club.id)} size={size} inverted={inverted} />;
+  return <ClubMonogram name={club.name} tone={clubTone(club)} size={size} inverted={inverted} />;
 }
 
 export const ARTWORKS: { id: ClubArtwork; label: string }[] = [
@@ -97,19 +107,28 @@ export function Artwork({ kind, tone, width, height }: { kind: ClubArtwork; tone
   );
 }
 
+/** Unsaved changes shown before they are saved: a new photo (or none), a design and a colour. */
+export interface CoverPreview {
+  photoUri?: string | null;
+  removePhoto?: boolean;
+  /** 'plain' is the colour alone, without artwork. */
+  artwork?: ClubArtwork | 'plain' | null;
+  tone?: ClubTone | null;
+}
+
 /** Cover: the uploaded photo, otherwise the chosen artwork, otherwise the plain colour block. */
-export function ClubCover({ club, height = 132, width, override }: {
-  club: { id: string; cover_path?: string | null; artwork?: ClubArtwork | null };
+export function ClubCover({ club, height = 132, width, preview }: {
+  club: { id: string; cover_path?: string | null; artwork?: ClubArtwork | null; tone?: ClubTone | null };
   height?: number;
   width: number;
-  /** Preview before saving: a local photo or an artwork choice. */
-  override?: { uri?: string | null; artwork?: ClubArtwork | null } | null;
+  preview?: CoverPreview | null;
 }) {
   const t = useTheme();
-  const tone = clubTone(club.id);
-  const url = useSignedUrl('club-media', override ? null : club.cover_path ?? null);
-  const photo = override?.uri ?? url.data ?? null;
-  const art = override?.artwork ?? (override?.uri ? null : club.artwork) ?? null;
+  const tone = clubTone({ id: club.id, tone: preview?.tone ?? club.tone });
+  const keepPhoto = !preview?.photoUri && !preview?.removePhoto;
+  const url = useSignedUrl('club-media', keepPhoto ? club.cover_path ?? null : null);
+  const photo = preview?.photoUri ?? (keepPhoto ? url.data ?? null : null);
+  const art = preview?.artwork === 'plain' ? null : preview?.artwork ?? club.artwork ?? null;
   return (
     <View style={{ width, height, borderRadius: radius.lg, overflow: 'hidden', backgroundColor: t.blocks[tone].bg }}>
       {photo ? <Image source={{ uri: photo }} style={{ width, height }} contentFit="cover" accessibilityLabel="Cover photo" accessible /> : art ? <Artwork kind={art} tone={tone} width={width} height={height} /> : null}
@@ -117,9 +136,39 @@ export function ClubCover({ club, height = 132, width, override }: {
   );
 }
 
+/**
+ * The page header art: the cover with the logo over its lower edge, the logo ringed in the colour of the
+ * page behind it so the two never run together (the same on the page and in Manage's preview).
+ */
+export function ClubHeaderArt({ club, width, height, ring, logoSize = 72, preview, logoUri }: {
+  club: { id: string; name: string; avatar_path?: string | null; cover_path?: string | null; artwork?: ClubArtwork | null; tone?: ClubTone | null };
+  width: number;
+  height: number;
+  /** The colour behind the header (the screen background). */
+  ring: string;
+  logoSize?: number;
+  preview?: CoverPreview | null;
+  /** A new logo picked but not saved yet. */
+  logoUri?: string | null;
+}) {
+  const radiusLogo = Math.round(logoSize * 0.32);
+  return (
+    <View>
+      <ClubCover club={club} width={width} height={height} preview={preview} />
+      <View style={{ marginTop: -Math.round(logoSize / 2), marginLeft: spacing.lg, alignSelf: 'flex-start', borderRadius: radiusLogo + 4, borderWidth: 4, borderColor: ring, backgroundColor: ring }}>
+        {logoUri ? (
+          <Image source={{ uri: logoUri }} style={{ width: logoSize, height: logoSize, borderRadius: radiusLogo }} accessibilityLabel="New logo preview" accessible />
+        ) : (
+          <ClubLogo club={{ ...club, tone: preview?.tone ?? club.tone }} size={logoSize} />
+        )}
+      </View>
+    </View>
+  );
+}
+
 /** Colour-block card for one of your communities or groups. */
 export function ClubCard({ club, width }: { club: MyClub; width?: number }) {
-  const tone = clubTone(club.id);
+  const tone = clubTone(club);
   return (
     <Card tone={tone} onPress={() => router.push({ pathname: '/club/[id]', params: { id: club.id } })} accessibilityLabel={`${club.name}, ${kindLabel(club.kind)}, ${club.member_count} members`} style={{ width, minHeight: 168, justifyContent: 'space-between' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

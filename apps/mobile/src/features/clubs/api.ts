@@ -6,6 +6,8 @@ import { track } from '@/lib/analytics';
 export type ClubKind = 'community' | 'group';
 /** Predefined cover artwork (drawn in the app; no image needed). */
 export type ClubArtwork = 'trail' | 'tide' | 'grid' | 'peaks' | 'dunes' | 'city';
+/** The colour an owner or admin chose (one of the app's block colours); null means the one derived from the id. */
+export type ClubTone = 'violet' | 'blue' | 'green' | 'orange' | 'ink';
 
 export interface MyClub {
   id: string;
@@ -17,6 +19,7 @@ export interface MyClub {
   member_count: number;
   avatar_path: string | null;
   artwork: ClubArtwork | null;
+  tone?: ClubTone | null;
 }
 
 export interface DiscoverClub {
@@ -24,6 +27,7 @@ export interface DiscoverClub {
   kind: ClubKind;
   avatar_path: string | null;
   artwork: ClubArtwork | null;
+  tone?: ClubTone | null;
   name: string;
   city_label: string | null;
   visibility: 'public' | 'private';
@@ -37,6 +41,7 @@ export interface ClubDetail {
   kind: ClubKind;
   cover_path: string | null;
   artwork: ClubArtwork | null;
+  tone?: ClubTone | null;
   region_id: string | null;
   /** A pending ownership offer: to me (accept or decline), or from me as the owner (to whom). */
   ownership_offer: { to_me: boolean; expires_at: string; to?: { id: string; display_name: string } } | null;
@@ -128,8 +133,11 @@ export function useClubAdmin(club: Pick<ClubDetail, 'id' | 'kind' | 'visibility'
   const t = (action: 'branding_saved' | 'ownership_offered' | 'ownership_accepted' | 'ownership_declined' | 'admin_added' | 'admin_removed' | 'deleted') =>
     club && track('club_action', { action, club_kind: club.kind, visibility: club.visibility });
   const branding = useMutation({
-    mutationFn: (b: { logoPath?: string | null; coverPath?: string | null; artwork?: ClubArtwork | null; clearCover?: boolean }) =>
-      rpc<void>('set_club_branding', { p_club: id, p_logo_path: b.logoPath ?? null, p_cover_path: b.coverPath ?? null, p_artwork: b.artwork ?? null, p_clear_cover: Boolean(b.clearCover) }),
+    mutationFn: (b: { logoPath?: string | null; coverPath?: string | null; artwork?: ClubArtwork | null; clearCover?: boolean; tone?: ClubTone | null; clearArtwork?: boolean }) =>
+      rpc<void>('set_club_branding', {
+        p_club: id, p_logo_path: b.logoPath ?? null, p_cover_path: b.coverPath ?? null, p_artwork: b.artwork ?? null,
+        p_clear_cover: Boolean(b.clearCover), p_tone: b.tone ?? null, p_clear_artwork: Boolean(b.clearArtwork)
+      }),
     onSuccess: () => {
       t('branding_saved');
       done();

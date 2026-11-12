@@ -5,14 +5,18 @@ import { PressableScale, Txt } from '@/components/ui';
 import { tick, useReducedMotion } from '@/theme/motion';
 import { useTheme } from '@/theme/tokens';
 
-/** The big round start button with two slow sonar rings while it is ready (still when Reduce Motion is on). */
-export function GoButton({ label = 'GO!', accessibilityLabel, onPress, disabled, busy, size = 132 }: {
+/**
+ * The big round start button with two slow sonar rings while it is ready (still when Reduce Motion is on).
+ * Without `halo` it takes only its own size (the rings spill over), for the recorder's bottom panel.
+ */
+export function GoButton({ label = 'GO!', accessibilityLabel, onPress, disabled, busy, size = 132, halo = true }: {
   label?: string;
   accessibilityLabel: string;
   onPress: () => void;
   disabled?: boolean;
   busy?: boolean;
   size?: number;
+  halo?: boolean;
 }) {
   const t = useTheme();
   const reduce = useReducedMotion();
@@ -32,8 +36,8 @@ export function GoButton({ label = 'GO!', accessibilityLabel, onPress, disabled,
   const ringB = useAnimatedStyle(() => ({ opacity: live ? 0.5 * (1 - b.value) : 0, transform: [{ scale: 1 + b.value * 0.55 }] }));
   const fill = disabled ? '#3A3C45' : t.palette.primaryFill;
   return (
-    <View style={{ width: size * 1.7, height: size * 1.7, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={[styles.halo, { width: size * 1.42, height: size * 1.42, borderRadius: size, backgroundColor: 'rgba(255,255,255,0.06)' }]} />
+    <View style={{ width: halo ? size * 1.7 : size + 24, height: halo ? size * 1.7 : size + 24, alignItems: 'center', justifyContent: 'center' }}>
+      {halo ? <View style={[styles.halo, { width: size * 1.42, height: size * 1.42, borderRadius: size, backgroundColor: 'rgba(255,255,255,0.06)' }]} /> : null}
       <Animated.View style={[styles.ring, { width: size, height: size, borderRadius: size / 2, borderColor: t.palette.primaryFill }, ringA]} />
       <Animated.View style={[styles.ring, { width: size, height: size, borderRadius: size / 2, borderColor: t.palette.primaryFill }, ringB]} />
       <PressableScale

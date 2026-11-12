@@ -79,7 +79,7 @@ export default function Progress() {
               </Card>
               <Section title="Personal bests" icon="medal">
                 {totals.runs === 0 ? (
-                  <EmptyState icon="medal" title="No personal bests yet" body="Record a run and your bests appear here." action={{ label: 'Start a run', onPress: () => router.push('/record') }} />
+                  <EmptyState icon="medal" title="No personal bests yet" body="Record a run and your bests appear here." action={{ label: 'Start a run', onPress: () => router.push('/run/active') }} />
                 ) : (
                   <ListGroup>
                     {pbs.longest ? <Row leading={<Medal label={splitValue(fmtDistance(pbs.longest.distance_m, units, pbs.longest.distance_m && pbs.longest.distance_m >= 10000 ? 0 : 1)).value} tone="violet" size={52} />} title="Longest run" subtitle={fmtDate(pbs.longest.started_at)} value={fmtDistance(pbs.longest.distance_m, units)} onPress={() => router.push({ pathname: '/activities/[id]', params: { id: pbs.longest!.id } })} /> : null}

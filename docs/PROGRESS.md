@@ -2,6 +2,15 @@
 
 Working file kept current so work survives context limits. Newest first.
 
+## 12 Nov 2026: owner feedback on the pilot APK
+
+* Reported with screenshots from the pilot APK (version code 3); traced as FB1–FB8 in `TRACEABILITY.md`, decisions in `DECISIONS.md` ("Owner feedback round").
+* Recorder: one full-screen map from choosing the run type to finishing (the separate GO screen is gone); the live numbers are measured to fit their columns (the panel showed "0...." with "km" over the Time label).
+* Share card: the runner's picture; a Mapbox street map under the shared route, falling back to the drawing; the loop mark and an explanation when a run is too short to share its route. The black area came from the only run on the server being 494 m, under the 600 m below which no route is shared.
+* Communities: "Avatar" instead of "Cartoon avatar"; each create button starts only its own kind; owners and admins pick the colour (five) and a cover design (Plain or an artwork); the logo keeps its ring in Manage. Migration `20261112000100`.
+* Health: a form per metric instead of one template with a list of every day; weeks beyond 31 days; numbers on request; explained empty periods.
+* Refactors that came with it: the recorder's panels (`features/run/RecorderParts.tsx`), the Look editor (`features/clubs/BrandingEditor.tsx`) and the metric screen (`features/health/MetricView.tsx`) moved out of route files.
+
 ## 11 Nov 2026 (evening): enhancement release
 
 * Requested 11 Nov as a 15-section brief (traced as EN1–EN15 in `TRACEABILITY.md`; rules and numbers in `DECISIONS.md`, "Enhancement release"). Built on branch `enhancements` in six stages, each verified and committed (`7dcab99` … `d0b4018`).

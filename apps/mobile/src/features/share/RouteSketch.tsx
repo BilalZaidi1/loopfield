@@ -2,12 +2,12 @@ import { useMemo, useState } from 'react';
 import { View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, G, Path, Polygon, Rect } from 'react-native-svg';
 import { radius, useTheme } from '@/theme/tokens';
-import { buildSketch, type SketchInput } from './sketch';
+import { buildSketch, type Sketch, type SketchInput } from './sketch';
 
 /**
  * A light route sketch for cards and share images: the shared route with a direction arrow every so
  * often, start and finish dots at its visible ends, the land the run holds and, edged, the cells it took
- * from other runners. No map tiles: nothing is fetched and nothing about the area beyond the run is drawn.
+ * from other runners. The sketch itself fetches nothing; share images can put a street map under it.
  */
 /** Fixed colours (share images look the same whatever the app theme). */
 export interface SketchColors {
@@ -28,7 +28,9 @@ export function RouteSketch({
   rounded = true,
   background,
   colors,
-  accessibilityLabel
+  accessibilityLabel,
+  sketch: given,
+  overMap = false
 }: {
   input: SketchInput;
   height?: number;
@@ -38,6 +40,10 @@ export function RouteSketch({
   background?: string;
   colors?: SketchColors;
   accessibilityLabel?: string;
+  /** Already projected (share images, where a street map underneath uses the same projection). */
+  sketch?: Sketch | null;
+  /** Drawn over a street map: no background and no dot grid. */
+  overMap?: boolean;
 }) {
   const t = useTheme();
   const p = t.palette;
@@ -47,24 +53,29 @@ export function RouteSketch({
   };
   const [measured, setMeasured] = useState(0);
   const width = fixedWidth ?? measured;
-  const sketch = useMemo(() => (width ? buildSketch(input, width, height, 18) : null), [input, width, height]);
+  const computed = useMemo(() => (given === undefined && width ? buildSketch(input, width, height, 18) : null), [given, input, width, height]);
+  const sketch = given === undefined ? computed : given;
   const onLayout = (e: LayoutChangeEvent) => {
     if (!fixedWidth) setMeasured(Math.round(e.nativeEvent.layout.width));
   };
   const bg = background ?? p.surfaceAlt;
   return (
-    <View onLayout={onLayout} style={{ width: fixedWidth ?? '100%', height, borderRadius: rounded ? radius.md : 0, overflow: 'hidden', backgroundColor: bg }}
+    <View onLayout={onLayout} style={{ width: fixedWidth ?? '100%', height, borderRadius: rounded ? radius.md : 0, overflow: 'hidden', backgroundColor: overMap ? 'transparent' : bg }}
       accessible accessibilityRole="image" accessibilityLabel={accessibilityLabel ?? 'Route of the run, with start, finish and the land it holds'}>
       {sketch && width ? (
         <Svg width={width} height={height}>
-          <Rect x={0} y={0} width={width} height={height} fill={bg} />
-          {/* A faint dot grid gives the sketch a sense of scale without drawing the area around the run. */}
-          <G opacity={0.35}>
-            {Array.from({ length: Math.ceil(width / 24) * Math.ceil(height / 24) }, (_, i) => {
-              const cols = Math.ceil(width / 24);
-              return <Circle key={i} cx={12 + (i % cols) * 24} cy={12 + Math.floor(i / cols) * 24} r={0.9} fill={p.textSubtle} />;
-            })}
-          </G>
+          {overMap ? null : (
+            <>
+              <Rect x={0} y={0} width={width} height={height} fill={bg} />
+              {/* Without a map, a faint dot grid gives the sketch a sense of scale. */}
+              <G opacity={0.35}>
+                {Array.from({ length: Math.ceil(width / 24) * Math.ceil(height / 24) }, (_, i) => {
+                  const cols = Math.ceil(width / 24);
+                  return <Circle key={i} cx={12 + (i % cols) * 24} cy={12 + Math.floor(i / cols) * 24} r={0.9} fill={p.textSubtle} />;
+                })}
+              </G>
+            </>
+          )}
           {sketch.cells.map((pts, i) => <Polygon key={`c${i}`} points={pts} fill={c.cell} fillOpacity={0.32} stroke={c.cellLine} strokeOpacity={0.5} strokeWidth={0.6} />)}
           {sketch.taken.map((pts, i) => <Polygon key={`t${i}`} points={pts} fill={c.cell} fillOpacity={0.55} stroke={c.takenLine} strokeWidth={1.2} />)}
           {sketch.routes.map((d, i) => <Path key={`k${i}`} d={d} stroke={c.casing} strokeWidth={7} strokeLinecap="round" strokeLinejoin="round" fill="none" />)}

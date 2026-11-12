@@ -10,7 +10,7 @@ import { useUnits } from '@/state/session';
 import { supabase } from '@/lib/supabase';
 import { Badge, Banner, Button, Card, confirm, EmptyState, ErrorState, LoadingState, PressableScale, Screen, Section, Txt } from '@/components/ui';
 import { Icon, type IconName } from '@/components/icons';
-import { ClubCover, ClubLogo } from '@/features/clubs/ClubBits';
+import { ClubHeaderArt } from '@/features/clubs/ClubBits';
 import { useLayout } from '@/theme/layout';
 import { PostCard, useFeed, type PostJson } from '@/features/social/PostCard';
 import { kindLabel, roleLabel, useClub, useClubAdmin, useClubStats, useMembershipActions, type ClubDetail } from '@/features/clubs/api';
@@ -162,12 +162,7 @@ export default function ClubHome() {
   const header = (
     <View style={{ gap: spacing.lg, marginBottom: spacing.sm }}>
       <Stack.Screen options={{ title: kindLabel(c.kind) }} />
-      <View>
-        <ClubCover club={c} width={coverWidth} height={group ? 104 : 148} />
-        <View style={{ marginTop: -36, marginLeft: spacing.lg, alignSelf: 'flex-start', borderRadius: 26, borderWidth: 4, borderColor: p.bg }}>
-          <ClubLogo club={c} size={72} />
-        </View>
-      </View>
+      <ClubHeaderArt club={c} width={coverWidth} height={group ? 104 : 148} ring={p.bg} />
       <View style={{ gap: spacing.sm }}>
         <Txt variant="display" style={{ fontSize: 32, lineHeight: 36 }}>{c.name}</Txt>
         <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' }}>

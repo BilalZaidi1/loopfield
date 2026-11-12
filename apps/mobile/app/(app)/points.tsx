@@ -94,7 +94,7 @@ export default function Points() {
                 })}
               </ListGroup>
             ) : (
-              <EmptyState icon="bolt" title="No points yet" body="Record a run. Once the server has verified it, the points appear here." action={{ label: 'Start a run', onPress: () => router.push('/record') }} />
+              <EmptyState icon="bolt" title="No points yet" body="Record a run. Once the server has verified it, the points appear here." action={{ label: 'Start a run', onPress: () => router.push('/run/active') }} />
             )}
           </Section>
         </>

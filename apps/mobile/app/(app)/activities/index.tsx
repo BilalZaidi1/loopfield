@@ -87,7 +87,7 @@ export default function ActivityHistory() {
               </ListGroup>
             </Section>
           ))
-        ) : <EmptyState icon="record" title="No runs yet" body="Runs you record appear here." action={{ label: 'Record a run', onPress: () => router.push('/record') }} />
+        ) : <EmptyState icon="record" title="No runs yet" body="Runs you record appear here." action={{ label: 'Record a run', onPress: () => router.push('/run/active') }} />
       ) : null}
       {filter !== 'recorded' ? (
         <Section title={`Imported from ${PLATFORM_LABEL}`} icon="pulse" subtitle="On this phone only">

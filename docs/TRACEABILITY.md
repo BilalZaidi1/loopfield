@@ -15,10 +15,10 @@ Path shorthands: `core/` = `packages/core/src/`, `mig/` = `supabase/migrations/2
 | ID | Pri | Requirement | Implementation | Automated evidence | Status |
 |---|---|---|---|---|---|
 | FR01 | P0 | Account and versioned consent | `mig/0100` consents ledger, `set_consent` (`mig/0900`), column privileges (`mig/0600`); `(auth)/sign-up.tsx` (18+, terms), `(onboarding)/profile-setup.tsx`, `(onboarding)/permissions.tsx`; versions in `src/config/env.ts` | sql 01 "contest sharing is off until explicitly enabled (FR01)", "consent version and timestamp are stored", "contest consent flags only change through set_consent" | Tested |
-| FR02 | P0 | Location requested at point of use | `(onboarding)/permissions.tsx`, `(tabs)/record.tsx` (denied / approximate / services off / revoked states), `src/recording/recorder.ts` | none (OS permission flows) | Implemented — device test pending |
+| FR02 | P0 | Location requested at point of use | `(onboarding)/permissions.tsx`, the recorder (`run/active.tsx`, `features/run/usePreRun.ts`: denied / approximate / services off / revoked states), `src/recording/recorder.ts` | none (OS permission flows) | Implemented — device test pending |
 | FR03 | P0 | Start and finish one run across foreground, lock screen, reconnect, retry | `src/recording/recorder.ts`, `task.ts` (background location task), `db.ts` (SQLite), `uploader.ts`; `api/upload.ts` | jest "uploads digest-verified chunks, finalizes…"; worker "is idempotent for repeated chunk and finalize requests" | Implemented — lock-screen behaviour needs devices |
 | FR04 | P0 | Persist recording locally; restore without duplicated distance | `src/recording/db.ts` (committed samples + state), recovery in `src/state/services.ts` → `run/active.tsx`; distance from `core/recording/summary.ts` | core "does not accumulate distance across a long gap"; worker idempotent finalize | Implemented — process-kill restore needs devices |
-| FR05 | P0 | Record while locked; disclose limits | `app.config.ts` (iOS `location` background mode, Android foreground service), `src/recording/task.ts`; disclosure text in `(tabs)/record.tsx` and `help.tsx` | prebuild manifest inspection (VERIFICATION §Mobile) | Implemented — field matrix (PRD §18) not run |
+| FR05 | P0 | Record while locked; disclose limits | `app.config.ts` (iOS `location` background mode, Android foreground service), `src/recording/task.ts`; disclosure text in the recorder (`features/run/usePreRun.ts`) and `help.tsx` | prebuild manifest inspection (VERIFICATION §Mobile) | Implemented — field matrix (PRD §18) not run |
 | FR06 | P0 | Offline upload queue, exactly once in effect | `src/recording/uploader.ts` (digest-verified chunks, retry with backoff, local copy kept until receipt), `api/upload.ts` (idempotent chunk/finalize) | jest "keeps evidence and schedules a retry when offline", "marks permanent server rejections without deleting the local copy"; worker "is idempotent…" | Tested |
 | FR07 | P0 | Gaps stay gaps; no reconstruction | `core/recording/summary.ts`, `core/territory/loop.ts`; gap banner in `activities/[id].tsx` | core "does not accumulate distance across a long gap", "rejects an open loop instead of bridging the gap", "withholds the result when GPS evidence has a gap longer than ten seconds" | Tested |
 | FR08 | P1 | Fitness history that agrees after reconciliation | `jobs/competition.ts` `reconcileActivity` (server summary replaces device preview), `activities/index.tsx`, `activities/[id].tsx`, `src/features/results/useActivities.ts` | core "produces kilometre splits that sum to the distance"; worker pipeline receipt + reconciliation | Tested (server side); UI agreement by inspection |
@@ -29,7 +29,7 @@ Path shorthands: `core/` = `packages/core/src/`, `mig/` = `supabase/migrations/2
 | ID | Pri | Requirement | Implementation | Automated evidence | Status |
 |---|---|---|---|---|---|
 | FR10 | P0 | Versioned speed routes; consent and review before publication | `propose_route` (`mig/0900`, publication consent), `jobs/competition.ts` `buildRouteProposal`, `ops_review_route` (`mig/1000`), immutable `course_versions` trigger (`mig/0200`); `propose-route/[activityId].tsx`, `ops/routes.tsx` | worker "speed titles are independent of land (FR31)…" (proposal → pending review → reviewer approval → course version); core "detects materially duplicate routes in the same direction only" | Tested |
-| FR11 | P0 | Separate private, territory and speed modes with separate consent | session tickets (`core/tickets.ts`, `api/sessions.ts`), mode picker in `(tabs)/record.tsx` | worker "refuses competitive tickets without explicit consent", "speed titles are independent of land"; sql 03 "title changes never transfer land" | Tested |
+| FR11 | P0 | Separate private, territory and speed modes with separate consent | session tickets (`core/tickets.ts`, `api/sessions.ts`), run-type picker in the recorder (`features/run/PreRunPanel.tsx`) | worker "refuses competitive tickets without explicit consent", "speed titles are independent of land"; sql 03 "title changes never transfer land" | Tested |
 | FR12 | P0 | Validate land and title independently | `core/territory/loop.ts`, `core/speed/match.ts`, `jobs/competition.ts` (`evaluateLoopJob`, `evaluateAttemptJob`) | core loop suite (open loop, figure eight, gap, mock location) and speed suite (wrong direction, shortcut, sparse gates) | Tested |
 | FR13 | P0 | Deterministic cell control | `core/territory/ledger.ts`; `internal.apply_claim`, `recompute_cells`, `replay_season` (`mig/0700`) | core "decides by verified completion order, not upload order", "breaks exact completion-time ties deterministically"; sql 02 "replay reproduces identical control"; worker "serializes concurrent overlapping claims deterministically (FR13, FR15)" | Tested |
 | FR14 | P0 | Speed title margin | `core/speed/titles.ts`, `internal.compute_title` (`mig/0800`) | core "needs 10:53.4 or faster to beat an 11:00 benchmark", "keeps the champion on a near tie…"; sql 03 "route detail exposes the time needed (650 s - 6.5 s margin)" | Tested |
@@ -87,7 +87,7 @@ All health data stays on the device (`src/health/*`, SQLite cache excluded from 
 | ID | Pri | Requirement | Implementation | Automated evidence | Status |
 |---|---|---|---|---|---|
 | FR46 | P0 | Granular health access | per-card permission requests in `src/health/healthkit.ts`, `healthconnect.ts`; `health/connections.tsx` | none (platform permission dialogs) | Implemented — device test pending |
-| FR47 | P1 | Private health dashboard | `health/index.tsx`, `health/metric/[type].tsx`, `goals.tsx`, `src/features/health/metrics.ts` | jest "leaves days without readings absent rather than zero"; charts "marks missing days as no data (never zero)…" | Tested (logic) |
+| FR47 | P1 | Private health dashboard | `health/index.tsx`, `health/metric/[type].tsx` (`features/health/MetricView.tsx`, `series.ts`, `components/healthCharts.tsx`), `goals.tsx`, `src/features/health/metrics.ts` | jest "leaves days without readings absent rather than zero"; charts "marks missing days as no data (never zero)…" | Tested (logic) |
 | FR48 | P0 | Source, units and coverage | `core/health/units.ts`, `metrics.ts`; method tags (SDNN, RMSSD, VO2 method) | core "keeps SDNN and RMSSD as separate series", "returns the latest VO2 max estimate per source with its method", "normalises energy and distance units…"; jest "keeps HRV methods separate…" | Tested |
 | FR49 | P1 | Heart-rate zones and trends | `core/health/metrics.ts` zones (basis + version), `health/zones.tsx` | core "counts time in zone only over covered intervals and versions the zone basis", "treats missing days as missing and refuses comparisons with poor coverage" | Tested |
 | FR50 | P0 | Reconcile imports without duplication | `core/health/reconcile.ts`; anchored queries / change tokens in `healthkit.ts`, `healthconnect.ts` | core "workout reconciliation (FR50, Appendix A)" suite, "never sums phone and watch steps for the same hour" | Tested |
@@ -127,8 +127,8 @@ Every screen has loading (skeletons), empty, error/retry and offline states thro
 | 17 | Speed route detail | `(app)/routes/[id].tsx` | time needed incl. margin |
 | 18 | Private exploration | `(app)/exploration.tsx` | |
 | 19 | Territory leaderboard | `(app)/leaderboard.tsx` | |
-| 20 | Pre-run | `(app)/(tabs)/record.tsx` | modes, GPS status, consent |
-| 21 | Active recording | `(app)/run/active.tsx` | cues with visual text |
+| 20 | Pre-run | `(app)/run/active.tsx` before the run (since 12 Nov; the Record tab opens it) | run type, GPS status, consent, GO on the map |
+| 21 | Active recording | `(app)/run/active.tsx` once started (same screen and map as S20) | cues with visual text |
 | 22 | Run summary | `(app)/run/summary/[id].tsx` | separate land and title cards |
 | 23 | Activity history | `(app)/activities/index.tsx` | first-party runs and marked imports |
 | 24 | Activity detail | `(app)/activities/[id].tsx` | |
@@ -145,7 +145,7 @@ Every screen has loading (skeletons), empty, error/retry and offline states thro
 | 35 | My profile | `(app)/me.tsx`, `(app)/settings/profile.tsx` | |
 | 36 | Progress overview | `(app)/(tabs)/progress.tsx` | |
 | 37 | Health dashboard | `(app)/health/index.tsx` | |
-| 38 | Metric detail | `(app)/health/metric/[type].tsx` | |
+| 38 | Metric detail | `(app)/health/metric/[type].tsx` → `features/health/MetricView.tsx` | a form per metric (12 Nov) |
 | 39 | Heart rate zones | `(app)/health/zones.tsx` | |
 | 40 | Health connections | `(app)/health/connections.tsx` | |
 | 41 | Goals and trends | `(app)/goals.tsx` | |
@@ -201,6 +201,21 @@ Requested on 11 Nov as a 15-section brief; not in the PRD, so IDs are local. Cho
 | EN13 | 13 Architecture | existing services only: Supabase (database, auth hook, storage, functions, jobs), Mapbox, Stream, Resend, Expo push, PostHog, Sentry | `npm run verify` | Unchanged stack |
 | EN14 | 14 QA | `npm run verify`, pgTAP 11 suites, worker and app suites, Deno smoke, visual checks | `VERIFICATION.md` | See "Not verified" there |
 | EN15 | 15 Completion report | this table, `PROGRESS.md`, `VERIFICATION.md`, the report in the conversation | — | Done |
+
+## Owner feedback on the enhancement release (12 Nov)
+
+Reported on 12 Nov with screenshots from the pilot APK (version code 3). IDs are local.
+
+| ID | Feedback | Implementation | Automated evidence | Status |
+|---|---|---|---|---|
+| FB1 | Live run panel misaligned ("0...." and "km" over the Time label) | `features/run/RecorderParts.tsx` `Stat`: each number measured at full size and set smaller only when it would not fit its column; units set small beside the number; labels on one line | web layout check at 0.00 km, 12.48 km and 112.48 km / 10:02:33 / 19:49 per km, light and dark | Fixed. **Not yet seen on the phone** |
+| FB2 | A separate screen just to choose the run type | the recorder: `run/active.tsx` keeps one full-screen map from choosing the run type to finishing (`PreParts` → `LiveParts`); `PreRunPanel.tsx` (four run types, loop-capture switch, route, blockers, GO); `usePreRun.ts`; the Record button and every "Start a run" link open it; a route chosen while it is open comes back to it | type check; web check of both panels | Built. **Not yet seen on the phone** |
+| FB3 | Share card: no map, black area; no picture | `ShareCard.tsx`: the runner's picture; a Mapbox street map of exactly the drawn area under the shared route (`sketch.ts`, Web Mercator, `staticMapUrl`), falling back to the drawing alone; the loop mark when a run has no route to show; the screen explains why (runs under 3 × `share_route_trim_m`); waits for both pictures before the image is taken | jest share (15): projection matches the map's, zoom cap, map address, picture or initial, waiting for the map; web check of all formats | Fixed. Cause of the black area: the only run on the server is 494 m, under the 600 m below which a route is never shared. Real map tiles **not yet seen** (the sandbox cannot reach Mapbox) |
+| FB4 | "Cartoon avatar" should say "Avatar" | `ProfileForm.tsx` | — | Done |
+| FB5 | "New community" also offered a group | `club/create.tsx`: the entry point decides; no switch | jest clubs: each entry starts only its kind | Done |
+| FB6 | Pick the cover colour, with the designs | migration `20261112000100` (`clubs.tone`, `set_club_branding(p_tone, p_clear_artwork)`, colour returned by `club_detail`, `my_clubs`, `discover_clubs`, `list_events`, posts); `BrandingEditor.tsx` (five colours, Plain or an artwork, a photo for communities); `clubTone` | pgTAP 09 (+6): admin sets it, unknown colour refused, members cannot, members see it, logo and artwork kept, Plain drops the artwork; jest clubs: saving sends both | Built |
+| FB7 | Manage hides the white ring, so logo and cover run together | `ClubHeaderArt` (cover plus a logo ringed in the page colour) on the page and in Manage | web check | Fixed |
+| FB8 | Every health metric screen looks the same, with long lists | `MetricView.tsx`: steps as columns against the average, active calories as a calendar, sleep as nightly time asleep with an average night's stages, heart rate as daily ranges, resting heart rate as a 7-day average with your usual range, HRV with your usual range, VO₂ max as its estimates; weeks beyond 31 days; numbers only on request; an explained empty state | jest health screens (8); colours checked with the dataviz validator, both themes; web check of every metric | Built |
 
 ## Deferred (PRD §9 "following release" / "later")
 

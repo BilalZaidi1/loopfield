@@ -1,6 +1,6 @@
 -- Communities and groups: kinds, group limits, branding, ownership offers, succession, deletion, chat sync.
 begin;
-select plan(24);
+select plan(30);
 
 insert into auth.users (id, email) values
   ('a9100000-0000-4000-8000-000000000001', 'owner@example.test'),
@@ -46,6 +46,22 @@ select lives_ok($$select public.set_club_branding((select community from k), (se
 select throws_ok($$select public.set_club_branding((select community from k), 'someone-else/logo.jpg')$$, '22023', null, 'images must be in the club''s own folder');
 reset role;
 select is((select avatar_path || ' ' || artwork from public.clubs where id = (select community from k)), (select community from k)::text || '/logo-1.jpg tide', 'the logo and artwork are saved');
+
+-- Colour: one of the app's five, chosen by the owner or an admin, kept apart from the logo and artwork.
+set local role authenticated;
+select pg_temp.as_user('a9200000-0000-4000-8000-000000000002');
+select lives_ok($$select public.set_club_branding((select community from k), p_tone => 'green')$$, 'an admin picks the colour');
+select throws_ok($$select public.set_club_branding((select community from k), p_tone => 'neon')$$, '22023', null, 'only the app''s colours are accepted');
+select pg_temp.as_user('a9300000-0000-4000-8000-000000000003');
+select throws_ok($$select public.set_club_branding((select community from k), p_tone => 'blue')$$, '42501', null, 'members cannot change the colour');
+select is(public.club_detail((select community from k)) ->> 'tone', 'green', 'members see the chosen colour');
+reset role;
+select is((select tone || ' ' || artwork || ' ' || avatar_path from public.clubs where id = (select community from k)), 'green tide ' || (select community from k)::text || '/logo-1.jpg', 'choosing a colour keeps the logo and artwork');
+set local role authenticated;
+select pg_temp.as_user('a9200000-0000-4000-8000-000000000002');
+select public.set_club_branding((select community from k), p_clear_artwork => true);
+reset role;
+select is((select coalesce(artwork, 'plain') || ' ' || tone from public.clubs where id = (select community from k)), 'plain green', 'a plain cover keeps the colour and drops the artwork');
 select ok(exists (select 1 from public.discover_clubs() where id = (select community from k)) and not exists (select 1 from public.discover_clubs() where id = (select grp from k)),
           'communities can be discovered; groups never are');
 

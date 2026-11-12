@@ -493,6 +493,7 @@ export type Database = {
           region_id: string | null
           rules: string | null
           status: string
+          tone: string | null
           updated_at: string
           visibility: string
         }
@@ -515,6 +516,7 @@ export type Database = {
           region_id?: string | null
           rules?: string | null
           status?: string
+          tone?: string | null
           updated_at?: string
           visibility: string
         }
@@ -536,6 +538,7 @@ export type Database = {
           region_id?: string | null
           rules?: string | null
           status?: string
+          tone?: string | null
           updated_at?: string
           visibility?: string
         }
@@ -2765,6 +2768,7 @@ export type Database = {
           member_count: number
           my_state: string
           name: string
+          tone: string
           visibility: string
         }[]
       }
@@ -2838,6 +2842,7 @@ export type Database = {
           host_avatar_path: string
           host_club_id: string
           host_club_name: string
+          host_tone: string
           id: string
           joined: boolean
           my_club_id: string
@@ -2895,6 +2900,7 @@ export type Database = {
           name: string
           role: string
           state: string
+          tone: string
           visibility: string
         }[]
       }
@@ -3220,10 +3226,12 @@ export type Database = {
       set_club_branding: {
         Args: {
           p_artwork?: string
+          p_clear_artwork?: boolean
           p_clear_cover?: boolean
           p_club: string
           p_cover_path?: string
           p_logo_path?: string
+          p_tone?: string
         }
         Returns: undefined
       }

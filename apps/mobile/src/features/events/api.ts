@@ -17,6 +17,7 @@ export interface EventRow {
   host_club_id: string | null;
   host_club_name: string | null;
   host_avatar_path: string | null;
+  host_tone?: import('@/features/clubs/api').ClubTone | null;
   starts_at: string;
   ends_at: string;
   target_m: number | null;

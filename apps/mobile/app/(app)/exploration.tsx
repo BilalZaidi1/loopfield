@@ -39,7 +39,7 @@ export default function Exploration() {
       <Stack.Screen options={{ title: 'My exploration' }} />
       <Txt color="textMuted">Every place you have run, including private runs. Only you can see this, and it never shrinks when you lose land.</Txt>
       {q.isLoading ? <LoadingState variant="cards" /> : q.error ? <ErrorState error={q.error} onRetry={() => void q.refetch()} /> : !q.data?.total ? (
-        <EmptyState icon="compass" title="Nothing explored yet" body="Explored ground appears after your runs are uploaded and processed." action={{ label: 'Start a run', onPress: () => router.push('/record') }} />
+        <EmptyState icon="compass" title="Nothing explored yet" body="Explored ground appears after your runs are uploaded and processed." action={{ label: 'Start a run', onPress: () => router.push('/run/active') }} />
       ) : (
         <>
           <Card tone="blue">

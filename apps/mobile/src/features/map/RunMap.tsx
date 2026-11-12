@@ -6,7 +6,7 @@ import { useTheme } from '@/theme/tokens';
 import { mapboxModule } from './MapCanvas';
 
 /**
- * The full-screen map used while recording, navigation style: the camera follows the runner through
+ * The recorder's full-screen map, before and during the run, navigation style: the camera follows the runner through
  * Mapbox's own viewport (native and smooth, no JavaScript per frame). Any pan, pinch or rotate hands the
  * camera to the runner ("exploring"); the recenter button, or 15 seconds without touching the map, brings
  * following back. 3D adds perspective, course-up bearing and extruded buildings; terrain stays off while
@@ -41,7 +41,8 @@ export function RunMap({
   following,
   onFollowingChange,
   accessibilityLabel,
-  handle
+  handle,
+  fallbackCenter
 }: {
   path: [number, number][];
   /** Where the loop capture started: drawn as a flag, with a dashed hint back to it while the loop is open. */
@@ -54,6 +55,8 @@ export function RunMap({
   onFollowingChange: (following: boolean) => void;
   accessibilityLabel: string;
   handle?: Ref<RunMapHandle>;
+  /** Where to look before the phone has a position (location not allowed yet). */
+  fallbackCenter?: [number, number] | null;
 }) {
   const Mapbox = mapboxModule()!;
   const t = useTheme();
@@ -119,7 +122,7 @@ export function RunMap({
           void viewport.current?.transitionTo(followPuckState(threeD, insets), { kind: 'immediate' });
           onFollowingChange(true);
         }}>
-        <Camera defaultSettings={{ zoomLevel: 16, pitch: threeD ? 58 : 0 }} />
+        <Camera defaultSettings={{ zoomLevel: fallbackCenter ? 12 : 16, pitch: threeD ? 58 : 0, ...(fallbackCenter ? { centerCoordinate: fallbackCenter } : null) }} />
         <Viewport
           ref={viewport as never}
           onStatusChanged={(e) => {
