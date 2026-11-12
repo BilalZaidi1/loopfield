@@ -45,7 +45,7 @@ export function Toaster() {
 /* ------------------------------------------------------------------------------------------------
  * Modal dialog shell (native <dialog>, so focus trapping and Escape come for free).
  * ---------------------------------------------------------------------------------------------- */
-function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+export function Modal({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -60,7 +60,7 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
       aria-labelledby={titleId}
       onClose={onClose}
       onCancel={(e) => { e.preventDefault(); onClose(); }}
-      className="m-auto rounded-xl bg-surface text-ink p-0 w-[min(520px,calc(100vw-32px))] shadow-floating">
+      className={`m-auto rounded-xl bg-surface text-ink p-0 ${wide ? 'w-[min(760px,calc(100vw-32px))]' : 'w-[min(520px,calc(100vw-32px))]'} shadow-floating`}>
       <div className="p-6 flex flex-col gap-4">
         <h2 id={titleId} className="type-heading">{title}</h2>
         {children}

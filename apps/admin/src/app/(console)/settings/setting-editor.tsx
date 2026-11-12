@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { INTEGRITY_RULES } from '@loopfield/core';
 import type { ConfigRow } from '@/lib/types';
 import { DANGEROUS_KEYS, formatValue, validateConfigValue } from '@/lib/config-validate';
 import { asMaintenance } from '@/lib/switches';
@@ -12,7 +13,7 @@ import { setConfig } from './actions';
 const input = 'border border-line-strong focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary rounded-md px-4 min-h-12 type-body bg-surface text-ink w-full';
 
 /** Picks the right control for a setting's type; every save asks for a reason. */
-export function SettingEditor({ row }: { row: ConfigRow }) {
+export function SettingEditor({ row, rateLimits }: { row: ConfigRow; rateLimits?: RateLimitDef[] }) {
   if (!row.can_edit) return <ReadOnly row={row} />;
   const dangerous = DANGEROUS_KEYS.has(row.key);
   if (row.value_type === 'boolean' && !dangerous) {
@@ -29,6 +30,8 @@ export function SettingEditor({ row }: { row: ConfigRow }) {
   if (row.key === 'maintenance_mode') return <MaintenanceEditor row={row} />;
   if (row.key === 'latest_app_version') return <FieldsEditor row={row} fields={['ios', 'android']} kind="version" />;
   if (row.key === 'achievement_tier_points') return <FieldsEditor row={row} fields={['bronze', 'silver', 'gold', 'platinum']} kind="number" />;
+  if (row.key === 'rate_limits') return <OptionalNumbersEditor row={row} fields={(rateLimits ?? []).map((r) => ({ key: r.action, label: r.label, placeholder: String(r.default), min: 1, max: 10000, integer: true, suffix: r.window_seconds >= 86400 ? '/ day' : '/ hour' }))} />;
+  if (row.key === 'integrity_overrides') return <OptionalNumbersEditor row={row} fields={INTEGRITY_FIELDS} stampVersion />;
   switch (row.value_type) {
     case 'integer':
     case 'number':
@@ -43,13 +46,102 @@ export function SettingEditor({ row }: { row: ConfigRow }) {
   }
 }
 
+const NEEDS: Record<string, string> = { admin: 'Admin', territory_operator: 'Kill switches', config: 'App settings', monetization: 'Monetization' };
+
 function ReadOnly({ row }: { row: ConfigRow }) {
   return (
     <div className="flex items-center gap-2 type-label">
-      <span className="tabular">{formatValue(row.value)}</span>
-      <span className="inline-flex items-center gap-1 type-caption text-muted" title={`Needs the ${row.min_role === 'admin' ? 'admin' : 'territory operator'} role`}>
-        <Icon name="lock" size={14} /> {row.min_role === 'admin' ? 'Admin' : 'Operator'}
+      <span className="tabular truncate max-w-[280px]">{formatValue(row.value)}</span>
+      <span className="inline-flex items-center gap-1 type-caption text-muted" title={`Needs the ${NEEDS[row.min_role] ?? row.min_role} permission`}>
+        <Icon name="lock" size={14} /> {NEEDS[row.min_role] ?? row.min_role}
       </span>
+    </div>
+  );
+}
+
+export interface RateLimitDef {
+  action: string;
+  label: string;
+  default: number;
+  window_seconds: number;
+}
+
+interface OptionalField {
+  key: string;
+  label: string;
+  placeholder: string;
+  min: number;
+  max: number;
+  integer?: boolean;
+  suffix?: string;
+}
+
+/** Bounds match integrityRulesWith in packages/core/src/integrity/speed.ts (the database checks them too). */
+const INTEGRITY_FIELDS: OptionalField[] = (
+  [
+    ['envelopeMargin', 'Speed envelope margin', 1, 1.5, false, '×'],
+    ['isolatedSpikeMaxFixes', 'GPS spikes ignored', 0, 5, true, 'points'],
+    ['smoothingFixes', 'Speed smoothing', 1, 15, true, 'points'],
+    ['liveWarnSeconds', 'Live warning after', 10, 300, true, 's'],
+    ['liveImpossiblePauseSeconds', 'Pause after impossible speed', 20, 600, true, 's'],
+    ['liveVehiclePauseSeconds', 'Pause after vehicle speed', 30, 900, true, 's'],
+    ['liveWindowSeconds', 'Live check window', 60, 900, true, 's'],
+    ['stepsMinSpeedMetersPerSecond', 'Step check from', 2, 5, false, 'm/s'],
+    ['stepsMinCadence', 'Lowest running cadence', 40, 160, true, 'spm'],
+    ['stepsFlagSeconds', 'Flag after no steps for', 30, 600, true, 's'],
+    ['stepsPauseSeconds', 'Pause after no steps for', 60, 1800, true, 's']
+  ] as const
+).map(([key, label, min, max, integer, suffix]) => ({
+  key, label, min, max, integer, suffix,
+  placeholder: String((INTEGRITY_RULES as unknown as Record<string, { value: number }>)[key]?.value ?? '')
+}));
+
+/** Numbers where an empty field means "use the built-in value" (the key is left out). */
+function OptionalNumbersEditor({ row, fields, stampVersion }: { row: ConfigRow; fields: OptionalField[]; stampVersion?: boolean }) {
+  const initial = useMemo(() => (row.value && typeof row.value === 'object' && !Array.isArray(row.value) ? row.value : {}) as Record<string, unknown>, [row.value]);
+  const [draft, setDraft] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((f) => [f.key, initial[f.key] == null ? '' : String(initial[f.key])])));
+  const numbers = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const f of fields) {
+      const t = (draft[f.key] ?? '').trim();
+      if (t !== '') out[f.key] = Number(t);
+    }
+    return out;
+  }, [draft, fields]);
+  const error = fields.map((f) => {
+    const n = numbers[f.key];
+    if (n === undefined) return null;
+    if (!Number.isFinite(n)) return `${f.label}: enter a number`;
+    if (f.integer && !Number.isInteger(n)) return `${f.label}: use a whole number`;
+    if (n < f.min || n > f.max) return `${f.label}: between ${f.min} and ${f.max}`;
+    return null;
+  }).find(Boolean) ?? null;
+  const same = (a: Record<string, unknown>, b: Record<string, unknown>) => fields.every((f) => (a[f.key] ?? null) === (b[f.key] ?? null));
+  const changed = !same(numbers, initial);
+  const value = useMemo(() => {
+    const kept = Object.fromEntries(Object.entries(initial).filter(([k]) => !fields.some((f) => f.key === k)));
+    const stamp = stampVersion && changed ? { version: `ops-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}` } : {};
+    return { ...kept, ...numbers, ...stamp };
+  }, [initial, numbers, fields, stampVersion, changed]);
+  return (
+    <div className="flex flex-col gap-3 w-full lg:max-w-[560px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
+        {fields.map((f) => (
+          <label key={f.key} className="flex flex-col gap-1 min-w-0">
+            <span className="type-caption text-muted truncate">{f.label}</span>
+            <span className="flex items-center gap-2">
+              <input className={cx(input, 'tabular text-right')} inputMode="decimal" placeholder={f.placeholder} value={draft[f.key] ?? ''}
+                onChange={(e) => setDraft({ ...draft, [f.key]: e.target.value })} />
+              {f.suffix ? <span className="type-caption text-muted w-12 shrink-0">{f.suffix}</span> : null}
+            </span>
+          </label>
+        ))}
+      </div>
+      <p className="type-caption text-subtle">Empty fields use the built-in value shown in grey.</p>
+      <div className="flex items-center gap-3">
+        <SaveButton row={row} value={value} error={error} changed={changed} />
+        <Hint error={changed ? error : null} />
+      </div>
     </div>
   );
 }

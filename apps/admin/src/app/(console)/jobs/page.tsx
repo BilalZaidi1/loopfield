@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { requireRole } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { getOverview } from '@/lib/data';
 import { rpc } from '@/lib/rpc';
 import { viewerTimeZone } from '@/lib/tz';
@@ -12,7 +12,7 @@ import { retryDeadJobs, retryJob } from './actions';
 export const metadata: Metadata = { title: 'Jobs' };
 
 export default async function JobsPage() {
-  await requireRole('admin');
+  await requirePermission('jobs');
   const [o, dead, tz] = await Promise.all([getOverview(), rpc<DeadJobRow[]>('ops_dead_jobs', { p_limit: 200 }), viewerTimeZone()]);
   const queues = Object.entries(o.jobs).sort(([a], [b]) => a.localeCompare(b));
   return (

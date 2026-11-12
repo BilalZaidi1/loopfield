@@ -4,14 +4,16 @@ import { redirect } from 'next/navigation';
 import { supabaseServer } from '@/lib/supabase/server';
 import { rpc } from '@/lib/rpc';
 import { fixturesEnabled } from '@/lib/fixtures';
-import { hasRole, type Role } from '@/lib/roles';
+import { hasPermission, type Permission } from '@/lib/roles';
 
 export interface StaffContext {
   userId: string;
   email: string | null;
   handle: string;
   displayName: string;
-  roles: Role[];
+  roles: string[];
+  roleLabels: string[];
+  permissions: Permission[];
   requireMfa: boolean;
 }
 
@@ -20,7 +22,9 @@ interface WhoAmI {
   handle: string;
   display_name: string;
   status: string;
-  roles: Role[];
+  roles: string[];
+  role_labels?: string[];
+  permissions?: Permission[];
   require_mfa: boolean;
 }
 
@@ -48,13 +52,20 @@ export const requireStaff = cache(async (): Promise<StaffContext> => {
     handle: who.handle,
     displayName: who.display_name,
     roles: who.roles,
+    roleLabels: who.role_labels ?? who.roles,
+    permissions: who.permissions ?? [],
     requireMfa: who.require_mfa
   };
 });
 
-/** Page-level role gate; staff without the role see a clear explanation instead of an error. */
-export async function requireRole(role: Role): Promise<StaffContext> {
+/** Page-level permission gate; staff without it see a clear explanation instead of an error. */
+export async function requirePermission(permission: Permission): Promise<StaffContext> {
   const ctx = await requireStaff();
-  if (!hasRole(ctx.roles, role)) redirect(`/no-access?role=${role}`);
+  if (!hasPermission(ctx.permissions, permission)) redirect(`/no-access?permission=${permission}`);
   return ctx;
+}
+
+/** Whether the signed-in staff member holds a permission (the database checks again on every call). */
+export function can(ctx: StaffContext, permission: Permission): boolean {
+  return hasPermission(ctx.permissions, permission);
 }

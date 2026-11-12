@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { requireRole } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { rpc } from '@/lib/rpc';
 import { env } from '@/lib/env';
 import { age, km } from '@/lib/format';
@@ -12,7 +12,7 @@ import { reviewRoute } from './actions';
 export const metadata: Metadata = { title: 'Route proposals' };
 
 export default async function RoutesPage() {
-  await requireRole('route_reviewer');
+  await requirePermission('routes');
   const rows = await rpc<RouteProposalRow[]>('ops_route_queue', { p_limit: 50 });
   return (
     <>

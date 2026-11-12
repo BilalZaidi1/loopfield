@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { requireStaff } from '@/lib/auth';
+import { can, requireStaff } from '@/lib/auth';
 import { rpc } from '@/lib/rpc';
-import { hasRole } from '@/lib/roles';
 import { viewerTimeZone } from '@/lib/tz';
 import { age, dateTime, humanize } from '@/lib/format';
 import type { AppealRow } from '@/lib/types';
@@ -23,7 +22,7 @@ const EFFECT: Record<string, string> = {
 
 export default async function AppealsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   const ctx = await requireStaff();
-  if (!hasRole(ctx.roles, 'moderator') && !hasRole(ctx.roles, 'integrity_reviewer')) redirect('/no-access?role=moderator');
+  if (!can(ctx, 'moderation') && !can(ctx, 'integrity')) redirect('/no-access?permission=moderation');
   const { status: raw } = await searchParams;
   const status = raw === 'decided' ? 'decided' : 'open';
   const [rows, tz] = await Promise.all([rpc<AppealRow[]>('ops_appeals_queue', { p_status: status, p_limit: 200 }), viewerTimeZone()]);

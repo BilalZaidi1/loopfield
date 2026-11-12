@@ -53,6 +53,7 @@ export default function Settings() {
       <Section title="Support" icon="help">
         <ListGroup>
           <Row icon="help" title="Help and game rules" onPress={() => router.push('/help')} />
+          <Row icon="mail" title="Message support" subtitle="Report a problem or send feedback" onPress={() => router.push('/support')} />
           <Row icon="sparkle" title="Replay the app tour" onPress={() => router.push('/tour')} />
           <Row icon="flag" title="Reviews and appeals" onPress={() => router.push('/appeals')} />
           <Row icon="route" title="My route proposals" onPress={() => router.push('/proposals')} />

@@ -63,3 +63,36 @@ export function humanize(key: string): string {
   const s = key.replace(/_/g, ' ').trim();
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+/** Whole numbers with thousands separators; compact above 100,000 (12.4K, 1.2M) when asked. */
+export function num(n: number | null | undefined, opts: { compact?: boolean; digits?: number } = {}): string {
+  if (n == null || !Number.isFinite(n)) return '–';
+  if (opts.compact && Math.abs(n) >= 10_000) return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+  return new Intl.NumberFormat('en', { maximumFractionDigits: opts.digits ?? (Math.abs(n) < 10 && n % 1 !== 0 ? 1 : 0) }).format(n);
+}
+
+/** Change between two totals as a signed percentage, or null when there is nothing to compare. */
+export function change(current: number | null | undefined, previous: number | null | undefined): number | null {
+  if (current == null || previous == null || !Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) return null;
+  return ((current - previous) / previous) * 100;
+}
+
+/** "12 Nov" style date for chart axes (dates are already in the reporting time zone). */
+export function shortDay(isoDate: string): string {
+  const [y, m, d] = isoDate.slice(0, 10).split('-').map(Number);
+  return new Date(Date.UTC(y!, (m ?? 1) - 1, d ?? 1)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
+/** Minutes as "45 min", "3 h 20 min" or "2 d 4 h". */
+export function minutes(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '–';
+  if (n < 60) return `${Math.round(n)} min`;
+  if (n < 60 * 24) return `${Math.floor(n / 60)} h ${Math.round(n % 60)} min`;
+  return `${Math.floor(n / 1440)} d ${Math.round((n % 1440) / 60)} h`;
+}
+
+/** Platform names as people write them. */
+export function platformLabel(p: string | null | undefined): string {
+  if (!p) return '—';
+  return ({ ios: 'iOS', android: 'Android', web: 'Web' } as Record<string, string>)[p] ?? humanize(p);
+}

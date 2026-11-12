@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { requireRole } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { rpc } from '@/lib/rpc';
 import { viewerTimeZone } from '@/lib/tz';
 import { dateTime, humanize, relativeTime } from '@/lib/format';
@@ -13,7 +13,7 @@ const PAGE = 50;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export default async function AuditPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  await requireRole('admin');
+  await requirePermission('audit');
   const sp = await searchParams;
   const filters = {
     action: sp.action?.trim() || null,
@@ -42,7 +42,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
     <>
       <PageHeader title="Audit log" description="Every staff, organizer and system action recorded by the database, newest first. Entries cannot be edited or deleted from the console." />
       <Card>
-        <form className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] items-end" action="/audit">
+        <form className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] items-end [&_input]:min-w-0 [&_select]:min-w-0" action="/audit">
           <label className="flex flex-col gap-1"><span className="type-label">Action starts with</span><input name="action" defaultValue={filters.action ?? ''} placeholder="config_, moderation_" className={field} /></label>
           <label className="flex flex-col gap-1"><span className="type-label">Object type</span><input name="object_type" defaultValue={filters.object_type ?? ''} placeholder="app_config, profile" className={field} /></label>
           <label className="flex flex-col gap-1"><span className="type-label">Object ID</span><input name="object_id" defaultValue={filters.object_id ?? ''} className={field} /></label>

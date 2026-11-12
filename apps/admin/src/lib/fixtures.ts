@@ -1,4 +1,5 @@
 import 'server-only';
+import { extraFixture } from './fixtures-extra';
 
 /**
  * Sample data for working on the console's UI without a database: `npm run dev:fixtures`.
@@ -24,7 +25,8 @@ const configRow = (key: string, value: unknown, label: string, category: string,
 export function fixture(fn: string): unknown {
   switch (fn) {
     case 'ops_whoami':
-      return { user_id: me, handle: 'bilal', display_name: 'Bilal Zaidi', status: 'active', roles: ['admin'], require_mfa: false };
+      return { user_id: me, handle: 'bilal', display_name: 'Bilal Zaidi', status: 'active', roles: ['admin'], role_labels: ['Admin'], require_mfa: false,
+        permissions: ['moderation', 'integrity', 'routes', 'territory', 'rules.edit', 'rules.apply', 'users.view', 'users.manage', 'support', 'analytics', 'sql', 'config', 'monetization', 'jobs', 'audit', 'staff'] };
     case 'ops_overview':
       return {
         generated_at: new Date().toISOString(),
@@ -59,7 +61,17 @@ export function fixture(fn: string): unknown {
         configRow('maintenance_mode', { enabled: false, message: null, until: null }, 'Maintenance mode', 'release', 'object', { allowed: ['enabled', 'message', 'until'], help: 'Blocks the app behind a maintenance screen with your message (needs app support).' }),
         configRow('paywall_enabled', false, 'Paywall', 'monetization', 'boolean', { help: 'On gates the features listed below behind the premium entitlement.' }),
         configRow('premium_features', [], 'Premium features', 'monetization', 'string_array'),
-        configRow('rules_status', 'proposed', 'Rules status', 'system', 'string', { allowed: ['proposed', 'validated'] })
+        configRow('rules_status', 'proposed', 'Rules status', 'system', 'string', { allowed: ['proposed', 'validated'] }),
+        configRow('comments_enabled', true, 'Comments', 'switch', 'boolean', { help: 'Off stops new comments. Existing comments stay visible.' }),
+        configRow('club_creation_enabled', true, 'Club creation', 'switch', 'boolean', { help: 'Off stops new clubs from being created.' }),
+        configRow('share_map_min_distance_m', 600, 'Shortest run with a map on share cards (m)', 'sharing', 'integer', { min_value: 300, max_value: 20000, help: 'Shorter runs get a share card without a map. Never below three times the hidden distance, so something is left to draw.' }),
+        configRow('share_route_trim_m', 200, 'Hidden at the start and finish (m)', 'sharing', 'integer', { min_value: 100, max_value: 2000, help: 'Metres hidden at each end of a shared route. Lower values reveal more.' }),
+        configRow('share_street_map_enabled', true, 'Street map under shared routes', 'sharing', 'boolean', { help: 'Off draws the route on its own. Also a way to cut Mapbox costs.' }),
+        configRow('season_late_upload_hours', 24, 'Late uploads accepted for (hours)', 'season', 'integer', { min_value: 1, max_value: 168, help: 'Runs uploaded later than this after they end don’t count. Applies to seasons created after the change.' }),
+        configRow('post_max_photos', 5, 'Photos per post', 'limits', 'integer', { min_value: 0, max_value: 10, help: 'Most photos on one post. 0 allows text-only posts.' }),
+        configRow('rate_limits', { post: 8 }, 'Anti-spam limits', 'limits', 'object', { allowed: ['post', 'comment', 'follow', 'report', 'route_proposal', 'support_ticket', 'support_message', 'club_create', 'create_event', 'join_event', 'club_invite', 'club_email_invite', 'activity_link', 'reclaim', 'export'], help: 'Most actions per runner in each window. Empty fields use the built-in limit.' }),
+        configRow('integrity_overrides', { liveWarnSeconds: 45 }, 'Cheat-detection tuning', 'tunable', 'object', { allowed: ['version', 'envelopeMargin', 'isolatedSpikeMaxFixes', 'smoothingFixes', 'liveWarnSeconds', 'liveImpossiblePauseSeconds', 'liveVehiclePauseSeconds', 'liveWindowSeconds', 'stepsMinSpeedMetersPerSecond', 'stepsMinCadence', 'stepsFlagSeconds', 'stepsPauseSeconds'], help: 'Fine-tuning for the speed envelope, live warnings and the step-cadence check. Empty fields use the built-in value.' }),
+        configRow('analytics_time_zone', 'Asia/Karachi', 'Reporting time zone', 'system', 'string', { help: 'Analytics days start at midnight in this time zone, for example Asia/Karachi or UTC.' })
       ];
     case 'ops_config_history':
       return [{ id: 3, key: 'reclaim_enabled', old_value: true, new_value: false, reason: 'Pausing reclaim while we fix cell refunds', actor_handle: 'bilal', created_at: ago(42) }];
@@ -109,6 +121,6 @@ export function fixture(fn: string): unknown {
     case 'ops_dead_jobs':
       return [{ id: 5531, queue: 'notifications', kind: 'push_pending', attempts: 8, last_error: 'expo push http 503', updated_at: ago(25) }];
     default:
-      return null;
+      return extraFixture(fn);
   }
 }

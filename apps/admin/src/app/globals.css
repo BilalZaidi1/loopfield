@@ -46,6 +46,10 @@
   --lf-overlay: rgba(18, 19, 24, 0.48);
   /* Map: routes green on a white casing, start green, finish ink (TerritoryColors). */
   --lf-route: #12a36b;
+  --lf-chart-1: #5b57e3;
+  --lf-chart-ref: #a3a8b8;
+  --lf-chart-grid: #e7e9ef;
+  --lf-chart-axis: #c9ccd6;
   --lf-route-casing: #ffffff;
   --lf-start: #12a36b;
   --lf-finish: #121318;
@@ -99,6 +103,10 @@
     --lf-info-soft: #13263b;
     --lf-overlay: rgba(0, 0, 0, 0.62);
     --lf-route: #2bd38a;
+    --lf-chart-1: #7b77f2;
+    --lf-chart-ref: #5d6272;
+    --lf-chart-grid: #2a2c33;
+    --lf-chart-axis: #3a3d46;
     --lf-route-casing: #101114;
     --lf-start: #2bd38a;
     --lf-finish: #f5f6fa;
@@ -151,6 +159,10 @@
   --lf-info-soft: #13263b;
   --lf-overlay: rgba(0, 0, 0, 0.62);
   --lf-route: #2bd38a;
+  --lf-chart-1: #7b77f2;
+  --lf-chart-ref: #5d6272;
+  --lf-chart-grid: #2a2c33;
+  --lf-chart-axis: #3a3d46;
   --lf-route-casing: #101114;
   --lf-start: #2bd38a;
   --lf-finish: #f5f6fa;

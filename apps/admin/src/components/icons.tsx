@@ -6,7 +6,8 @@ export type IconName =
   | 'home' | 'map' | 'record' | 'progress' | 'clubs' | 'bell' | 'chat' | 'search' | 'plus'
   | 'pulse' | 'sliders' | 'flag' | 'shield' | 'scale' | 'route' | 'users' | 'list' | 'layers'
   | 'logout' | 'sun' | 'moon' | 'monitor' | 'check' | 'x' | 'chevron' | 'arrow-right' | 'alert' | 'info'
-  | 'refresh' | 'clock' | 'lock' | 'history' | 'sparkle' | 'bolt' | 'trophy' | 'hexagon' | 'mail' | 'calendar';
+  | 'refresh' | 'clock' | 'lock' | 'history' | 'sparkle' | 'bolt' | 'trophy' | 'hexagon' | 'mail' | 'calendar'
+  | 'chart' | 'code' | 'target' | 'key' | 'user' | 'download' | 'copy' | 'play' | 'save' | 'trash' | 'edit' | 'grid' | 'send' | 'phone' | 'database';
 
 export function Icon({ name, size = 20, className, strokeWidth = 2 }: { name: IconName; size?: number; className?: string; strokeWidth?: number }) {
   const p = { fill: 'none', stroke: 'currentColor', strokeWidth, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -20,6 +21,21 @@ export function Icon({ name, size = 20, className, strokeWidth = 2 }: { name: Ic
       {name === 'clubs' && (<><circle cx={8} cy={9} r={3} {...p} /><circle cx={16} cy={9} r={3} {...p} /><path d="M2 20c0-3 3-5 6-5s6 2 6 5M12 20c0-3 2-5 4-5s6 2 6 5" {...p} /></>)}
       {name === 'bell' && <path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0" {...p} />}
       {name === 'chat' && <path d="M4 5h16v11H9l-5 4z" {...p} />}
+      {name === 'chart' && <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" {...p} />}
+      {name === 'code' && <path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" {...p} />}
+      {name === 'target' && (<><circle cx={12} cy={12} r={9} {...p} /><circle cx={12} cy={12} r={5} {...p} /><circle cx={12} cy={12} r={1.5} fill="currentColor" /></>)}
+      {name === 'key' && (<><circle cx={8} cy={15} r={4} {...p} /><path d="M11 12l9-9M17 6l3 3M14 9l2 2" {...p} /></>)}
+      {name === 'user' && (<><circle cx={12} cy={8} r={4} {...p} /><path d="M4 21c0-4 4-7 8-7s8 3 8 7" {...p} /></>)}
+      {name === 'download' && <path d="M12 4v11M7 10l5 5 5-5M5 20h14" {...p} />}
+      {name === 'copy' && (<><rect x={9} y={9} width={11} height={11} rx={2} {...p} /><path d="M5 15V6a2 2 0 0 1 2-2h8" {...p} /></>)}
+      {name === 'play' && <path d="M7 5l12 7-12 7z" {...p} />}
+      {name === 'save' && <path d="M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6" {...p} />}
+      {name === 'trash' && <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" {...p} />}
+      {name === 'edit' && <path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" {...p} />}
+      {name === 'grid' && <path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" {...p} />}
+      {name === 'send' && <path d="M21 3L10 14M21 3l-7 18-4-7-7-4z" {...p} />}
+      {name === 'phone' && (<><rect x={6} y={2} width={12} height={20} rx={3} {...p} /><path d="M11 18h2" {...p} /></>)}
+      {name === 'database' && (<><ellipse cx={12} cy={5} rx={8} ry={3} {...p} /><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" {...p} /></>)}
       {name === 'mail' && (<><rect x={3} y={5} width={18} height={14} rx={2} {...p} /><path d="M3 7l9 6 9-6" {...p} /></>)}
       {name === 'calendar' && (<><rect x={3} y={5} width={18} height={16} rx={2} {...p} /><path d="M3 10h18M8 3v4M16 3v4" {...p} /></>)}
       {name === 'search' && (<><circle cx={11} cy={11} r={7} {...p} /><path d="M21 21l-5-5" {...p} /></>)}

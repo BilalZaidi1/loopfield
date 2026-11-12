@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { requireRole } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
+import { getRbac } from '@/lib/data';
 import { rpc } from '@/lib/rpc';
 import { viewerTimeZone } from '@/lib/tz';
 import { dateTime, relativeTime } from '@/lib/format';
-import { isRole, ROLE_LABEL } from '@/lib/roles';
 import type { StaffRow, UserSearchRow } from '@/lib/types';
 import { ActionButton } from '@/components/client';
 import { Avatar, Badge, Card, EmptyState, PageHeader, Table, buttonClass } from '@/components/ui';
@@ -13,18 +13,20 @@ import { GrantRole } from './grant-role';
 export const metadata: Metadata = { title: 'Staff' };
 
 export default async function StaffPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
-  const ctx = await requireRole('admin');
+  const ctx = await requirePermission('staff');
   const { q } = await searchParams;
   const query = (q ?? '').trim();
-  const [staff, results, tz] = await Promise.all([
+  const [staff, results, tz, rbac] = await Promise.all([
     rpc<StaffRow[]>('ops_staff_list'),
     query.length >= 2 ? rpc<UserSearchRow[]>('ops_users_search', { p_query: query, p_limit: 20 }) : Promise.resolve([] as UserSearchRow[]),
-    viewerTimeZone()
+    viewerTimeZone(),
+    getRbac()
   ]);
+  const label = (key: string) => rbac.roles.find((r) => r.key === key)?.label ?? key;
 
   return (
     <>
-      <PageHeader title="Staff" description="Roles are scoped: social roles never get scoring powers. Every grant and revoke is audited." />
+      <PageHeader title="Staff" description={<>People with console access and their roles. What each role can do is set on <a href="/roles" className="text-primary font-semibold">Roles and permissions</a>. Every grant and removal is audited.</>} />
       <Card title="Current staff">
         <Table head={['Person', 'Roles', 'Two-step sign-in', 'Last sign-in']}>
           {staff.map((s) => (
@@ -42,11 +44,11 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
                 <div className="flex flex-wrap gap-1.5">
                   {s.roles.map((r) => (
                     <span key={r} className="inline-flex items-center gap-1">
-                      <Badge label={isRole(r) ? ROLE_LABEL[r] : r} tone={r === 'admin' ? 'title' : 'info'} />
+                      <Badge label={label(r)} tone={r === 'admin' ? 'title' : 'info'} />
                       {!(s.user_id === ctx.userId && r === 'admin') ? (
-                        <ActionButton label="Revoke" size="sm" variant="ghost" requireReason={false}
+                        <ActionButton label="Remove" size="sm" variant="ghost" requireReason={false}
                           confirmPhrase={r === 'admin' ? `@${s.handle}` : undefined}
-                          title={`Revoke ${isRole(r) ? ROLE_LABEL[r] : r} from @${s.handle}?`}
+                          title={`Remove ${label(r)} from @${s.handle}?`}
                           action={setStaffRole.bind(null, s.user_id, r, false)} />
                       ) : null}
                     </span>
@@ -77,8 +79,8 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
                 <tr key={u.user_id}>
                   <td><div className="font-semibold">@{u.handle}</div><div className="type-caption text-muted">{u.display_name}{u.city_label ? ` · ${u.city_label}` : ''}</div></td>
                   <td className="text-muted">{u.matched_by}</td>
-                  <td>{u.roles.length ? u.roles.map((r) => (isRole(r) ? ROLE_LABEL[r] : r)).join(', ') : <span className="text-muted">None</span>}</td>
-                  <td className="text-right">{u.status === 'active' ? <GrantRole userId={u.user_id} handle={u.handle} existing={u.roles} /> : <Badge label={u.status} tone="warning" />}</td>
+                  <td>{u.roles.length ? u.roles.map(label).join(', ') : <span className="text-muted">None</span>}</td>
+                  <td className="text-right">{u.status === 'active' ? <GrantRole userId={u.user_id} handle={u.handle} existing={u.roles} roles={rbac.roles} /> : <Badge label={u.status} tone="warning" />}</td>
                 </tr>
               ))}
             </Table>

@@ -3,7 +3,7 @@ import { validateConfigValue, formatValue } from '../config-validate';
 import { age, relativeTime, humanize } from '../format';
 import { safeNext } from '../next-path';
 import { friendlyError } from '../errors';
-import { hasRole } from '../roles';
+import { hasPermission, roleLabel } from '../roles';
 
 const meta = (over: Partial<Parameters<typeof validateConfigValue>[0]>) => ({
   key: 'k', label: 'Setting', value_type: 'integer' as const, min_value: null, max_value: null, allowed: null, ...over
@@ -79,7 +79,36 @@ describe('safety helpers', () => {
     expect(friendlyError({ message: 'relation "x" does not exist' })).toMatch(/Something went wrong/);
   });
   it('treats admin as every role, like authz.has_role', () => {
-    expect(hasRole(['admin'], 'moderator')).toBe(true);
-    expect(hasRole(['support'], 'moderator')).toBe(false);
+    expect(hasPermission(['moderation', 'users.view'], 'moderation')).toBe(true);
+    expect(hasPermission(['support'], 'moderation')).toBe(false);
+    expect(roleLabel('analyst')).toBe('Analyst');
+    expect(roleLabel('night_shift')).toBe('Night shift');
+  });
+});
+
+import { bandSpans, chosenWidgets, DEFAULT_WIDGETS } from '../widgets';
+import { niceTicks } from '../../components/charts';
+
+describe('bandSpans', () => {
+  it('fills complete rows and shares the last row evenly', () => {
+    expect(bandSpans(4, 4, 2)).toEqual(Array(4).fill('col-span-12 md:col-span-6 xl:col-span-3'));
+    expect(bandSpans(5, 4, 2, 2).at(-1)).toBe('col-span-12 md:col-span-12 xl:col-span-12');
+    expect(bandSpans(3, 3, 2)).toEqual(['col-span-12 md:col-span-6 xl:col-span-4', 'col-span-12 md:col-span-6 xl:col-span-4', 'col-span-12 md:col-span-12 xl:col-span-4']);
+    expect(bandSpans(2, 4, 2, 2)).toEqual(Array(2).fill('col-span-6 md:col-span-6 xl:col-span-6'));
+  });
+});
+
+describe('chosenWidgets', () => {
+  it('drops widgets the person may not see and unknown ids', () => {
+    expect(chosenWidgets(['kpi_runs', 'queues', 'nope'], []).map((w) => w.id)).toEqual(['queues']);
+    expect(chosenWidgets(undefined, ['analytics', 'support']).map((w) => w.id)).toEqual(DEFAULT_WIDGETS);
+  });
+});
+
+describe('niceTicks', () => {
+  it('rounds the axis to clean steps', () => {
+    expect(niceTicks(416)).toEqual([0, 200, 400, 600]);
+    expect(niceTicks(9.5)).toEqual([0, 2.5, 5, 7.5, 10]);
+    expect(niceTicks(0)).toEqual([0, 1]);
   });
 });

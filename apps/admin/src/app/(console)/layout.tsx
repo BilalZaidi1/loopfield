@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
-import { requireStaff } from '@/lib/auth';
+import { can as canDo, requireStaff } from '@/lib/auth';
+import { rpc } from '@/lib/rpc';
+import type { SupportQueue } from '@/lib/types';
 import { getOverview } from '@/lib/data';
-import { hasRole, ROLE_LABEL } from '@/lib/roles';
+import type { Permission } from '@/lib/roles';
 import { env, ENV_LABEL } from '@/lib/env';
 import { viewerTimeZone } from '@/lib/tz';
 import { Sidebar, MobileNav, type NavGroup } from '@/components/shell';
@@ -14,32 +16,35 @@ import { signOut } from '../(auth)/actions';
 export default async function ConsoleLayout({ children }: { children: ReactNode }) {
   const ctx = await requireStaff();
   const overview = await getOverview().catch(() => null);
-  const can = (r: Parameters<typeof hasRole>[1]) => hasRole(ctx.roles, r);
+  const can = (p: Permission) => canDo(ctx, p);
   const deadJobs = Object.values(overview?.jobs ?? {}).reduce((n, q) => n + q.dead, 0);
+  const support = can('support') ? await rpc<SupportQueue>('ops_support_queue', { p_view: 'open', p_limit: 1 }).catch(() => null) : null;
+  const item = (show: boolean, href: string, label: string, icon: NavGroup['items'][number]['icon'], count?: number) => (show ? [{ href, label, icon, count }] : []);
 
   const allGroups: NavGroup[] = [
+    { label: null, items: [...item(true, '/overview', 'Overview', 'pulse'), ...item(can('analytics'), '/analytics', 'Analytics', 'chart')] },
     {
-      label: null,
-      items: [
-        { href: '/overview', label: 'Overview', icon: 'pulse' },
-        { href: '/settings', label: 'App control', icon: 'sliders' }
-      ]
+      label: 'Runners & support',
+      items: [...item(can('users.view'), '/runners', 'Runners', 'users'), ...item(can('support'), '/support', 'Support inbox', 'chat', support?.counts.open)]
     },
     {
       label: 'Trust & safety',
       items: [
-        ...(can('moderator') ? [{ href: '/moderation', label: 'Moderation', icon: 'flag' as const, count: overview?.queues.moderation.open }] : []),
-        ...(can('integrity_reviewer') ? [{ href: '/integrity', label: 'Integrity', icon: 'shield' as const, count: overview?.queues.integrity.open }] : []),
-        ...(can('moderator') || can('integrity_reviewer') ? [{ href: '/appeals', label: 'Appeals', icon: 'scale' as const, count: overview?.queues.appeals.open }] : []),
-        ...(can('route_reviewer') ? [{ href: '/routes', label: 'Route proposals', icon: 'route' as const, count: overview?.queues.routes.open }] : [])
+        ...item(can('moderation'), '/moderation', 'Moderation', 'flag', overview?.queues.moderation.open),
+        ...item(can('integrity'), '/integrity', 'Integrity', 'shield', overview?.queues.integrity.open),
+        ...item(can('moderation') || can('integrity'), '/appeals', 'Appeals', 'scale', overview?.queues.appeals.open),
+        ...item(can('routes'), '/routes', 'Route proposals', 'route', overview?.queues.routes.open)
       ]
     },
+    { label: 'Game', items: [...item(true, '/settings', 'App control', 'sliders'), ...item(true, '/rules', 'Game rules', 'target')] },
+    { label: 'Insights', items: [...item(can('sql'), '/sql', 'SQL editor', 'database')] },
     {
       label: 'Platform',
       items: [
-        ...(can('admin') ? [{ href: '/jobs', label: 'Jobs', icon: 'layers' as const, count: deadJobs }] : []),
-        ...(can('admin') ? [{ href: '/staff', label: 'Staff', icon: 'users' as const }] : []),
-        ...(can('admin') ? [{ href: '/audit', label: 'Audit log', icon: 'list' as const }] : [])
+        ...item(can('jobs'), '/jobs', 'Jobs', 'layers', deadJobs),
+        ...item(can('staff'), '/staff', 'Staff', 'user'),
+        ...item(true, '/roles', 'Roles & permissions', 'key'),
+        ...item(can('audit'), '/audit', 'Audit log', 'list')
       ]
     }
   ];
@@ -48,7 +53,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
   const store = await cookies();
   const theme = store.get('theme')?.value;
   const tz = await viewerTimeZone();
-  const roleText = ctx.roles.includes('admin') ? ROLE_LABEL.admin : ctx.roles.map((r) => ROLE_LABEL[r]).join(', ');
+  const roleText = ctx.roles.includes('admin') ? 'Admin' : ctx.roleLabels.join(', ');
 
   return (
     <div className="min-h-dvh flex">
@@ -76,7 +81,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
             </form>
           </div>
         </header>
-        <main className="flex-1 w-full max-w-[1100px] mx-auto px-5 md:px-7 pt-2 pb-10 flex flex-col gap-6">{children}</main>
+        <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-5 md:px-7 pt-2 pb-10 flex flex-col gap-6">{children}</main>
       </div>
       <Toaster />
       <TimeZoneSync current={tz} />

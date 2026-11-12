@@ -92,8 +92,8 @@ select is((select handle from public.ops_users_search('runner@backoffice.test'))
 reset role;
 select is((select count(*)::int from internal.audit_log where action = 'user_email_lookup'), 1, 'email lookups are audited');
 set local role authenticated;
-select pg_temp.as_user('a3000000-0000-4000-8000-000000000003');
-select throws_ok($$select * from public.ops_users_search('trail')$$, '42501', null, 'a moderator cannot search users');
+select pg_temp.as_user('a2000000-0000-4000-8000-000000000002');
+select throws_ok($$select * from public.ops_users_search('trail')$$, '42501', null, 'a territory operator cannot search users');
 
 -- Staff, audit log and jobs -----------------------------------------------------------------
 select throws_ok($$select * from public.ops_audit_log()$$, '42501', null, 'only admins read the audit log');

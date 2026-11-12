@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { requireRole } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { rpc } from '@/lib/rpc';
 import { humanize, km, relativeTime, shortId } from '@/lib/format';
 import type { IntegrityDetail } from '@/lib/types';
@@ -11,7 +11,7 @@ import { resolveCase, setHold } from '../actions';
 export const metadata: Metadata = { title: 'Integrity case' };
 
 export default async function IntegrityCasePage({ params }: { params: Promise<{ id: string }> }) {
-  await requireRole('integrity_reviewer');
+  await requirePermission('integrity');
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   // Opening a case is itself audited (integrity_viewed).

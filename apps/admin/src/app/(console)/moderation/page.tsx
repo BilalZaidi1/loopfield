@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { requireRole } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { rpc } from '@/lib/rpc';
 import { age, humanize } from '@/lib/format';
 import type { ModerationQueueRow } from '@/lib/types';
@@ -16,7 +16,7 @@ const STATUSES = [
 ];
 
 export default async function ModerationPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
-  await requireRole('moderator');
+  await requirePermission('moderation');
   const { status: raw } = await searchParams;
   const status = STATUSES.some((s) => s.value === raw) ? raw! : 'open';
   const rows = await rpc<ModerationQueueRow[]>('ops_moderation_queue', { p_status: status, p_limit: 200 });

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { requireRole } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { rpc } from '@/lib/rpc';
 import { age, humanize } from '@/lib/format';
 import type { IntegrityQueueRow } from '@/lib/types';
@@ -9,7 +9,7 @@ import { Badge, Card, EmptyState, PageHeader, Row } from '@/components/ui';
 export const metadata: Metadata = { title: 'Integrity' };
 
 export default async function IntegrityPage() {
-  await requireRole('integrity_reviewer');
+  await requirePermission('integrity');
   const rows = await rpc<IntegrityQueueRow[]>('ops_integrity_queue', { p_limit: 200 });
   return (
     <>

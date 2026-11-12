@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { requireRole } from '@/lib/auth';
+import { requirePermission } from '@/lib/auth';
 import { rpc } from '@/lib/rpc';
 import { viewerTimeZone } from '@/lib/tz';
 import { dateTime, humanize, relativeTime, shortId } from '@/lib/format';
@@ -21,7 +21,7 @@ const REMOVE_EFFECT: Record<string, string> = {
 };
 
 export default async function CasePage({ params }: { params: Promise<{ id: string }> }) {
-  await requireRole('moderator');
+  await requirePermission('moderation');
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const [data, tz] = await Promise.all([rpc<ModerationCase | null>('ops_moderation_case', { p_case: id }), viewerTimeZone()]);
