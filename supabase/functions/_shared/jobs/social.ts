@@ -118,10 +118,13 @@ export const dispatchDigests: JobHandler = async (_payload, ctx) => {
            coalesce(sum((d.payload ->> 'cells')::int) filter (where d.kind = 'territory_lost'), 0) as lost_cells
       from internal.digest_items d left join public.notification_prefs np on np.user_id = d.user_id
      where d.digested_at is null group by d.user_id, np.timezone, np.competitive_digest, np.territory_loss, np.email_territory limit 1000`;
+  // Digest hour from App control → Posts & limits, else the built-in one.
+  const [hourRow] = await ctx.sql`select value from public.app_config where key = 'daily_digest_hour'`;
+  const digestHour = typeof hourRow?.value === 'number' && hourRow.value >= 0 && hourRow.value <= 23 ? hourRow.value : SOCIAL_RULES.dailyDigestHourLocal.value;
   for (const u of users) {
     const tz = (u.timezone as string) ?? 'UTC';
     const localHour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' }).format(new Date()));
-    if (localHour < SOCIAL_RULES.dailyDigestHourLocal.value) continue;
+    if (localHour < digestHour) continue;
     const day = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
     // The summary row carries the daily push and, for runners who chose it, the daily land email.
     if (u.competitive_digest !== false || u.email_territory === true) {

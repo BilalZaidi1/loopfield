@@ -21,6 +21,15 @@ import { useSession, useUnits } from '@/state/session';
 import { useLayout } from '@/theme/layout';
 import { spacing } from '@/theme/tokens';
 
+/** Whether the back office allows a street map under shared routes (public config; on unless switched off). */
+function useStreetMapAllowed() {
+  return useQuery({
+    queryKey: ['app_config', 'share_street_map_enabled'],
+    staleTime: 10 * 60_000,
+    queryFn: async () => (await supabase().from('app_config').select('value').eq('key', 'share_street_map_enabled').maybeSingle()).data?.value !== false
+  });
+}
+
 /** Metres hidden at each end of a shared route (public config; 200 unless changed). */
 function useRouteTrim() {
   return useQuery({
@@ -59,6 +68,8 @@ export default function ShareCardScreen() {
   const [format, setFormat] = useState<CardFormat>('9:16');
   const [route, setRoute] = useState(true);
   const [streetMap, setStreetMap] = useState(true);
+  const streetMapAllowed = useStreetMapAllowed();
+  const mapAvailable = Boolean(env.mapboxToken) && streetMapAllowed.data !== false;
   const cardReady = useRef(false);
   const [land, setLand] = useState(true);
   const [pace, setPace] = useState(true);
@@ -88,7 +99,7 @@ export default function ShareCardScreen() {
   const linkWaits = activeLink && Date.parse(activeLink.publish_after) > now;
   const { w, h } = CARD_SIZE[format];
   const scale = Math.min(1, (Math.min(width, 520) - gutter * 2) / w);
-  const props = { format, with_route: Boolean(route && preview.data?.route?.length), with_land: Boolean(land && preview.data?.land), with_qr: Boolean(url), with_map: Boolean(route && streetMap && preview.data?.route?.length && env.mapboxToken) };
+  const props = { format, with_route: Boolean(route && preview.data?.route?.length), with_land: Boolean(land && preview.data?.land), with_qr: Boolean(url), with_map: Boolean(route && streetMap && preview.data?.route?.length && mapAvailable) };
   // Why the image has no route when the runner asked for one: the server keeps the ends of every route private.
   const trimM = trim.data ?? 200;
   const short = (m: number) => (units === 'metric' ? `${Math.round(m)} m` : fmtDistance(m, units, 2));
@@ -162,7 +173,7 @@ export default function ShareCardScreen() {
                 runnerName: profile?.display_name ?? 'Runner',
                 handle: profile?.handle ?? 'runner',
                 avatarUri: avatar.data ?? null,
-                mapToken: streetMap ? env.mapboxToken ?? null : null,
+                mapToken: streetMap && mapAvailable ? env.mapboxToken ?? null : null,
                 date: s?.activity_date ? fmtDate(a.started_at, { day: 'numeric', month: 'short', year: 'numeric' }) : null,
                 distanceM: s?.distance_m ?? a.distance_m,
                 elapsedMs: s?.elapsed_ms ?? a.elapsed_ms,
@@ -189,7 +200,7 @@ export default function ShareCardScreen() {
       <Section title="On the image" icon="image">
         <ListGroup>
           <Toggle label="Route (start and finish hidden)" value={route} onChange={setRoute} />
-          {route && preview.data?.route?.length && env.mapboxToken ? <Toggle label="Street map under the route" value={streetMap} onChange={setStreetMap} /> : null}
+          {route && preview.data?.route?.length && mapAvailable ? <Toggle label="Street map under the route" value={streetMap} onChange={setStreetMap} /> : null}
           {detail.data?.claim?.status === 'eligible' ? <Toggle label="Land and what changed hands" value={land} onChange={setLand} /> : null}
           <Toggle label="Pace" value={pace} onChange={setPace} />
           {health.hr ? <Toggle label={`Average heart rate (${health.hr} bpm, from your phone)`} value={heart} onChange={setHeart} /> : null}

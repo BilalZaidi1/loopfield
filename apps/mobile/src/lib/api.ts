@@ -12,6 +12,7 @@ const FRIENDLY: Record<string, string> = {
   forbidden: 'You do not have access to that.',
   unauthenticated: 'Please sign in again.',
   rate_limited: 'Too many requests. Please try again shortly.',
+  feature_paused: 'This is switched off for now. Please try again later.',
   zoom_in: 'Zoom in to load territory for this area.',
   temporarily_unavailable: 'This feature is temporarily unavailable.',
   not_configured: 'This service has not been configured yet.',

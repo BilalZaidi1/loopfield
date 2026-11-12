@@ -14,6 +14,8 @@ import {
   summarizeActivity,
   MOVEMENT_RULES,
   TERRITORY_RULES,
+  withRuleOverrides,
+  withThreshold,
   type CourseGeometry,
   type IntegrityRules,
   type LatLng,
@@ -39,12 +41,33 @@ async function integrityRules(ctx: JobContext): Promise<IntegrityRules> {
   return integrityRulesWith(row?.value ?? null);
 }
 
+/**
+ * The rules a run is judged by: the built-in rules with the overrides saved for its pinned version
+ * (back office → Game rules). Runs keep the version from their recording ticket, so changing the
+ * rules never re-judges a run that was already recorded.
+ */
+async function rulesFor<T extends { readonly version: string }>(ctx: JobContext, family: 'territory' | 'speed', base: T, version: string | null | undefined): Promise<T> {
+  if (!version || version === base.version) return base;
+  const [row] = await ctx.sql`select overrides from internal.rule_versions where version = ${version} and family = ${family}`;
+  return row ? withRuleOverrides(base, row.overrides, version) : base;
+}
+
+/** Speed rules of the running season race (the public competition), for route proposals, which have no ticket. */
+async function currentSpeedRules(ctx: JobContext): Promise<typeof SPEED_RULES> {
+  const [s] = await ctx.sql`
+    select s.speed_rules_version from public.seasons s join public.competitions c on c.id = s.competition_id
+     where c.kind = 'public' and s.status = 'active' order by s.starts_at desc limit 1`;
+  return rulesFor(ctx, 'speed', SPEED_RULES, s?.speed_rules_version);
+}
+
 /** Reasons that put a run on the integrity review trail, whatever the final decision. */
 const SPEED_SIGNALS: readonly ReasonCode[] = ['suspicious_speed', 'implausible_speed', 'no_running_steps'];
 
 async function awardMovement(ctx: JobContext, ev: Evidence) {
   const integrity = await integrityRules(ctx);
-  const m = evaluateMovement(ev.samples, ev.events, MOVEMENT_RULES, integrity);
+  const [cfg] = await ctx.sql`select value from public.app_config where key = 'movement_min_distance_m'`;
+  const movement = withThreshold(MOVEMENT_RULES, 'minVerifiedDistanceMeters', typeof cfg?.value === 'number' ? cfg.value : null);
+  const m = evaluateMovement(ev.samples, ev.events, movement, integrity);
   // Any run (public or private) moving unlike a runner is marked and kept on the review trail.
   const flags = m.reasons.filter((r) => SPEED_SIGNALS.includes(r));
   await ctx.sql`select internal.flag_activity(${ev.activityId}::uuid, ${pgArray(flags)}::text[], ${ctx.sql.json({ rule_version: integrity.version, excluded_m: m.excludedDistanceM } as never)}::jsonb)`;
@@ -101,16 +124,20 @@ export const evaluateLoopJob: JobHandler = async (payload, ctx) => {
   const reviewed = payload.reviewed === true;
   const claims = await ctx.sql`
     with root as (select coalesce(parent_claim_id, id) as id from public.loop_claims where id = ${requested})
-    select lc.id, lc.parent_claim_id, lc.activity_id, lc.status, lc.season_id, s.grid_resolution, s.starts_at, s.ends_at
+    select lc.id, lc.parent_claim_id, lc.activity_id, lc.status, lc.season_id, s.grid_resolution, s.starts_at, s.ends_at,
+           coalesce(rs.territory_rules_version, s.territory_rules_version) as territory_rules_version
       from public.loop_claims lc join root on lc.id = root.id or lc.parent_claim_id = root.id
       left join public.seasons s on s.id = lc.season_id
+      left join public.activities a on a.id = lc.activity_id
+      left join internal.recording_sessions rs on rs.ticket_id = a.ticket_id
      order by lc.parent_claim_id nulls first, lc.id`;
   const primary = claims.find((c) => !c.parent_claim_id);
   const pending = claims.filter((c) => c.status === 'processing');
   if (!primary || !pending.length) return; // idempotent
   const ev = await loadEvidence(ctx, primary.activity_id);
   const integrity = await integrityRules(ctx);
-  const result = evaluateLoop(ev.samples, ev.events, TERRITORY_RULES, integrity);
+  const territory = await rulesFor(ctx, 'territory', TERRITORY_RULES, primary.territory_rules_version);
+  const result = evaluateLoop(ev.samples, ev.events, territory, integrity);
   const base = reviewed ? result.reasons.filter((r) => !SPEED_SIGNALS.includes(r)) : [...result.reasons];
   const ring = result.ring.map((p) => [p.lng, p.lat]);
   const cellsByResolution = new Map<number, string[]>();
@@ -185,8 +212,12 @@ export async function loadCourse(ctx: JobContext, courseVersionId: string): Prom
 export const evaluateAttemptJob: JobHandler = async (payload, ctx) => {
   const attemptId = str(payload.attempt_id, 'attempt_id');
   const [att] = await ctx.sql`
-    select sa.id, sa.activity_id, sa.status, sa.course_version_id, sa.competition_id, sa.season_id, s.starts_at, s.ends_at
-      from public.speed_attempts sa left join public.seasons s on s.id = sa.season_id where sa.id = ${attemptId}`;
+    select sa.id, sa.activity_id, sa.status, sa.course_version_id, sa.competition_id, sa.season_id, s.starts_at, s.ends_at,
+           coalesce(rs.speed_rules_version, s.speed_rules_version) as speed_rules_version, coalesce(s.publication_delay_minutes, 30) as publication_delay_minutes
+      from public.speed_attempts sa left join public.seasons s on s.id = sa.season_id
+      left join public.activities a on a.id = sa.activity_id
+      left join internal.recording_sessions rs on rs.ticket_id = a.ticket_id
+     where sa.id = ${attemptId}`;
   if (!att || att.status !== 'processing') return;
   const ev = await loadEvidence(ctx, att.activity_id);
   const course = await loadCourse(ctx, att.course_version_id);
@@ -197,7 +228,7 @@ export const evaluateAttemptJob: JobHandler = async (payload, ctx) => {
   if (!course) reasons.push('course_unavailable');
   else if (course.status !== 'active' || course.courseStatus !== 'active') reasons.push('course_suspended');
   if (course) {
-    result = evaluateSpeedAttempt(ev.samples, ev.events, course.geometry);
+    result = evaluateSpeedAttempt(ev.samples, ev.events, course.geometry, await rulesFor(ctx, 'speed', SPEED_RULES, att.speed_rules_version));
     reasons.push(...result.reasons);
     if (result.startCrossingT && result.finishCrossingT && att.starts_at) {
       const inSeason = (t: number) => t >= new Date(att.starts_at).getTime() && t < new Date(att.ends_at).getTime();
@@ -211,7 +242,7 @@ export const evaluateAttemptJob: JobHandler = async (payload, ctx) => {
            start_crossing_at = ${result?.startCrossingT ? new Date(result.startCrossingT) : null},
            completed_at = ${result?.finishCrossingT ? new Date(result.finishCrossingT) : null},
            elapsed_ms = ${result?.elapsedMs ?? null}, uncertainty_ms = ${result?.uncertaintyMs ?? null}, coverage = ${result?.coverage ?? null},
-           publish_after = greatest(coalesce(${result?.finishCrossingT ? new Date(result.finishCrossingT) : null}::timestamptz, now()) + interval '30 minutes', now())
+           publish_after = greatest(coalesce(${result?.finishCrossingT ? new Date(result.finishCrossingT) : null}::timestamptz, now()) + make_interval(mins => ${Number(att.publication_delay_minutes)}::integer), now())
      where id = ${attemptId} and status = 'processing'`;
   if (decision === 'pending_review') {
     await ctx.sql`insert into public.integrity_cases (kind, object_id, subject_user_id, opened_by, hold_from_competition) values ('speed_attempt', ${attemptId}, ${ev.userId}, 'system', true)`;
@@ -236,8 +267,9 @@ export const buildRouteProposal: JobHandler = async (payload, ctx) => {
   if (!loop.interval || blocking.length) return decline(`source loop not suitable: ${blocking.join(', ') || 'no capture interval'}`);
   const trace = canonicalSamples(ev.samples).filter((s) => s.t >= loop.interval!.startT && s.t <= loop.interval!.endT && isUsable(s));
   const course = buildCourse(trace, { closed: true });
-  if (course.lengthM < SPEED_RULES.minCourseLengthMeters.value || course.lengthM > SPEED_RULES.maxCourseLengthMeters.value) {
-    return decline(`course length ${course.lengthM} m is outside the reviewed 1–5 km range`);
+  const speed = await currentSpeedRules(ctx);
+  if (course.lengthM < speed.minCourseLengthMeters.value || course.lengthM > speed.maxCourseLengthMeters.value) {
+    return decline(`course length ${course.lengthM} m is outside the ${speed.minCourseLengthMeters.value / 1000}–${speed.maxCourseLengthMeters.value / 1000} km range`);
   }
   const path = toGeoLine(course.path);
   const [mask] = await ctx.sql`
@@ -254,7 +286,7 @@ export const buildRouteProposal: JobHandler = async (payload, ctx) => {
      where c.status = 'active' and extensions.st_dwithin(cv.path::extensions.geography, extensions.st_setsrid(extensions.st_geomfromgeojson(${JSON.stringify(path)}), 4326)::extensions.geography, 100)`;
   for (const n of nearby) {
     const other = await loadCourse(ctx, n.version_id);
-    if (other && isDuplicateCourse(course, other.geometry)) {
+    if (other && isDuplicateCourse(course, other.geometry, speed)) {
       await ctx.sql`update public.route_proposals set status = 'duplicate_linked', canonical_course_id = ${n.course_id}, decided_at = now(),
                     decision_reason = 'matches an existing published route' where id = ${proposalId}`;
       return;

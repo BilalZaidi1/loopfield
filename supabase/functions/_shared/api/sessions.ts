@@ -37,7 +37,7 @@ export async function issueTicket(sql: Sql, env: ServerEnv, userId: string, req:
      where c.id = ${req.competitionId}
        and (c.kind = 'public' or exists (select 1 from public.club_memberships m where m.club_id = c.club_id and m.user_id = ${userId} and m.state = 'active'))`;
   if (!comp || comp.status !== 'active') throw new HttpError(404, 'competition_unavailable');
-  const [season] = await sql`select id, starts_at, ends_at from public.seasons where competition_id = ${req.competitionId} and starts_at <= now() and ends_at > now() and status = 'active'`;
+  const [season] = await sql`select id, starts_at, ends_at, territory_rules_version, speed_rules_version from public.seasons where competition_id = ${req.competitionId} and starts_at <= now() and ends_at > now() and status = 'active'`;
   if (!season) throw new HttpError(409, 'no_active_season');
 
   const switches = Object.fromEntries((await sql`select key, value from public.app_config where key in ('territory_capture_enabled', 'speed_titles_enabled')`).map((r) => [r.key, r.value]));
@@ -56,8 +56,9 @@ export async function issueTicket(sql: Sql, env: ServerEnv, userId: string, req:
     competitionId: req.competitionId,
     seasonId: season.id,
     courseVersionId: modes.speed ? req.courseVersionId! : null,
-    territoryRulesVersion: TERRITORY_RULES_VERSION,
-    speedRulesVersion: SPEED_RULES_VERSION,
+    // The season's pinned rule versions (set from the back office); the built-in ones if it has none.
+    territoryRulesVersion: season.territory_rules_version ?? TERRITORY_RULES_VERSION,
+    speedRulesVersion: season.speed_rules_version ?? SPEED_RULES_VERSION,
     issuedAt: now,
     startBy
   };

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { closureHint, haversineMeters, summarizeActivity, TERRITORY_RULES, type ActivitySummary, type LocationSample, type RecordingEvent } from '@loopfield/core';
+import { closureHint, haversineMeters, summarizeActivity, type ActivitySummary, type LocationSample, type RecordingEvent } from '@loopfield/core';
+import { useTerritoryRules } from '@/lib/gameRules';
 import { emitCue } from '@/lib/cues';
 import { activeSession, eventsFor, getSession, samplesAfter, type SessionRow } from './db';
 
@@ -30,6 +31,12 @@ const EMPTY: LiveState = { session: null, summary: null, last: null, gpsQuality:
  */
 export function useRecording(sessionId?: string, refreshMs = 1000): LiveState {
   const [state, setState] = useState<LiveState>(EMPTY);
+  // The season's rules from the back office; read through a ref so the refresh interval keeps running.
+  const rules = useTerritoryRules();
+  const rulesRef = useRef(rules);
+  useEffect(() => {
+    rulesRef.current = rules;
+  }, [rules]);
   const lastQuality = useRef<string>('none');
   const cache = useRef<{ id: string; samples: LocationSample[]; path: [number, number][]; lastSeq: number } | null>(null);
   useEffect(() => {
@@ -57,7 +64,7 @@ export function useRecording(sessionId?: string, refreshMs = 1000): LiveState {
       const events = eventsFor(session.id);
       const last = samples[samples.length - 1] ?? null;
       const stale = last ? (Date.now() - last.t) / 1000 : null;
-      const quality = !last || (stale ?? 99) > 15 ? 'none' : (last.acc ?? 99) > TERRITORY_RULES.maxUsableAccuracyMeters.value ? 'weak' : 'good';
+      const quality = !last || (stale ?? 99) > 15 ? 'none' : (last.acc ?? 99) > rulesRef.current.maxUsableAccuracyMeters.value ? 'weak' : 'good';
       if (session.state === 'recording' && quality !== lastQuality.current) {
         if (quality === 'weak') emitCue('gps_weak', 'GPS signal is weak');
         else if (quality === 'none' && lastQuality.current !== 'none') emitCue('gap', 'No GPS fixes. This gap will be shown, not filled in.');
@@ -75,7 +82,7 @@ export function useRecording(sessionId?: string, refreshMs = 1000): LiveState {
         last,
         gpsQuality: quality,
         gpsStaleSeconds: stale,
-        closure: session.capture_state === 'open' ? closureHint(first ?? null, last, capDist) : 'not_started',
+        closure: session.capture_state === 'open' ? closureHint(first ?? null, last, capDist, rulesRef.current) : 'not_started',
         captureDistanceM: capDist,
         // A new array only when the drawn line changed, so the map re-renders only then.
         path: pathChanged || prev.session?.id !== session.id ? [...c.path] : prev.path,

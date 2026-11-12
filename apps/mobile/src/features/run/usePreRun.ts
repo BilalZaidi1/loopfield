@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Platform } from 'react-native';
 import * as Location from 'expo-location';
 import { useQuery } from '@tanstack/react-query';
-import { TERRITORY_RULES } from '@loopfield/core';
 import { ApiError, friendlyError, rpc } from '@/lib/api';
 import { isExpoGo } from '@/lib/runtime';
+import { useTerritoryRules } from '@/lib/gameRules';
 import type { IconName } from '@/components/icons';
 import type { RunMode } from '@/recording/db';
 import { createSession, discardRun, ensureLocationPermission, startRun } from '@/recording/recorder';
@@ -26,6 +26,11 @@ export const RUN_MODES: { value: RunMode; title: string; body: string; icon: Ico
 
 /** GPS readiness before the run (not the recording itself): good, weak, off or still looking. */
 export function useGpsReadiness(enabled: boolean): Gps & { recheck: () => void } {
+  const rules = useTerritoryRules();
+  const rulesRef = useRef(rules);
+  useEffect(() => {
+    rulesRef.current = rules;
+  }, [rules]);
   const [gps, setGps] = useState<Gps>({ state: 'checking', accuracy: null });
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
@@ -38,7 +43,7 @@ export function useGpsReadiness(enabled: boolean): Gps & { recheck: () => void }
       sub = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, timeInterval: 2000, distanceInterval: 0 }, (loc) => {
         if (cancelled) return;
         const acc = loc.coords.accuracy ?? null;
-        setGps({ state: acc != null && acc <= TERRITORY_RULES.closureEndpointMaxAccuracyMeters.value ? 'good' : 'weak', accuracy: acc });
+        setGps({ state: acc != null && acc <= rulesRef.current.closureEndpointMaxAccuracyMeters.value ? 'good' : 'weak', accuracy: acc });
       });
     })();
     return () => {

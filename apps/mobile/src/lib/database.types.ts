@@ -2305,8 +2305,11 @@ export type Database = {
           exclusion_set_version: string | null
           grid_resolution: number
           id: string
+          late_upload_hours: number | null
           number: number
+          publication_delay_minutes: number | null
           settled_at: string | null
+          settlement_delay_hours: number | null
           speed_rules_version: string
           starts_at: string
           status: string
@@ -2321,8 +2324,11 @@ export type Database = {
           exclusion_set_version?: string | null
           grid_resolution?: number
           id?: string
+          late_upload_hours?: number | null
           number: number
+          publication_delay_minutes?: number | null
           settled_at?: string | null
+          settlement_delay_hours?: number | null
           speed_rules_version: string
           starts_at: string
           status?: string
@@ -2336,8 +2342,11 @@ export type Database = {
           exclusion_set_version?: string | null
           grid_resolution?: number
           id?: string
+          late_upload_hours?: number | null
           number?: number
+          publication_delay_minutes?: number | null
           settled_at?: string | null
+          settlement_delay_hours?: number | null
           speed_rules_version?: string
           starts_at?: string
           status?: string
@@ -2498,6 +2507,134 @@ export type Database = {
           },
           {
             foreignKeyName: "staff_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_messages: {
+        Row: {
+          author_id: string | null
+          author_kind: string
+          body: string
+          created_at: string
+          id: string
+          internal: boolean
+          ticket_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          author_id?: string | null
+          author_kind: string
+          body: string
+          created_at?: string
+          id?: string
+          internal?: boolean
+          ticket_id: string
+        }
+        Update: {
+          author_id?: string | null
+          author_kind?: string
+          body?: string
+          created_at?: string
+          id?: string
+          internal?: boolean
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_messages_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          app_version: string | null
+          assigned_to: string | null
+          category: string
+          context: NonNullable<Json>
+          created_at: string
+          device: string | null
+          first_response_at: string | null
+          id: string
+          last_message_at: string
+          last_runner_message_at: string
+          platform: string | null
+          priority: string
+          runner_unread: boolean
+          solved_at: string | null
+          staff_unread: boolean
+          status: string
+          subject: string
+          updated_at: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          app_version?: string | null
+          assigned_to?: string | null
+          category: string
+          context?: NonNullable<Json>
+          created_at?: string
+          device?: string | null
+          first_response_at?: string | null
+          id?: string
+          last_message_at?: string
+          last_runner_message_at?: string
+          platform?: string | null
+          priority?: string
+          runner_unread?: boolean
+          solved_at?: string | null
+          staff_unread?: boolean
+          status?: string
+          subject: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          app_version?: string | null
+          assigned_to?: string | null
+          category?: string
+          context?: NonNullable<Json>
+          created_at?: string
+          device?: string | null
+          first_response_at?: string | null
+          id?: string
+          last_message_at?: string
+          last_runner_message_at?: string
+          platform?: string | null
+          priority?: string
+          runner_unread?: boolean
+          solved_at?: string | null
+          staff_unread?: boolean
+          status?: string
+          subject?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_tickets_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -2817,6 +2954,7 @@ export type Database = {
         Returns: undefined
       }
       follow: { Args: { p_target: string }; Returns: string }
+      game_rules: { Args: Record<PropertyKey, never>; Returns: Json }
       invite_to_club: {
         Args: { p_club: string; p_user: string }
         Returns: undefined
@@ -3000,6 +3138,94 @@ export type Database = {
         }
         Returns: string
       }
+      ops_analytics_breakdowns: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      ops_analytics_funnel: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      ops_analytics_retention: { Args: { p_weeks?: number }; Returns: Json }
+      ops_appeals_queue: {
+        Args: { p_limit?: number; p_status?: string }
+        Returns: {
+          created_at: string
+          decided_at: string
+          id: string
+          integrity_case_id: string
+          object_id: string
+          object_type: string
+          reason: string
+          response: string
+          status: string
+          track: string
+          user_handle: string
+          user_id: string
+        }[]
+      }
+      ops_apply_rules_now: {
+        Args: { p_family: string; p_reason: string; p_version: string }
+        Returns: number
+      }
+      ops_audit_log: {
+        Args: {
+          p_action?: string
+          p_actor?: string
+          p_before?: number
+          p_from?: string
+          p_limit?: number
+          p_object_id?: string
+          p_object_type?: string
+          p_to?: string
+        }
+        Returns: {
+          action: string
+          actor_handle: string
+          actor_id: string
+          actor_kind: string
+          created_at: string
+          details: Json
+          id: number
+          object_id: string
+          object_type: string
+        }[]
+      }
+      ops_config: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          allowed: string[]
+          can_edit: boolean
+          category: string
+          description: string
+          help: string
+          is_public: boolean
+          key: string
+          label: string
+          last_changed_at: string
+          last_changed_by: string
+          last_reason: string
+          max_value: number
+          min_role: string
+          min_value: number
+          sort: number
+          updated_at: string
+          value: Json
+          value_type: string
+        }[]
+      }
+      ops_config_history: {
+        Args: { p_key?: string; p_limit?: number }
+        Returns: {
+          actor_handle: string
+          created_at: string
+          id: number
+          key: string
+          new_value: Json
+          old_value: Json
+          reason: string
+        }[]
+      }
       ops_create_event: {
         Args: {
           p_description: string
@@ -3024,8 +3250,16 @@ export type Database = {
           updated_at: string
         }[]
       }
+      ops_decide_account_appeal: {
+        Args: { p_appeal: string; p_overturn: boolean; p_response: string }
+        Returns: undefined
+      }
       ops_decide_content_appeal: {
         Args: { p_appeal: string; p_overturn: boolean; p_response: string }
+        Returns: undefined
+      }
+      ops_delete_role: {
+        Args: { p_key: string; p_reason: string }
         Returns: undefined
       }
       ops_grant_role: {
@@ -3047,6 +3281,7 @@ export type Database = {
           status: string
         }[]
       }
+      ops_metrics: { Args: { p_from: string; p_to: string }; Returns: Json }
       ops_moderate: {
         Args: { p_action: string; p_case: string; p_reason: string }
         Returns: undefined
@@ -3065,14 +3300,22 @@ export type Database = {
           status: string
         }[]
       }
+      ops_overview: { Args: Record<PropertyKey, never>; Returns: Json }
+      ops_preferences: { Args: Record<PropertyKey, never>; Returns: Json }
+      ops_rbac: { Args: Record<PropertyKey, never>; Returns: Json }
       ops_replay_season: {
         Args: { p_competition: string; p_season: string }
         Returns: number
+      }
+      ops_reset_profile: {
+        Args: { p_fields: string[]; p_reason: string; p_user: string }
+        Returns: undefined
       }
       ops_resolve_integrity: {
         Args: { p_case: string; p_notes: string; p_resolution: string }
         Returns: undefined
       }
+      ops_retry_dead_jobs: { Args: { p_queue?: string }; Returns: number }
       ops_retry_job: { Args: { p_job: number }; Returns: undefined }
       ops_review_route: {
         Args: { p_approve: boolean; p_proposal: string; p_reason: string }
@@ -3092,9 +3335,28 @@ export type Database = {
           score_founding_run: boolean
         }[]
       }
+      ops_rules: { Args: Record<PropertyKey, never>; Returns: Json }
+      ops_save_role: {
+        Args: {
+          p_description: string
+          p_key: string
+          p_label: string
+          p_permissions: string[]
+          p_reason: string
+        }
+        Returns: Json
+      }
+      ops_save_rules: {
+        Args: { p_family: string; p_reason: string; p_values: Json }
+        Returns: Json
+      }
       ops_schedule_season: {
         Args: { p_competition: string; p_ends_at: string; p_starts_at: string }
         Returns: string
+      }
+      ops_set_config: {
+        Args: { p_key: string; p_reason: string; p_value: Json }
+        Returns: Json
       }
       ops_set_course_status: {
         Args: { p_course: string; p_reason: string; p_status: string }
@@ -3102,6 +3364,14 @@ export type Database = {
       }
       ops_set_hold: {
         Args: { p_case: string; p_hold: boolean }
+        Returns: undefined
+      }
+      ops_set_next_rules: {
+        Args: { p_family: string; p_reason: string; p_version: string }
+        Returns: undefined
+      }
+      ops_set_preference: {
+        Args: { p_key: string; p_value: Json }
         Returns: undefined
       }
       ops_set_region_review: {
@@ -3120,6 +3390,99 @@ export type Database = {
         Args: { p_key: string; p_value: Json }
         Returns: undefined
       }
+      ops_set_user_status: {
+        Args: {
+          p_reason: string
+          p_sign_out?: boolean
+          p_status: string
+          p_user: string
+        }
+        Returns: undefined
+      }
+      ops_sign_out_user: {
+        Args: { p_reason: string; p_user: string }
+        Returns: number
+      }
+      ops_sql_catalog: { Args: Record<PropertyKey, never>; Returns: Json }
+      ops_sql_delete: { Args: { p_id: string }; Returns: undefined }
+      ops_sql_run: { Args: { p_limit?: number; p_sql: string }; Returns: Json }
+      ops_sql_save: {
+        Args: {
+          p_id: string
+          p_name: string
+          p_shared?: boolean
+          p_sql: string
+        }
+        Returns: string
+      }
+      ops_sql_saved: { Args: Record<PropertyKey, never>; Returns: Json }
+      ops_staff_list: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          display_name: string
+          granted_at: string
+          handle: string
+          last_sign_in_at: string
+          mfa_enabled: boolean
+          roles: string[]
+          status: string
+          user_id: string
+        }[]
+      }
+      ops_support_queue: {
+        Args: {
+          p_before?: string
+          p_limit?: number
+          p_query?: string
+          p_view?: string
+        }
+        Returns: Json
+      }
+      ops_support_reply: {
+        Args: {
+          p_body: string
+          p_internal?: boolean
+          p_status?: string
+          p_ticket: string
+        }
+        Returns: undefined
+      }
+      ops_support_ticket: { Args: { p_ticket: string }; Returns: Json }
+      ops_support_update: {
+        Args: {
+          p_assignee?: string
+          p_priority?: string
+          p_status?: string
+          p_ticket: string
+          p_unassign?: boolean
+        }
+        Returns: undefined
+      }
+      ops_user_overview: { Args: { p_user: string }; Returns: Json }
+      ops_users_list: {
+        Args: {
+          p_limit?: number
+          p_offset?: number
+          p_query?: string
+          p_sort?: string
+          p_status?: string
+        }
+        Returns: Json
+      }
+      ops_users_search: {
+        Args: { p_limit?: number; p_query: string }
+        Returns: {
+          city_label: string
+          created_at: string
+          display_name: string
+          handle: string
+          matched_by: string
+          roles: string[]
+          status: string
+          user_id: string
+        }[]
+      }
+      ops_whoami: { Args: Record<PropertyKey, never>; Returns: Json }
       pin_club_post: {
         Args: { p_club: string; p_pinned: boolean; p_post: string }
         Returns: undefined
@@ -3295,6 +3658,28 @@ export type Database = {
           p_object_type: string
         }
         Returns: string
+      }
+      support_create: {
+        Args: {
+          p_app_version?: string
+          p_body: string
+          p_category: string
+          p_context?: Json
+          p_device?: string
+          p_platform?: string
+          p_subject: string
+        }
+        Returns: string
+      }
+      support_inbox: { Args: Record<PropertyKey, never>; Returns: Json }
+      support_reply: {
+        Args: { p_body: string; p_ticket: string }
+        Returns: undefined
+      }
+      support_thread: { Args: { p_ticket: string }; Returns: Json }
+      support_unread_count: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       territory_cell_detail: {
         Args: { p_cell: string; p_competition: string; p_season: string }
