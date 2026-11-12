@@ -10,6 +10,8 @@ Working file kept current so work survives context limits. Newest first.
 * Communities: "Avatar" instead of "Cartoon avatar"; each create button starts only its own kind; owners and admins pick the colour (five) and a cover design (Plain or an artwork); the logo keeps its ring in Manage. Migration `20261112000100`.
 * Health: a form per metric instead of one template with a list of every day; weeks beyond 31 days; numbers on request; explained empty periods.
 * Refactors that came with it: the recorder's panels (`features/run/RecorderParts.tsx`), the Look editor (`features/clubs/BrandingEditor.tsx`) and the metric screen (`features/health/MetricView.tsx`) moved out of route files.
+* Verified: `npm run verify` passed (pgTAP 339, jest 119); web screenshots of every changed screen; the share card's projection checked against real Mapbox static images (within one image pixel).
+* Deployed from `c51eb4a`: backend through the Deploy backend workflow (run 43153297077, migration `20261112000100`, hosted grants checked); pilot update `7d064538…` (runtime `219bb6f…`, the pilot APK's, so the installed APK takes it), web deployment `m4ssqmtzeb` and Expo Go preview `56b77eed…`. No new APK needed.
 
 ## 11 Nov 2026 (evening): enhancement release
 
