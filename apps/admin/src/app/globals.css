@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+/*
+ * Loopfield design tokens, mirrored 1:1 from apps/mobile/src/theme/tokens.ts:
+ * deep forest base, bright "trail" green for land, amber for speed titles. WCAG AA text contrast
+ * in both schemes. Change colours in both places together.
+ */
+:root {
+  --lf-bg: #f5f7f4;
+  --lf-surface: #ffffff;
+  --lf-surface-alt: #e9eee9;
+  --lf-text: #0e1a14;
+  --lf-text-muted: #40524a;
+  --lf-border: #c5d1c9;
+  --lf-primary: #1f6f4a;
+  --lf-primary-text: #ffffff;
+  --lf-accent: #b5770c;
+  --lf-danger: #b3261e;
+  --lf-warning: #8a5a00;
+  --lf-success: #1f6f4a;
+  --lf-info: #1d5c8c;
+  --lf-land: #2e8b57;
+  --lf-land-mine: #155e3b;
+  --lf-title: #b5770c;
+  --lf-unavailable: #6b6b6b;
+  --lf-overlay: rgba(14, 26, 20, 0.55);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lf-bg: #0e1a14;
+    --lf-surface: #16261e;
+    --lf-surface-alt: #1e3228;
+    --lf-text: #f2f7f3;
+    --lf-text-muted: #b4c6bc;
+    --lf-border: #33493e;
+    --lf-primary: #7ce0a0;
+    --lf-primary-text: #0e1a14;
+    --lf-accent: #f4c448;
+    --lf-danger: #ff8a80;
+    --lf-warning: #f4c448;
+    --lf-success: #7ce0a0;
+    --lf-info: #8ec5f0;
+    --lf-land: #5cc98a;
+    --lf-land-mine: #a8f0c4;
+    --lf-title: #f4c448;
+    --lf-unavailable: #9a9a9a;
+    --lf-overlay: rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --lf-bg: #0e1a14;
+  --lf-surface: #16261e;
+  --lf-surface-alt: #1e3228;
+  --lf-text: #f2f7f3;
+  --lf-text-muted: #b4c6bc;
+  --lf-border: #33493e;
+  --lf-primary: #7ce0a0;
+  --lf-primary-text: #0e1a14;
+  --lf-accent: #f4c448;
+  --lf-danger: #ff8a80;
+  --lf-warning: #f4c448;
+  --lf-success: #7ce0a0;
+  --lf-info: #8ec5f0;
+  --lf-land: #5cc98a;
+  --lf-land-mine: #a8f0c4;
+  --lf-title: #f4c448;
+  --lf-unavailable: #9a9a9a;
+  --lf-overlay: rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--lf-bg);
+  --color-surface: var(--lf-surface);
+  --color-surface-alt: var(--lf-surface-alt);
+  --color-ink: var(--lf-text);
+  --color-muted: var(--lf-text-muted);
+  --color-line: var(--lf-border);
+  --color-primary: var(--lf-primary);
+  --color-on-primary: var(--lf-primary-text);
+  --color-accent: var(--lf-accent);
+  --color-danger: var(--lf-danger);
+  --color-warning: var(--lf-warning);
+  --color-success: var(--lf-success);
+  --color-info: var(--lf-info);
+  --color-land: var(--lf-land);
+  --color-land-mine: var(--lf-land-mine);
+  --color-title: var(--lf-title);
+  --color-unavailable: var(--lf-unavailable);
+  --color-overlay: var(--lf-overlay);
+
+  /* radius.sm / md / lg from the app */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* The app uses the platform system font. */
+  --font-sans: system-ui, -apple-system, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* type scale from the app (size / line height / weight) */
+@utility type-display { font-size: 34px; line-height: 40px; font-weight: 800; }
+@utility type-title { font-size: 24px; line-height: 30px; font-weight: 700; }
+@utility type-heading { font-size: 18px; line-height: 24px; font-weight: 700; }
+@utility type-body { font-size: 16px; line-height: 22px; font-weight: 400; }
+@utility type-label { font-size: 14px; line-height: 18px; font-weight: 600; }
+@utility type-caption { font-size: 13px; line-height: 18px; font-weight: 400; }
+@utility type-metric { font-size: 44px; line-height: 50px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+@layer base {
+  html { background: var(--lf-bg); }
+  body {
+    background: var(--lf-bg);
+    color: var(--lf-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible { outline: 2px solid var(--lf-primary); outline-offset: 2px; }
+  ::selection { background: color-mix(in srgb, var(--lf-primary) 30%, transparent); }
+  dialog::backdrop { background: var(--lf-overlay); }
+  input, textarea, select, button { font: inherit; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+/* Mapbox controls follow the theme */
+.mapboxgl-ctrl-group { background: var(--lf-surface) !important; border: 1px solid var(--lf-border); }
