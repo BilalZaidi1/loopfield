@@ -30,11 +30,11 @@ function CodeForm({ factorId, next, cta }: { factorId: string; next: string | nu
           autoFocus
           value={code}
           onChange={(e) => setCode(e.target.value)}
-          className="border-[1.5px] border-line rounded-md px-3 min-h-12 bg-surface text-ink text-center tabular tracking-[0.4em] text-[22px] font-bold"
+          className="border border-line-strong focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary rounded-md px-3 min-h-12 bg-surface text-ink text-center tabular tracking-[0.4em] text-[22px] font-bold"
         />
       </div>
       {error ? <Banner tone="danger" text={error} /> : null}
-      <Button type="submit" disabled={pending || code.replace(/\s/g, '').length !== 6}>{pending ? 'Checking…' : cta}</Button>
+      <Button type="submit" arrow disabled={pending || code.replace(/\s/g, '').length !== 6}>{pending ? 'Checking…' : cta}</Button>
     </form>
   );
 }
@@ -50,7 +50,7 @@ export function MfaEnroll({ next }: { next: string | null }) {
     return (
       <div className="flex flex-col gap-3">
         {enrollment && !enrollment.ok ? <Banner tone="danger" text={enrollment.error} /> : null}
-        <Button disabled={pending} onClick={() => start(async () => setEnrollment(await startEnrollment()))}>
+        <Button arrow disabled={pending} onClick={() => start(async () => setEnrollment(await startEnrollment()))}>
           {pending ? 'Preparing…' : 'Set up authenticator app'}
         </Button>
       </div>
@@ -62,7 +62,7 @@ export function MfaEnroll({ next }: { next: string | null }) {
         <li>Scan this code with your authenticator app.</li>
         <li>Enter the 6-digit code it shows.</li>
       </ol>
-      <div className="self-center rounded-md bg-white p-3 border border-line">
+      <div className="self-center rounded-md bg-white p-3">
         {/* The QR code is an inline SVG data URI from Supabase Auth. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={enrollment.qr} alt="QR code for your authenticator app" width={176} height={176} />

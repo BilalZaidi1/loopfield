@@ -1,6 +1,12 @@
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
+// Figtree, the app's typeface: only the weights the type scale uses (as in apps/mobile/src/theme/fonts.ts).
+import '@fontsource/figtree/500.css';
+import '@fontsource/figtree/600.css';
+import '@fontsource/figtree/700.css';
+import '@fontsource/figtree/800.css';
+import '@fontsource/figtree/900-italic.css';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -11,8 +17,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#F5F7F4' },
-    { media: '(prefers-color-scheme: dark)', color: '#0E1A14' }
+    { media: '(prefers-color-scheme: light)', color: '#EEF0F5' },
+    { media: '(prefers-color-scheme: dark)', color: '#101114' }
   ]
 };
 

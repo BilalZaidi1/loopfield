@@ -54,29 +54,29 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
     <div className="min-h-dvh flex">
       <Sidebar groups={groups} />
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-bg/95 backdrop-blur px-4 md:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 bg-bg/90 backdrop-blur px-5 md:px-7">
           <MobileNav groups={groups} />
-          {env.appEnv !== 'production' ? <Badge label={`${ENV_LABEL[env.appEnv]} data`} tone="warning" /> : null}
-          {ctx.requireMfa ? null : (
-            <span className="hidden lg:inline-flex"><Badge label="MFA not enforced in the database yet" tone="muted" icon="lock" /></span>
-          )}
+          <div className="hidden sm:flex items-center gap-2">
+            {env.appEnv !== 'production' ? <Badge label={`${ENV_LABEL[env.appEnv]} data`} tone="warning" /> : null}
+            {ctx.requireMfa ? null : <span className="hidden xl:inline-flex"><Badge label="MFA not enforced in the database yet" tone="muted" icon="lock" /></span>}
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggle initial={theme === 'light' || theme === 'dark' ? theme : 'system'} />
-            <div className="hidden sm:flex items-center gap-2 pl-2">
-              <Avatar name={ctx.displayName} />
+            <div className="hidden sm:flex items-center gap-2.5 rounded-full bg-surface py-1 pl-1 pr-4">
+              <Avatar name={ctx.displayName} size={34} />
               <div className="leading-tight">
                 <div className="type-label">@{ctx.handle}</div>
-                <div className="type-caption text-muted">{roleText}</div>
+                <div className="type-micro text-muted">{roleText}</div>
               </div>
             </div>
             <form action={signOut}>
-              <button type="submit" aria-label="Sign out" title="Sign out" className="inline-flex h-11 w-11 items-center justify-center rounded-md text-muted hover:text-ink hover:bg-surface-alt">
+              <button type="submit" aria-label="Sign out" title="Sign out" className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted hover:text-ink hover:bg-surface">
                 <Icon name="logout" />
               </button>
             </form>
           </div>
         </header>
-        <main className="flex-1 w-full max-w-[1200px] mx-auto p-4 md:p-6 flex flex-col gap-6">{children}</main>
+        <main className="flex-1 w-full max-w-[1100px] mx-auto px-5 md:px-7 pt-2 pb-10 flex flex-col gap-6">{children}</main>
       </div>
       <Toaster />
       <TimeZoneSync current={tz} />

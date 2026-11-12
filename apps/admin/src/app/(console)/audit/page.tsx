@@ -36,7 +36,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const last = rows.at(-1);
   const keep = new URLSearchParams(Object.entries({ action: filters.action, object_type: filters.object_type, object_id: filters.object_id, actor: filters.actor })
     .filter(([, v]) => v) as [string, string][]);
-  const field = 'border-[1.5px] border-line rounded-md px-3 min-h-11 type-body bg-surface text-ink';
+  const field = 'border border-line-strong focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary rounded-md px-4 min-h-12 type-body bg-surface text-ink';
 
   return (
     <>

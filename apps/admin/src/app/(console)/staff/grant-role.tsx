@@ -12,7 +12,7 @@ export function GrantRole({ userId, handle, existing }: { userId: string; handle
   return (
     <div className="flex items-center gap-2">
       <select aria-label={`Role for @${handle}`} value={role} onChange={(e) => setRole(e.target.value as Role)}
-        className="border-[1.5px] border-line rounded-md px-2 min-h-9 type-label bg-surface text-ink">
+        className="border border-line-strong focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary rounded-md px-2 min-h-9 type-label bg-surface text-ink">
         {options.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
       </select>
       <ActionButton

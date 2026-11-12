@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState, useTransition, type ReactNode } fro
 import { useRouter } from 'next/navigation';
 import type { ActionResult } from '@/lib/errors';
 import { Icon } from './icons';
-import { Banner, Button, cx, type ButtonVariant } from './ui';
+import { Banner, Button, cx, inputClass, type ButtonVariant } from './ui';
 
 /* ------------------------------------------------------------------------------------------------
  * Toasts: a tiny event bus so any action can confirm what happened.
@@ -31,8 +31,10 @@ export function Toaster() {
   return (
     <div aria-live="polite" className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 w-[min(420px,calc(100vw-32px))]">
       {items.map((t) => (
-        <div key={t.id} className={cx('flex items-center gap-2 rounded-md border-[1.5px] bg-surface p-3 shadow-lg type-label', t.tone === 'success' ? 'border-success text-success' : 'border-danger text-danger')}>
-          <Icon name={t.tone === 'success' ? 'check' : 'alert'} size={18} />
+        <div key={t.id} className="flex items-center gap-3 rounded-md bg-surface px-4 py-3 shadow-floating type-label text-ink">
+          <span className={cx('inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full', t.tone === 'success' ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger')}>
+            <Icon name={t.tone === 'success' ? 'check' : 'alert'} size={16} strokeWidth={2.4} />
+          </span>
           <span className="flex-1">{t.text}</span>
         </div>
       ))}
@@ -58,8 +60,8 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
       aria-labelledby={titleId}
       onClose={onClose}
       onCancel={(e) => { e.preventDefault(); onClose(); }}
-      className="m-auto rounded-lg border border-line bg-surface text-ink p-0 w-[min(520px,calc(100vw-32px))] shadow-xl">
-      <div className="p-4 flex flex-col gap-3">
+      className="m-auto rounded-xl bg-surface text-ink p-0 w-[min(520px,calc(100vw-32px))] shadow-floating">
+      <div className="p-6 flex flex-col gap-4">
         <h2 id={titleId} className="type-heading">{title}</h2>
         {children}
       </div>
@@ -140,7 +142,7 @@ export function ActionButton({
               maxLength={500}
               rows={3}
               autoFocus
-              className="border-[1.5px] border-line rounded-md px-3 py-2 type-body bg-surface text-ink min-h-24 resize-y"
+              className={cx(inputClass, "py-3 min-h-24 resize-y")}
             />
             <span className="type-caption text-muted">{reason.length}/500 · at least 5 characters</span>
           </div>
@@ -155,13 +157,13 @@ export function ActionButton({
               value={phrase}
               onChange={(e) => setPhrase(e.target.value)}
               autoComplete="off"
-              className="border-[1.5px] border-line rounded-md px-3 min-h-11 type-body bg-surface text-ink"
+              className={inputClass}
             />
           </div>
         ) : null}
         {error ? <Banner tone="danger" text={error} /> : null}
         <div className="flex flex-col gap-2 sm:flex-row-reverse">
-          <Button variant={variant === 'danger' ? 'danger' : 'primary'} disabled={!reasonOk || !phraseOk || pending} onClick={submit}>
+          <Button variant={variant === 'danger' ? 'danger' : 'primary'} arrow={variant !== 'danger'} disabled={!reasonOk || !phraseOk || pending} onClick={submit}>
             {pending ? 'Working…' : confirmLabel}
           </Button>
           <Button variant="ghost" disabled={pending} onClick={() => setOpen(false)}>Cancel</Button>
@@ -184,10 +186,10 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cx(
-        'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-50',
-        checked ? 'bg-primary' : 'bg-line'
+        'relative inline-flex h-[31px] w-[51px] shrink-0 items-center rounded-full transition-colors disabled:opacity-55',
+        checked ? 'bg-primary-fill' : 'bg-line-strong'
       )}>
-      <span className={cx('inline-block h-5 w-5 rounded-full bg-white shadow transition-transform', checked ? 'translate-x-6' : 'translate-x-1')} />
+      <span className={cx('inline-block h-[27px] w-[27px] rounded-full bg-white shadow-raised transition-transform', checked ? 'translate-x-[22px]' : 'translate-x-[2px]')} />
     </button>
   );
 }
@@ -221,7 +223,7 @@ export function ReasonSwitch({ checked, label, action, disabled, onLabel = 'On',
   return (
     <>
       <div className="flex items-center gap-2">
-        <span className={cx('type-label', checked ? 'text-success' : 'text-muted')}>{checked ? onLabel : offLabel}</span>
+        <span className={cx('type-label', checked ? 'text-primary' : 'text-muted')}>{checked ? onLabel : offLabel}</span>
         <Switch checked={checked} label={label} disabled={disabled || pending} onChange={(v) => { setError(null); setNext(v); }} />
       </div>
       <Modal open={next !== null} onClose={() => !pending && setNext(null)} title={`${label}: turn ${next ? onLabel.toLowerCase() : offLabel.toLowerCase()}?`}>
@@ -229,12 +231,12 @@ export function ReasonSwitch({ checked, label, action, disabled, onLabel = 'On',
         <div className="flex flex-col gap-1">
           <label htmlFor={`${id}-reason`} className="type-label">Reason (recorded in the audit log)</label>
           <textarea id={`${id}-reason`} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} rows={3} autoFocus
-            className="border-[1.5px] border-line rounded-md px-3 py-2 type-body bg-surface text-ink min-h-24 resize-y" />
+            className={cx(inputClass, "py-3 min-h-24 resize-y")} />
           <span className="type-caption text-muted">{reason.length}/500 · at least 5 characters</span>
         </div>
         {error ? <Banner tone="danger" text={error} /> : null}
         <div className="flex flex-col gap-2 sm:flex-row-reverse">
-          <Button disabled={reason.trim().length < 5 || pending} onClick={submit}>{pending ? 'Applying…' : 'Apply'}</Button>
+          <Button arrow disabled={reason.trim().length < 5 || pending} onClick={submit}>{pending ? 'Applying…' : 'Apply'}</Button>
           <Button variant="ghost" disabled={pending} onClick={() => setNext(null)}>Cancel</Button>
         </div>
       </Modal>
@@ -279,7 +281,7 @@ export function ThemeToggle({ initial }: { initial: 'light' | 'dark' | 'system' 
   const nextMode = mode === 'system' ? 'dark' : mode === 'dark' ? 'light' : 'system';
   return (
     <Button variant="ghost" size="sm" onClick={() => apply(nextMode)} aria-label={`Theme: ${mode}. Switch to ${nextMode}.`} title={`Theme: ${mode}`}>
-      <Icon name={mode === 'dark' ? 'moon' : mode === 'light' ? 'sun' : 'pulse'} size={16} />
+      <Icon name={mode === 'dark' ? 'moon' : mode === 'light' ? 'sun' : 'monitor'} size={16} />
       <span className="capitalize">{mode}</span>
     </Button>
   );

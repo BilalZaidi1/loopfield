@@ -4,7 +4,7 @@ import { useActionState } from 'react';
 import { Banner, Button } from '@/components/ui';
 import { signIn, type FormState } from '../actions';
 
-const field = 'border-[1.5px] border-line rounded-md px-3 min-h-11 type-body bg-surface text-ink';
+const field = 'border border-line-strong focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary rounded-md px-4 min-h-12 type-body bg-surface text-ink';
 
 export function SignInForm({ next }: { next: string | null }) {
   const [state, action, pending] = useActionState<FormState, FormData>(signIn, { error: null });
@@ -20,7 +20,7 @@ export function SignInForm({ next }: { next: string | null }) {
         <input id="password" name="password" type="password" autoComplete="current-password" required className={field} />
       </div>
       {state.error ? <Banner tone="danger" text={state.error} /> : null}
-      <Button type="submit" disabled={pending}>{pending ? 'Signing in…' : 'Continue'}</Button>
+      <Button type="submit" arrow disabled={pending}>{pending ? 'Signing in…' : 'Continue'}</Button>
     </form>
   );
 }

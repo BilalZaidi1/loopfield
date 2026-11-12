@@ -65,7 +65,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
           <label className="flex flex-col gap-1 flex-1 min-w-[240px]">
             <span className="type-label">Find a runner</span>
             <input name="q" defaultValue={query} placeholder="Handle, name, user ID or exact email"
-              className="border-[1.5px] border-line rounded-md px-3 min-h-11 type-body bg-surface text-ink" />
+              className="border border-line-strong focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary rounded-md px-4 min-h-12 type-body bg-surface text-ink" />
           </label>
           <button type="submit" className={buttonClass('secondary')}>Search</button>
         </form>

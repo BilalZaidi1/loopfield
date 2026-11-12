@@ -52,10 +52,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
 function SettingRow({ row, tz }: { row: ConfigRow; tz: string }) {
   return (
-    <li className="p-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <li className="px-5 py-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div className="flex flex-col gap-1 min-w-0 lg:max-w-[52%]">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="type-body font-semibold">{row.label}</h3>
+          <h3 className="type-body-strong">{row.label}</h3>
           {!row.is_public ? <Badge label="Server only" tone="muted" /> : null}
         </div>
         {row.help || row.description ? <p className="type-caption text-muted">{row.help ?? row.description}</p> : null}

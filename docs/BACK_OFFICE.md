@@ -1,6 +1,6 @@
 # Back office (apps/admin)
 
-Web console for running Loopfield: settings and kill switches, trust and safety queues, staff, jobs and the audit log. Next.js 16 on Vercel, styled with the app's own design tokens (`apps/mobile/src/theme/tokens.ts`, mirrored in `apps/admin/src/app/globals.css`).
+Web console for running Loopfield: settings and kill switches, trust and safety queues, staff, jobs and the audit log. Next.js 16 on Vercel, in the app's November redesign (`docs/DESIGN.md`): the same tokens (`apps/mobile/src/theme/tokens.ts`, mirrored in `apps/admin/src/app/globals.css`), Figtree, the loop mark, pill buttons, flat cards and block colours, in light and dark.
 
 ## How it works
 
@@ -38,7 +38,7 @@ npm install
 npm run dev -w @loopfield/admin                    # http://localhost:3100
 npm run dev:fixtures -w @loopfield/admin           # sample data, no database or sign-in (dev only)
 npm run typecheck -w @loopfield/admin && npm run lint -w @loopfield/admin && npm run test -w @loopfield/admin
-npm run test:db                                    # includes supabase/tests/sql/06_backoffice.sql
+npm run test:db                                    # includes supabase/tests/sql/12_backoffice.sql
 ```
 
 ## Deploy (Vercel)

@@ -9,7 +9,7 @@ import { Icon } from '@/components/icons';
 import { cx } from '@/components/ui';
 import { setConfig } from './actions';
 
-const input = 'border-[1.5px] border-line rounded-md px-3 min-h-11 type-body bg-surface text-ink w-full';
+const input = 'border border-line-strong focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary rounded-md px-4 min-h-12 type-body bg-surface text-ink w-full';
 
 /** Picks the right control for a setting's type; every save asks for a reason. */
 export function SettingEditor({ row }: { row: ConfigRow }) {
@@ -142,7 +142,7 @@ function ListEditor({ row }: { row: ConfigRow }) {
     <div className="flex flex-col gap-2 w-full sm:max-w-md">
       <div className="flex flex-wrap gap-1.5">
         {items.length ? items.map((it) => (
-          <span key={it} className="inline-flex items-center gap-1 rounded-full border-[1.5px] border-line px-2 py-0.5 type-caption font-semibold">
+          <span key={it} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line bg-surface px-3 type-label">
             {it}
             <button type="button" aria-label={`Remove ${it}`} onClick={() => setItems(items.filter((x) => x !== it))} className="text-muted hover:text-danger">
               <Icon name="x" size={12} />
@@ -153,7 +153,7 @@ function ListEditor({ row }: { row: ConfigRow }) {
       <div className="flex items-center gap-2">
         <input aria-label={`Add to ${row.label}`} placeholder={row.key === 'premium_features' ? 'feature_key' : 'card_key'} className={cx(input, 'font-mono text-[14px]')} value={draft}
           onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} />
-        <button type="button" onClick={add} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border-[1.5px] border-line text-primary" aria-label="Add">
+        <button type="button" onClick={add} className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-soft text-on-primary-soft" aria-label="Add">
           <Icon name="plus" size={18} />
         </button>
         <SaveButton row={row} value={items} error={error} changed={changed} />
@@ -199,7 +199,7 @@ function MaintenanceEditor({ row }: { row: ConfigRow }) {
   return (
     <div className="flex flex-col gap-3 w-full sm:max-w-md">
       <label className="flex items-center gap-2 type-label">
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="h-5 w-5 accent-[var(--lf-primary)]" />
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} className="h-5 w-5 accent-[var(--lf-primary-fill)]" />
         Show the maintenance screen
       </label>
       <label className="flex flex-col gap-1">

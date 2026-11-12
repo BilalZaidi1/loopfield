@@ -41,10 +41,10 @@ export function RouteMap({ path, startGate, finishGate, token, height = 260 }: {
         map.on('load', () => {
           if (!map) return;
           map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: path, properties: {} } });
-          map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': color('--lf-land'), 'line-width': 4 } });
+          map.addLayer({ id: 'route', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': color('--lf-route'), 'line-width': 5 } });
           const gates = [
-            { id: 'start', g: startGate, c: color('--lf-primary') },
-            { id: 'finish', g: finishGate, c: color('--lf-title') }
+            { id: 'start', g: startGate, c: color('--lf-start') },
+            { id: 'finish', g: finishGate, c: color('--lf-finish') }
           ];
           for (const { id, g, c } of gates) {
             if (!g?.coordinates?.length) continue;
@@ -63,7 +63,7 @@ export function RouteMap({ path, startGate, finishGate, token, height = 260 }: {
   }, [token, path, startGate, finishGate]);
 
   if (failed || path.coordinates.length < 2) return <RouteSvg path={path} height={height} />;
-  return <div ref={ref} style={{ height }} className="w-full overflow-hidden rounded-md border border-line" role="img" aria-label="Map of the proposed route" />;
+  return <div ref={ref} style={{ height }} className="w-full overflow-hidden rounded-md" role="img" aria-label="Map of the proposed route" />;
 }
 
 function RouteSvg({ path, height }: { path: LineString; height: number }) {
@@ -84,10 +84,11 @@ function RouteSvg({ path, height }: { path: LineString; height: number }) {
   const [sx, sy] = d.split(' ')[0]!.slice(1).split(',').map(Number);
   const last = d.split(' ').at(-1)!.slice(1).split(',').map(Number);
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ height }} className="w-full rounded-md border border-line bg-surface-alt" role="img" aria-label="Shape of the proposed route">
-      <path d={d} fill="none" stroke="var(--lf-land)" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={sx} cy={sy} r={7} fill="var(--lf-primary)" />
-      <circle cx={last[0]} cy={last[1]} r={7} fill="var(--lf-title)" />
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ height }} className="w-full rounded-md bg-sunken" role="img" aria-label="Shape of the proposed route">
+      <path d={d} fill="none" stroke="var(--lf-route-casing)" strokeWidth={8} strokeLinecap="round" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke="var(--lf-route)" strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={sx} cy={sy} r={7} fill="var(--lf-start)" stroke="var(--lf-route-casing)" strokeWidth={2} />
+      <circle cx={last[0]} cy={last[1]} r={6} fill="var(--lf-finish)" stroke="var(--lf-route-casing)" strokeWidth={2} />
     </svg>
   );
 }

@@ -11,7 +11,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           <Brand />
           {env.appEnv !== 'production' ? <Badge label={ENV_LABEL[env.appEnv]} tone="warning" /> : null}
         </div>
-        <div className="rounded-lg border border-line bg-surface p-6 flex flex-col gap-4">{children}</div>
+        <div className="rounded-lg bg-surface p-7 flex flex-col gap-5">{children}</div>
         <p className="type-caption text-muted text-center">Staff only. Every action is recorded with your name and reason.</p>
       </div>
     </main>
