@@ -2,6 +2,14 @@
 
 Working file kept current so work survives context limits. Newest first.
 
+## 18 Nov 2026 (later): location for a global app, and the three server gaps fixed
+
+* Owner's decisions (traced as BS13–BS16; reasons in `DECISIONS.md`, "Location and review fixes"): Loopfield is global, so a runner's place is a city and a country found by the phone's own geocoder (not Mapbox, whose stored results need paid permanent geocoding), with the neighbourhood private unless shown; and fix drawn avatars, suspension reviews and the paused-reclaim reason. These change the server, with the owner's approval.
+* Database: migration `20261118120000_location_and_review_fixes` (country and status date on profiles, area in the runner's own settings, community country, place-based Discover and rankings with the district parameters kept for older app versions, the drawn-avatar storage exception, `submit_appeal` for suspended accounts, `reclaim_paused`). pgTAP: new suite `15_location_and_reviews` (48) and a paused-reclaim case; 497 assertions in 15 suites. The test runner now also fails a wrong plan count.
+* App: *Where you run* in the profile editor (one tap fills city, country and area; everything editable; country search; *Show my area on my profile*), with Dev North/Dev South gone from it; place text on profiles; Discover, the Home feed and the Clubs tab by city, country or everywhere; the City ranking; *Avatar* while photos are paused; *Ask for a review* on the suspended state; paused-reclaim texts. jest 161 in 21 suites.
+* Merged the back office's safeupdate fix (`e3d54e6`) into the branch first; its migration was already on loopfield-dev, so this one is dated after it.
+* Deployed: backend through the Deploy backend workflow on the branch (run 44281010842, migrations only), checked on the hosted database (and read-only calls as the project's one account); then pilot update `b5f482bf…` from `2ee821c`, runtime `219bb6f…`, the installed APK's, so it arrives on the next two launches. Not yet tried on a phone.
+
 ## 18 Nov 2026: the app follows the back office
 
 * Requested 18 Nov (traced as BS1–BS12 in `TRACEABILITY.md`; decisions in `DECISIONS.md`, "Back-office sync"). Branch `app/backoffice-sync` from `feat/back-office`, PR into `feat/back-office`. JavaScript only: no database object or edge function changed.
