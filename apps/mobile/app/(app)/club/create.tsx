@@ -3,6 +3,8 @@ import { View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { friendlyError, rpc } from '@/lib/api';
+import { useFeature } from '@/lib/appConfig';
+import { PausedNote, SuspendedNotice, useSuspended } from '@/components/Notices';
 import { track } from '@/lib/analytics';
 import { Badge, Banner, Button, Screen, Segmented, TextField, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
@@ -33,6 +35,8 @@ export default function CreateClub() {
   const [error, setError] = useState<string | null>(null);
   const district = districts.data?.find((d) => d.id === profile?.district_id) ?? null;
   const group = kind === 'group';
+  const creationOn = useFeature('club_creation_enabled');
+  const suspended = useSuspended();
 
   const create = async () => {
     setBusy(true);
@@ -60,8 +64,9 @@ export default function CreateClub() {
   };
 
   return (
-    <Screen footer={<Button label={group ? 'Start the group' : 'Start the community'} size="lg" arrow onPress={create} loading={busy} disabled={name.trim().length < 3 || busy} />}>
+    <Screen footer={<Button label={group ? 'Start the group' : 'Start the community'} size="lg" arrow onPress={create} loading={busy} disabled={name.trim().length < 3 || busy || !creationOn || suspended} />}>
       <Stack.Screen options={{ title: group ? 'New group' : 'New community' }} />
+      {!creationOn ? <PausedNote feature="club_creation_enabled" text={`Creating ${group ? 'groups' : 'communities'} is paused for now. Please try again later.`} /> : suspended ? <SuspendedNotice what="club" /> : null}
       {/* Each entry point starts one kind: "New community" never offers a group, and the other way round. */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
         <View style={{ width: 44, height: 44, borderRadius: radius.md, backgroundColor: p.primarySoft, alignItems: 'center', justifyContent: 'center' }}>

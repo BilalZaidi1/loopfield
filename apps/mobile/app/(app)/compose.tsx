@@ -4,8 +4,9 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { SOCIAL_RULES } from '@loopfield/core';
 import { friendlyError, rpc } from '@/lib/api';
+import { useAppConfig } from '@/lib/appConfig';
+import { PausedNote, SuspendedNotice, useSuspended } from '@/components/Notices';
 import { Banner, Button, Chip, EmptyState, IconButton, ListGroup, LoadingState, Screen, TextField, Toggle, Txt } from '@/components/ui';
 import { Icon, type IconName } from '@/components/icons';
 import { useMyClubs } from '@/features/clubs/api';
@@ -46,6 +47,11 @@ function ComposeForm({ params, editing }: { params: { edit?: string; club?: stri
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Limits and switches from App control; the server checks them again on publish.
+  const { settings: cfg } = useAppConfig();
+  const maxPhotos = cfg.postMaxPhotos;
+  const photosOn = cfg.enabled.photo_uploads_enabled;
+  const suspended = useSuspended();
   const route = useQuery({ queryKey: ['route-name', params.route], enabled: Boolean(params.route), queryFn: async () => (await rpc<{ name: string } | null>('resolve_content_link', { p_kind: 'route', p_id: params.route })) });
 
   const activeClubs = (clubs.data ?? []).filter((c) => c.state === 'active');
@@ -53,9 +59,9 @@ function ComposeForm({ params, editing }: { params: { edit?: string; club?: stri
   const organizer = selectedClub && selectedClub.role !== 'member';
 
   const addPhotos = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: SOCIAL_RULES.maxPhotosPerPost.value - photos.length, quality: 0.9, exif: false });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: Math.max(1, maxPhotos - photos.length), quality: 0.9, exif: false });
     if (res.canceled) return;
-    setPhotos((cur) => [...cur, ...res.assets.map((a) => ({ uri: a.uri, alt: '' }))].slice(0, SOCIAL_RULES.maxPhotosPerPost.value));
+    setPhotos((cur) => [...cur, ...res.assets.map((a) => ({ uri: a.uri, alt: '' }))].slice(0, maxPhotos));
   };
 
   const submit = async () => {
@@ -89,10 +95,11 @@ function ComposeForm({ params, editing }: { params: { edit?: string; club?: stri
       footer={
         <View style={{ flexDirection: 'row', gap: spacing.sm }}>
           <Button variant="ghost" label="Cancel" onPress={() => (body || photos.length ? Alert.alert('Discard this post?', undefined, [{ text: 'Keep editing', style: 'cancel' }, { text: 'Discard', style: 'destructive', onPress: () => router.back() }]) : router.back())} />
-          <Button label={params.edit ? 'Save changes' : 'Publish'} icon="send" arrow onPress={() => void submit()} loading={busy} disabled={busy || empty || (audience === 'club' && !clubId)} style={{ flex: 1 }} />
+          <Button label={params.edit ? 'Save changes' : 'Publish'} icon="send" arrow onPress={() => void submit()} loading={busy} disabled={busy || empty || suspended || (audience === 'club' && !clubId) || (!photosOn && photos.length > 0)} style={{ flex: 1 }} />
         </View>
       }>
-      <TextField label="Post" value={body} onChangeText={setBody} multiline maxLength={SOCIAL_RULES.maxPostBodyChars.value} placeholder="Share a run, a route or an update. Use @handle to mention someone." />
+      {suspended ? <SuspendedNotice what="post" /> : null}
+      <TextField label="Post" value={body} onChangeText={setBody} multiline maxLength={cfg.postMaxChars} placeholder="Share a run, a route or an update. Use @handle to mention someone." />
       {route.data ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: p.orangeSoft }}>
           <Icon name="route" color={p.orangeText} size={20} />
@@ -116,7 +123,11 @@ function ComposeForm({ params, editing }: { params: { edit?: string; club?: stri
               ))}
             </View>
           ) : null}
-          {photos.length < SOCIAL_RULES.maxPhotosPerPost.value ? <Button variant="secondary" icon="image" label={`Add photos (${photos.length}/${SOCIAL_RULES.maxPhotosPerPost.value})`} onPress={() => void addPhotos()} /> : null}
+          {!photosOn ? (
+            <PausedNote feature="photo_uploads_enabled" text={photos.length ? 'Adding photos is paused for now. Remove the photos to publish this post.' : undefined} />
+          ) : photos.length < maxPhotos ? (
+            <Button variant="secondary" icon="image" label={`Add photos (${photos.length}/${maxPhotos})`} onPress={() => void addPhotos()} />
+          ) : null}
           <Txt variant="caption">Location and other metadata are removed from photos before anyone sees them. To share a run, open it from Activity history and choose Share.</Txt>
         </>
       ) : null}
@@ -141,7 +152,7 @@ function ComposeForm({ params, editing }: { params: { edit?: string; club?: stri
         </View>
       </View>
       <ListGroup>
-        <Toggle label="Allow comments" value={comments} onChange={setComments} />
+        <Toggle label="Allow comments" description={cfg.enabled.comments_enabled ? undefined : 'Comments are paused for now everywhere; this applies once they are back.'} value={comments} onChange={setComments} />
         {audience === 'club' && organizer && !params.edit ? <Toggle label="Post as an announcement" value={announce} onChange={setAnnounce} /> : null}
       </ListGroup>
       {progress ? <Banner text={progress} /> : null}

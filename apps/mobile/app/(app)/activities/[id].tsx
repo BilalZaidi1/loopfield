@@ -17,6 +17,8 @@ import { canExportRuns, exportRun } from '@/health/export';
 import { PLATFORM_LABEL } from '@/health/sync';
 import { quantities, useHealthStore } from '@/health/useHealth';
 import { useUnits } from '@/state/session';
+import { useFeature } from '@/lib/appConfig';
+import { PausedNote, SuspendedNotice, useSuspended } from '@/components/Notices';
 import { spacing, usePalette } from '@/theme/tokens';
 
 /** S24 Activity detail — private map, splits, charts, sources, contest explanation, export and delete. */
@@ -24,6 +26,8 @@ export default function ActivityDetailScreen() {
   const p = usePalette();
   const units = useUnits();
   const qc = useQueryClient();
+  const proposalsOn = useFeature('route_proposals_enabled');
+  const suspended = useSuspended();
   const { id } = useLocalSearchParams<{ id: string }>();
   const detail = useActivityDetail(id);
   const store = useHealthStore();
@@ -96,8 +100,8 @@ export default function ActivityDetailScreen() {
           <Txt variant="caption">From {PLATFORM_LABEL}, on this phone only. Never uploaded or shared, and never used for competition.</Txt>
         </Card>
       ) : null}
-      <LandCard claim={detail.data.claim} territoryRequested={Boolean(a.modes?.territory)} layers={detail.data.layers} />
-      <TitleCards attempts={detail.data.attempts} context={detail.data.title_context} />
+      <LandCard claim={detail.data.claim} territoryRequested={Boolean(a.modes?.territory)} layers={detail.data.layers} activityId={a.id} />
+      <TitleCards attempts={detail.data.attempts} context={detail.data.title_context} activityId={a.id} />
       {detail.data.proposals.length ? (
         <Section title="Route proposals from this run" icon="route">
           <ListGroup>
@@ -111,13 +115,14 @@ export default function ActivityDetailScreen() {
         <ActionBar
           actions={[
             { icon: 'share', label: 'Share', primary: true, accessibilityLabel: 'Share this run as an image', onPress: () => router.push({ pathname: '/share/card/[id]', params: { id: a.id } }) },
-            { icon: 'send', label: 'Post', accessibilityLabel: 'Post this run in your feed', onPress: () => router.push({ pathname: '/share/[id]', params: { id: a.id } }) },
-            { icon: 'route', label: 'Propose', accessibilityLabel: 'Propose this run as a speed route', onPress: () => router.push({ pathname: '/propose-route/[activityId]', params: { activityId: a.id } }) },
+            { icon: 'send', label: 'Post', disabled: suspended, accessibilityLabel: 'Post this run in your feed', onPress: () => router.push({ pathname: '/share/[id]', params: { id: a.id } }) },
+            { icon: 'route', label: 'Propose', disabled: !proposalsOn || suspended, accessibilityLabel: proposalsOn ? 'Propose this run as a speed route' : 'Propose this run as a speed route (paused for now)', onPress: () => router.push({ pathname: '/propose-route/[activityId]', params: { activityId: a.id } }) },
             ...(canExportRuns()
               ? [{ icon: 'pulse' as const, label: 'Save', accessibilityLabel: `Save workout to ${PLATFORM_LABEL}`, onPress: () => void exportRun({ activityId: a.id, start: Date.parse(a.started_at), end: Date.parse(a.ended_at), distanceM: a.distance_m ?? 0 }).then(() => Alert.alert('Saved', `Saved to ${PLATFORM_LABEL}.`)).catch((e) => Alert.alert('Not saved', friendlyError(e))) }]
               : [])
           ]}
         />
+        {suspended ? <SuspendedNotice what="post" compact /> : proposalsOn ? null : <PausedNote feature="route_proposals_enabled" />}
       </Card>
       <Button label="Delete activity" icon="trash" variant="ghost" onPress={remove} />
       <Txt variant="caption" style={{ color: p.textMuted, marginTop: spacing.md }}>Rules: territory {detail.data.claim?.rule_version ?? '—'} · thresholds are proposed and may change after field validation.</Txt>

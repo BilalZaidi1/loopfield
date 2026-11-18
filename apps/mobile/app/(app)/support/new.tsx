@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Platform } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import { friendlyError, rpc } from '@/lib/api';
+import { installedVersion, runningUpdate } from '@/lib/version';
 import { Banner, Button, Card, ChipGroup, Screen, TextField, Txt } from '@/components/ui';
 
 type Category = 'bug' | 'feedback' | 'account' | 'competition' | 'safety' | 'billing' | 'other';
@@ -33,7 +33,7 @@ export default function NewSupportMessage() {
         p_subject: subject.trim(),
         p_body: body.trim(),
         p_context: params.context ? { from: params.context } : {},
-        p_app_version: Constants.expoConfig?.version ?? null,
+        p_app_version: `${installedVersion()}${runningUpdate() ? ` (${runningUpdate()})` : ''}`.slice(0, 40),
         p_platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'web',
         p_device: [Device.manufacturer, Device.modelName, Device.osVersion ? `OS ${Device.osVersion}` : null].filter(Boolean).join(' ') || null
       }),

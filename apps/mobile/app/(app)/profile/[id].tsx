@@ -5,6 +5,8 @@ import { friendlyError, rpc } from '@/lib/api';
 import { Avatar, Badge, Banner, Button, Card, EmptyState, ErrorState, IconButton, LoadingState, Screen, Txt } from '@/components/ui';
 import { useLayout } from '@/theme/layout';
 import { startConversation } from '@/chat/client';
+import { useFeature } from '@/lib/appConfig';
+import { PausedNote, SuspendedNotice, useSuspended } from '@/components/Notices';
 import { useSignedUrl } from '@/features/social/media';
 import { PostCard, useFeed } from '@/features/social/PostCard';
 import { BadgeStrip } from '@/features/achievements/Badges';
@@ -22,6 +24,8 @@ export default function OtherProfile() {
   const avatar = useSignedUrl('avatars', c?.avatar_path);
   const achievements = useAchievementProfile(id);
   const posts = useFeed('profile_posts', { p_profile: id }, Boolean(c?.can_view_content));
+  const messagingOn = useFeature('messaging_enabled');
+  const suspended = useSuspended();
   const eligibility = useQuery({ queryKey: ['messaging_eligibility', id], enabled: Boolean(c && !c.is_me), queryFn: () => rpc<{ allowed: boolean; reason: string }>('messaging_eligibility', { p_target: id }) });
   const actions = useRelationshipActions(id!);
 
@@ -85,10 +89,14 @@ export default function OtherProfile() {
           ) : (
             <Button variant="secondary" label={c.follow_state === 'pending' ? 'Cancel request' : 'Following'} icon={c.follow_state === 'pending' ? 'clock' : 'check'} onPress={() => actions.unfollow.mutate()} style={{ flex: 1 }} accessibilityLabel={c.follow_state === 'pending' ? 'Cancel follow request' : 'Unfollow'} />
           )}
-          {eligibility.data?.allowed ? <Button variant="secondary" icon="chat" label="Message" onPress={() => void message()} style={{ flex: 1 }} /> : null}
+          {eligibility.data?.allowed && messagingOn && !suspended ? <Button variant="secondary" icon="chat" label="Message" onPress={() => void message()} style={{ flex: 1 }} /> : null}
         </View>
       )}
-      {!eligibility.data?.allowed && eligibility.data ? <Txt variant="caption" align="center">{eligibility.data.reason === 'not_allowed' ? 'This runner accepts messages only from people they allow.' : 'Messaging is unavailable with this runner.'}</Txt> : null}
+      {!eligibility.data?.allowed && eligibility.data ? (
+        eligibility.data.reason === 'messaging_suspended' || !messagingOn ? <PausedNote feature="messaging_enabled" /> : suspended ? <SuspendedNotice what="message" compact /> : (
+          <Txt variant="caption" align="center">{eligibility.data.reason === 'not_allowed' ? 'This runner accepts messages only from people they allow.' : 'Messaging is unavailable with this runner.'}</Txt>
+        )
+      ) : null}
       {achievements.data?.visible ? (
         <Card accessibilityLabel={achievements.data.global_rank ? `Global rank ${achievements.data.global_rank}, ${achievements.data.badges} badges` : `${achievements.data.badges} badges`}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>

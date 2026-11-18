@@ -6,9 +6,18 @@ import { Button, Card, EmptyState, ErrorState, LoadingState, Screen, Section, To
 import { MapCanvas } from '@/features/map/MapCanvas';
 import { reasonText } from '@/features/results/ResultCards';
 import { useReasonPrompt } from '@/features/ops/ReasonPrompt';
+import { StaffGate } from '@/features/ops/StaffGate';
 
 /** Integrity case detail: evidence summary (no raw trace), hold, and resolution with reason. */
-export default function IntegrityCase() {
+export default function IntegrityCaseScreen() {
+  return (
+    <StaffGate need="integrity" title="Integrity case">
+      <IntegrityCase />
+    </StaffGate>
+  );
+}
+
+function IntegrityCase() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const d = useQuery({ queryKey: ['ops_integrity_detail', id], queryFn: () => rpc<Record<string, any> | null>('ops_integrity_detail', { p_case: id }) });
   const prompt = useReasonPrompt();

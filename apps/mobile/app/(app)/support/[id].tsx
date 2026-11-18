@@ -29,7 +29,9 @@ export default function SupportThread() {
     queryKey: ['support_thread', id],
     queryFn: async () => {
       const t = await rpc<Thread>('support_thread', { p_ticket: id });
+      // Opening the conversation marks its replies read: the inbox and the unread badge follow.
       void qc.invalidateQueries({ queryKey: ['support_inbox'] });
+      void qc.invalidateQueries({ queryKey: ['support_unread'] });
       return t;
     },
     refetchInterval: 20_000

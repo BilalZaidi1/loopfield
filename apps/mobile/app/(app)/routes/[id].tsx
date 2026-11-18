@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { formatDuration, SPEED_RULES } from '@loopfield/core';
+import { formatDuration } from '@loopfield/core';
+import { useSpeedRules } from '@/lib/gameRules';
 import { rpc } from '@/lib/api';
 import { fmtDistance } from '@/lib/format';
 import { View } from 'react-native';
@@ -39,6 +40,7 @@ interface RouteDetail {
 /** S17 Speed route detail — course, gates, checkpoints, record, required margin, route ranking and Attempt. */
 export default function RouteDetailScreen() {
   const units = useUnits();
+  const S = useSpeedRules();
   const { settings } = useSession();
   const { id, competition: compParam } = useLocalSearchParams<{ id: string; competition?: string }>();
   const { competition, competitions, season } = useCompetition();
@@ -96,7 +98,7 @@ export default function RouteDetailScreen() {
           <>
             <Txt variant="hero" style={{ fontSize: 60, lineHeight: 62 }}>{formatDuration(d.benchmark_ms)}</Txt>
             <Txt variant="bodyStrong">{`Held by ${d.i_am_champion ? 'you' : d.champion_name ?? 'a runner'}`}</Txt>
-            {!d.i_am_champion && d.required_ms ? <Txt color="textMuted">To take the title, finish in {formatDuration(d.required_ms)} or faster: a clear margin of {formatDuration(marginMs ?? 0)} (the larger of {SPEED_RULES.marginMinSeconds.value} s, {SPEED_RULES.marginFraction.value * 100}% of the record, or the timing uncertainty).</Txt> : null}
+            {!d.i_am_champion && d.required_ms ? <Txt color="textMuted">To take the title, finish in {formatDuration(d.required_ms)} or faster: a clear margin of {formatDuration(marginMs ?? 0)} (the larger of {S.marginMinSeconds.value} s, {+(S.marginFraction.value * 100).toFixed(2)}% of the record, or the timing uncertainty).</Txt> : null}
           </>
         ) : (
           <Txt variant="headline">No title holder yet. The first eligible attempt sets the record.</Txt>

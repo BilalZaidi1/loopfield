@@ -61,7 +61,59 @@ npm run test:db                                    # includes 12_backoffice.sql 
 
 * **Console (Vercel):** project root directory `apps/admin`, framework Next.js, Node 22.x, function region `bom1` (beside Supabase ap-south-1). Environment variables: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_MAPBOX_TOKEN`, `NEXT_PUBLIC_APP_ENV` (`preview` / `production`). Keep Deployment Protection on for production.
 * **Database and edge functions:** the *Deploy backend* workflow (`.github/workflows/deploy-staging.yml`) applies migrations and deploys every function. Game rule versions and season timings are read by the edge functions (`session-ticket`, `activity-upload`, `jobs`), so deploy them with the migrations.
-* **App:** the support screens, the street-map switch and the live loop hint that follows the season's rules ship with the next app build. The server enforces the rules either way.
+* **App:** JavaScript only, so it ships as an over-the-air update to the pilot build (`apps/mobile/.eas/workflows/publish-pilot-update.yml`); see [App](#app) for what it reads. The server enforces every rule either way.
+
+## App
+
+The mobile app follows the back office through the database, without copies of server rules. Every value below is still enforced on the server; the app uses it to show the right thing instead of letting an action fail, and falls back to its built-in defaults when it cannot read it (a missing value never switches a check off).
+
+### What it reads, and from where
+
+| What | Read from | Where the app uses it |
+|---|---|---|
+| All readable settings | One query of `public.app_config` (row-level security returns the `is_public` rows): `src/lib/appConfig.ts`. Read on launch, whenever the app returns to the foreground, and every five minutes while it is open (`useAppConfigSync`, mounted once at the root); screens share the cached copy (`useAppConfig`) | Everything in this table that says "settings" |
+| `maintenance_mode` | settings | Full-screen maintenance screen with the message and the "Back by" time (`src/features/system/SystemGate.tsx`). It waits while a run is recording or paused, then shows; the finished run stays queued and uploads as soon as maintenance ends (`src/state/services.ts`). Staff with any permission can tap *Continue as staff* for that maintenance window |
+| `min_supported_app_version` | settings | Hard block: an *Update Loopfield* screen with a store button (never over a recording run) |
+| `latest_app_version` (`ios`, `android`) | settings | *Update available* sheet with *Update* (opens the store) and *Not now*; shown once per version, remembered on the phone |
+| Kill switches | settings | `comments_enabled`: comment box replaced by a paused note; `avatar_uploads_enabled`: photo and new-avatar buttons hidden with a note (both save pictures, see Known server gaps); `club_creation_enabled`: *New group* / *New community* hidden, create form disabled; `route_proposals_enabled`: *Propose* disabled with a note, propose form disabled; `territory_capture_enabled` and `speed_titles_enabled`: run types marked paused before a run, GO blocked with *Record privately instead*; `reclaim_enabled` (and capture): reclaiming shown as paused on the Map; `messaging_enabled`: Messages, conversations and *Message* on profiles show a paused note; `photo_uploads_enabled`: *Add photos* replaced by a note; `public_publication_enabled`: a note on the Map that results are held back. The server's `feature_paused` error stays as a fallback |
+| `post_max_chars`, `post_max_photos`, `comment_max_chars` | settings | New post, sharing a run, comment box |
+| `share_map_min_distance_m`, `share_route_trim_m`, `share_street_map_enabled` | settings | Share card: runs shorter than the larger of the minimum and 3 × the hidden distance share without a route, and the card says so; it also says when the street map is switched off |
+| `disabled_health_cards` | settings | Health dashboard |
+| `paywall_enabled`, `premium_features` | settings | Settings → Subscription and the premium gate |
+| `achievement_tier_points`, `achievement_category_bonus` | settings | Ranking explainer |
+| `movement_points_per_km`, `movement_points_daily_cap`, `rules_status` | settings | Help |
+| `group_max_members` | settings | Group members |
+| `integrity_overrides` | settings, read when a run starts | Live movement check |
+| Game rules | `game_rules()`: `useTerritoryRules`, `useSpeedRules` in `src/lib/gameRules.ts`, read again when a screen opens and the copy is over a minute old | Live loop hint and GPS indicators, Help, the tour, the onboarding territory consent, propose-route validation, the route title margin, cell detail, and the "not counted" explanations on run results (with numbers only when the result was judged under the same rule version, or the built-in one) |
+| Staff access and account status | `ops_whoami()`: permissions, role labels, `require_mfa`, status. Read at sign-in and again on returning to the foreground (at most once a minute) | Operator tools shown by permission, so custom roles work (`src/features/ops/tools.ts`); *Create an event*; the maintenance bypass; the suspended state |
+| Kill switches for operators | `ops_config()` (category `switch`), changed with `ops_set_config` and a reason | Operator tools → System lists every switch the back office registers (`src/features/ops/SwitchList.tsx`) |
+| Support | `support_unread_count()`, `support_inbox()`, `support_thread()`, `support_create()`, `support_reply()` | Badge on Settings → Message support (refreshed on focus and after any push); *Contact support* links that prefill `/support/new`: a run whose loop or route time did not count (`competition`, `run:<id>`), the suspended state (`account`, `account:suspended`) and error states (`bug`, `error:<message>`) |
+| Authenticator code | Supabase Auth MFA (`getAuthenticatorAssuranceLevel`, `listFactors`, `enroll`, `challengeAndVerify`) | Every operator screen opens through `StaffGate` (`src/features/ops/StaffGate.tsx`): in an `aal1` session it asks for the 6-digit code, enrolling a TOTP factor first when the account has none, then continues at `aal2` |
+| Supported areas | `districts` with their `regions` (shapes only when the runner taps *Use my location*) | City picker: areas grouped by country and region; *Use my location* finds the area containing the phone's position on the phone and names the place with the phone's own geocoder |
+
+### Suspended accounts
+
+A runner whose profile status is `suspended` sees a clear state where the server blocks them: Home (once), before a competitive run, New post and sharing a run, comments, Messages and conversations, creating clubs and proposing routes. Each offers *Message support* (support accepts suspended accounts) and the Appeals list. Private recording, history and support keep working.
+
+### Testing on loopfield-dev
+
+| In the back office | In the app |
+|---|---|
+| App control → Comments off | Within five minutes, or on reopening the app, the comment box says comments are paused |
+| Maintenance on with a message (and optionally a time) | On launch or foreground the maintenance screen shows the message and "Back by"; a run that is recording continues and the screen appears after it finishes |
+| Latest version above the installed one (Settings shows the installed version) | *Update available* appears once; *Not now* or *Update* remembers that version |
+| Game rules: a shorter minimum loop, *apply now* | Help (opened again after a minute) and the live loop hint use it |
+| Support inbox: reply | A push arrives, Settings → Message support shows the badge, and the conversation opens |
+| A custom role with only `moderation` | Operator tools shows only the moderation queue, after the authenticator code |
+
+### Known server gaps
+
+Found while wiring the app; the server was left unchanged.
+
+* **Drawn avatars are paused with photo uploads.** `avatar_uploads_enabled` gates every insert into the `avatars` storage bucket, and drawn avatars are saved there as pictures, so they are refused too, although the setting's help says "Drawn avatars keep working". The app pauses both. Letting drawn avatars through would need a storage policy change.
+* **Suspended runners cannot file an appeal.** `submit_appeal` requires an active account (`internal.require_user()`), and there is no runner path that creates the `account_action` appeals `ops_decide_account_appeal` decides. The suspended state therefore leads with *Message support*, which works.
+* **Paused reclaiming is reported as a closed season.** With `reclaim_enabled` off, `lost_cells` gives `season_closed` as the reason; the app shows "Reclaiming land with points is paused for now" instead.
+* **Regions and districts cannot be edited in the console yet** (Phase 2). loopfield-dev has one development region, "Development region (Karachi test area)", split into *Dev South* and *Dev North* at latitude 24.89 (seed data); real cities need new region and district rows.
 
 ## Database
 
@@ -77,4 +129,4 @@ npm run test:db                                    # includes 12_backoffice.sql 
 
 * **Phase 2, game ops:** regions, districts and exclusion zones on a map; seasons and events; replay preview; challenges; movement ledger.
 * **Phase 3, growth:** push broadcasts, announcements, email.
-* **App:** read `maintenance_mode` and `latest_app_version`, and add a TOTP prompt to the operator screens so `ops_require_mfa` can be switched on.
+* **App:** done (see [App](#app)). `ops_require_mfa` can be switched on: the app's operator screens ask for the authenticator code first.

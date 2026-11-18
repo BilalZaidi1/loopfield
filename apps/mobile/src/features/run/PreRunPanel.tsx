@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { fmtDistance } from '@/lib/format';
 import { Banner, Button, PressableScale, Row, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
+import { contactSupport } from '@/components/Notices';
 import type { RunMode } from '@/recording/db';
 import { useUnits } from '@/state/session';
 import { radius, spacing, usePalette } from '@/theme/tokens';
@@ -11,12 +12,13 @@ import { GoButton } from './GoButton';
 import { BROWSER, RUN_MODES, type PreRun } from './usePreRun';
 
 /** The four run types as one row of buttons: icon over a short name, the chosen one filled. */
-export function ModePicker({ value, onChange }: { value: RunMode; onChange: (m: RunMode) => void }) {
+export function ModePicker({ value, onChange, paused }: { value: RunMode; onChange: (m: RunMode) => void; paused?: ReadonlySet<RunMode> }) {
   const p = usePalette();
   return (
     <View style={{ flexDirection: 'row', gap: spacing.xs }} accessibilityRole="radiogroup" accessibilityLabel="Run type">
       {RUN_MODES.map((m) => {
         const selected = m.value === value;
+        const off = paused?.has(m.value) ?? false;
         return (
           <PressableScale
             key={m.value}
@@ -24,10 +26,10 @@ export function ModePicker({ value, onChange }: { value: RunMode; onChange: (m: 
             scaleTo={0.95}
             accessibilityRole="radio"
             accessibilityState={{ checked: selected }}
-            accessibilityLabel={`${m.title}. ${m.body}`}
+            accessibilityLabel={`${m.title}. ${off ? 'Paused for now.' : m.body}`}
             style={{ flex: 1, minHeight: 60, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', gap: 4, paddingHorizontal: 2,
-              backgroundColor: selected ? p.primaryFill : p.surfaceAlt }}>
-            <Icon name={m.icon} color={selected ? '#FFFFFF' : p.textMuted} size={20} strokeWidth={selected ? 2.4 : 2} />
+              backgroundColor: selected ? p.primaryFill : p.surfaceAlt, opacity: off && !selected ? 0.55 : 1 }}>
+            <Icon name={off ? 'pause' : m.icon} color={selected ? '#FFFFFF' : p.textMuted} size={20} strokeWidth={selected ? 2.4 : 2} />
             <Txt variant="label" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={{ color: selected ? '#FFFFFF' : p.text, fontSize: 13 }}>{m.title}</Txt>
           </PressableScale>
         );
@@ -58,7 +60,7 @@ export function PreRunControls({ pre, compact }: { pre: PreRun; compact?: boolea
   };
   return (
     <View style={{ gap: compact ? spacing.sm : spacing.md }}>
-      <ModePicker value={pre.mode} onChange={pre.setMode} />
+      <ModePicker value={pre.mode} onChange={pre.setMode} paused={pre.paused} />
       <Txt variant="caption" color="text">{pre.counts ? `${info.body} ${pre.counts}` : info.body}</Txt>
       {pre.wantsTerritory ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
@@ -78,7 +80,7 @@ export function PreRunControls({ pre, compact }: { pre: PreRun; compact?: boolea
       ) : null}
       {blocker ? (
         <Banner tone="warning" text={blocker.text}
-          action={blocker.settings ? { label: 'Privacy settings', onPress: () => router.push('/settings/privacy') } : blocker.route ? { label: 'Choose a route', onPress: () => router.push('/routes') } : undefined} />
+          action={blocker.settings ? { label: 'Privacy settings', onPress: () => router.push('/settings/privacy') } : blocker.route ? { label: 'Choose a route', onPress: () => router.push('/routes') } : blocker.support ? { label: 'Get help', onPress: () => contactSupport('account', 'My account is suspended', 'account:suspended') } : undefined} />
       ) : null}
       {pre.error ? <Banner tone="danger" text={pre.error} /> : null}
       <View style={{ alignItems: 'center', marginVertical: compact ? -spacing.sm : 0 }}>

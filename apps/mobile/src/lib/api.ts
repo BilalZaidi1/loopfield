@@ -13,6 +13,8 @@ const FRIENDLY: Record<string, string> = {
   unauthenticated: 'Please sign in again.',
   rate_limited: 'Too many requests. Please try again shortly.',
   feature_paused: 'This is switched off for now. Please try again later.',
+  'account not active': 'Your account is suspended, so this is paused. You can still record private runs, or message support from Settings.',
+  account_inactive: 'Your account is suspended, so competing is paused. You can still record private runs, or message support from Settings.',
   zoom_in: 'Zoom in to load territory for this area.',
   temporarily_unavailable: 'This feature is temporarily unavailable.',
   not_configured: 'This service has not been configured yet.',
@@ -56,6 +58,7 @@ export function friendlyError(err: unknown): string {
   if (err instanceof ApiError) {
     const known = FRIENDLY[err.code] ?? FRIENDLY[err.message];
     if (known) return known;
+    if (err.code === 'P0429') return FRIENDLY.rate_limited!;
     if (err.details && KEY_LIKE.test(err.message) && err.details.length < 200) return err.details;
     return err.message;
   }

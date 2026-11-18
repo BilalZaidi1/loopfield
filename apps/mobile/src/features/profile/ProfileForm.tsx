@@ -1,34 +1,21 @@
 import { useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useQuery } from '@tanstack/react-query';
 import { friendlyError } from '@/lib/api';
+import { useFeature } from '@/lib/appConfig';
+import { PausedNote } from '@/components/Notices';
 import { supabase } from '@/lib/supabase';
-import { Avatar, Banner, Button, Chip, Segmented, Sheet, TextField, Toggle, Txt } from '@/components/ui';
+import { Avatar, Banner, Button, Segmented, Sheet, TextField, Toggle, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { useSession, type Profile } from '@/state/session';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 import { prepareImage, uploadToBucket, useSignedUrl } from '@/features/social/media';
 import { AvatarBuilder } from '@/features/avatar/AvatarBuilder';
+import { AreaPicker } from './AreaPicker';
 import { parseAvatar, shuffleAvatar, type AvatarSpec } from '@/features/avatar/spec';
 
-export interface District {
-  id: string;
-  name: string;
-  region_id: string;
-}
-
-export function useDistricts() {
-  return useQuery({
-    queryKey: ['districts'],
-    staleTime: 60 * 60_000,
-    queryFn: async () => {
-      const { data, error } = await supabase().from('districts').select('id, name, region_id').order('name');
-      if (error) throw error;
-      return (data ?? []) as District[];
-    }
-  });
-}
+// The area list lives with the picker; other screens import it from here as before.
+export { useDistricts, type District } from './AreaPicker';
 
 /** Shared by S04 Profile setup and the profile editor: name, avatar, bio, city, units, visibility. */
 export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved, extraValid = true, beforeSave }: {
@@ -41,11 +28,12 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
 }) {
   const p = usePalette();
   const { userId, refresh } = useSession();
-  const districts = useDistricts();
   const [handle, setHandle] = useState(profile.handle.startsWith('runner_') ? '' : profile.handle);
   const [name, setName] = useState(profile.display_name === 'New runner' ? '' : profile.display_name);
   const [bio, setBio] = useState(profile.bio ?? '');
   const [district, setDistrict] = useState<string | null>(profile.district_id);
+  // Shown as the profile's city: the area's name, or a detected city outside every area.
+  const [cityLabel, setCityLabel] = useState<string | null>(profile.city_label);
   const [visibility, setVisibility] = useState<'public' | 'private'>(profile.visibility);
   const [discoverable, setDiscoverable] = useState(profile.discoverable);
   const [units, setUnits] = useState(initialUnits);
@@ -59,6 +47,9 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const avatarUrl = useSignedUrl('avatars', avatarPath);
+  // App control can pause new profile pictures. Photos and drawn avatars are both saved as pictures, so
+  // both wait; switching back to an earlier photo still works because nothing new is uploaded.
+  const uploadsOn = useFeature('avatar_uploads_enabled');
 
   const handleOk = /^[A-Za-z0-9_]{3,24}$/.test(handle);
   const nameOk = name.trim().length >= 1 && name.trim().length <= 40;
@@ -86,10 +77,9 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
     setError(null);
     try {
       await beforeSave?.();
-      const d = districts.data?.find((x) => x.id === district);
       const { error: e1 } = await supabase()
         .from('profiles')
-        .update({ handle, display_name: name.trim(), bio: bio.trim() || null, district_id: district, city_label: d?.name ?? null, visibility, discoverable: visibility === 'public' && discoverable, avatar_path: avatarPath,
+        .update({ handle, display_name: name.trim(), bio: bio.trim() || null, district_id: district, city_label: cityLabel?.slice(0, 60) ?? null, visibility, discoverable: visibility === 'public' && discoverable, avatar_path: avatarPath,
                   avatar_kind: avatarKind, avatar_style: avatarStyle, avatar_photo_path: photoPath })
         .eq('id', userId!);
       if (e1) throw e1.code === '23505' ? new Error('That handle is taken. Try another.') : e1;
@@ -107,7 +97,7 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
   return (
     <View style={{ gap: spacing.xl }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
-        <Pressable onPress={pickAvatar} accessibilityRole="button" accessibilityLabel={avatarPath ? 'Change your picture to a photo' : 'Add a photo (optional)'} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+        <Pressable onPress={uploadsOn ? pickAvatar : undefined} disabled={!uploadsOn} accessibilityRole="button" accessibilityState={{ disabled: !uploadsOn }} accessibilityLabel={avatarPath ? 'Change your picture to a photo' : 'Add a photo (optional)'} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
           <Avatar name={name || 'You'} uri={avatarUrl.data} size={84} />
           <View style={{ position: 'absolute', right: -2, bottom: -2, width: 32, height: 32, borderRadius: 16, backgroundColor: p.primaryFill, borderWidth: 3, borderColor: p.bg, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name={avatarKind === 'cartoon' ? 'sparkle' : 'camera'} color="#FFFFFF" size={16} />
@@ -116,12 +106,13 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
         <View style={{ flex: 1, gap: spacing.sm }}>
           <Txt variant="caption">Optional. Your picture marks your land on the map and shows on your profile, posts and rankings.</Txt>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-            <Button label={avatarKind === 'photo' ? 'New photo' : 'Photo'} icon="camera" size="sm" variant="secondary" onPress={() => void pickAvatar()} />
-            <Button label={avatarKind === 'cartoon' ? 'Edit avatar' : 'Avatar'} icon="sparkle" size="sm" variant="secondary" onPress={() => setBuilding(true)} />
+            {uploadsOn ? <Button label={avatarKind === 'photo' ? 'New photo' : 'Photo'} icon="camera" size="sm" variant="secondary" onPress={() => void pickAvatar()} /> : null}
+            {uploadsOn ? <Button label={avatarKind === 'cartoon' ? 'Edit avatar' : 'Avatar'} icon="sparkle" size="sm" variant="secondary" onPress={() => setBuilding(true)} /> : null}
             {avatarKind === 'cartoon' && photoPath ? (
               <Button label="Use my photo" size="sm" variant="ghost" onPress={() => { setAvatarPath(photoPath); setAvatarKind('photo'); }} />
             ) : null}
           </View>
+          {uploadsOn ? null : <PausedNote feature="avatar_uploads_enabled" />}
         </View>
       </View>
       <Sheet visible={building} title="Your avatar" onClose={() => setBuilding(false)}>
@@ -144,19 +135,7 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
         <TextField label="Handle" value={handle} onChangeText={setHandle} autoCapitalize="none" maxLength={24} hint="3–24 letters, numbers or underscores. Others can @mention you with it." error={handle && !handleOk ? 'Use 3–24 letters, numbers or underscores.' : undefined} />
         <TextField label="Bio (optional)" value={bio} onChangeText={setBio} multiline maxLength={280} />
       </View>
-      <View style={{ gap: spacing.sm }}>
-        <Txt variant="label">City or district</Txt>
-        {districts.isLoading ? <Txt variant="caption">Loading supported areas…</Txt> : null}
-        {districts.error ? <Banner tone="warning" text="Supported areas could not be loaded. You can set this later." /> : null}
-        {districts.data?.length ? (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }} accessibilityRole="radiogroup" accessibilityLabel="City or district">
-            <Chip label="Not set" selected={district === null} onPress={() => setDistrict(null)} />
-            {districts.data.map((d) => (
-              <Chip key={d.id} label={d.name} selected={district === d.id} onPress={() => setDistrict(d.id)} />
-            ))}
-          </View>
-        ) : null}
-      </View>
+      <AreaPicker value={district} cityLabel={cityLabel} onChange={(id, label) => { setDistrict(id); setCityLabel(label); }} />
       <View style={{ gap: spacing.sm }}>
         <Txt variant="label">Units</Txt>
         <Segmented label="Units" value={units} onChange={setUnits} options={[{ value: 'metric', label: 'Kilometres' }, { value: 'imperial', label: 'Miles' }]} />

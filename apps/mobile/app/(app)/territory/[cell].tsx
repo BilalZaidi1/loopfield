@@ -3,7 +3,7 @@ import { useMovement } from '@/features/movement/api';
 import { ReclaimDone, ReclaimReceipt, useReclaimFlow } from '@/features/movement/Reclaim';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { TERRITORY_RULES } from '@loopfield/core';
+import { useTerritoryRules } from '@/lib/gameRules';
 import { friendlyError, rpc } from '@/lib/api';
 import { fmtArea, fmtDate } from '@/lib/format';
 import { View } from 'react-native';
@@ -53,6 +53,7 @@ const BLOCKED: Record<string, string> = {
 
 /** S15 Territory detail — selected eligible area, controller, season and partial capture or correction explanation. */
 export default function TerritoryDetail() {
+  const T = useTerritoryRules();
   const t = useTheme();
   const p = t.palette;
   const units = useUnits();
@@ -143,7 +144,7 @@ export default function TerritoryDetail() {
           </Card>
         )
       ) : null}
-      <Txt variant="caption">Only cells fully inside a loop after a {TERRITORY_RULES.boundaryUncertaintyBandMeters.value} m edge band are awarded, so the edges of a loop may look unclaimed. Thresholds are proposed pilot values.</Txt>
+      <Txt variant="caption">Only cells fully inside a loop after a {T.boundaryUncertaintyBandMeters.value} m edge band are awarded, so the edges of a loop may look unclaimed. Thresholds are proposed pilot values.</Txt>
       <Button variant="ghost" icon="flag" label="Report a problem with this area" onPress={() => router.push({ pathname: '/report', params: { type: 'area', id: cell! } })} />
       <Section title="Recent changes to your land" icon="refresh">
         {events.isLoading ? <LoadingState /> : events.data?.length ? (

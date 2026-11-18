@@ -9,6 +9,8 @@ import { useLayout } from '@/theme/layout';
 import { TopBar } from '@/components/TopBar';
 import { kindLabel, useMembershipActions, useMyClubs, type DiscoverClub, type MyClub } from '@/features/clubs/api';
 import { useSession } from '@/state/session';
+import { useFeature } from '@/lib/appConfig';
+import { PausedNote, SuspendedNotice, useSuspended } from '@/components/Notices';
 import { spacing } from '@/theme/tokens';
 
 function InviteCard({ c }: { c: MyClub }) {
@@ -41,6 +43,10 @@ export default function Clubs() {
   const { profile } = useSession();
   const { isTablet } = useLayout();
   const mine = useMyClubs();
+  // App control can pause new clubs; suspended accounts cannot create them either.
+  const creationOn = useFeature('club_creation_enabled');
+  const suspended = useSuspended();
+  const canCreate = creationOn && !suspended;
   const [query, setQuery] = useState('');
   const discover = useQuery({
     queryKey: ['discover_clubs', profile?.district_id, query],
@@ -60,16 +66,17 @@ export default function Clubs() {
       {mine.isLoading ? <LoadingState variant="cards" /> : mine.error ? <ErrorState error={mine.error} onRetry={() => void mine.refetch()} /> : (
         <>
           {invites.map((c) => <InviteCard key={c.id} c={c} />)}
-          <Section title="Your groups" icon="chat" action={<Button variant="secondary" size="sm" icon="plus" label="New group" onPress={() => router.push({ pathname: '/club/create', params: { kind: 'group' } })} />}>
+          {!creationOn ? <PausedNote feature="club_creation_enabled" text="Creating groups and communities is paused for now. You can still join and use the ones you are in." /> : suspended ? <SuspendedNotice what="club" compact /> : null}
+          <Section title="Your groups" icon="chat" action={canCreate ? <Button variant="secondary" size="sm" icon="plus" label="New group" onPress={() => router.push({ pathname: '/club/create', params: { kind: 'group' } })} /> : undefined}>
             {groups.length ? rail(groups) : (
               <Card tone="soft">
                 <Txt variant="headline">A private crew with its own chat</Txt>
                 <Txt color="textMuted">Groups are for the people you already run with: always private, and only the people you add can see them.</Txt>
-                <Button label="Start a group" arrow onPress={() => router.push({ pathname: '/club/create', params: { kind: 'group' } })} />
+                {canCreate ? <Button label="Start a group" arrow onPress={() => router.push({ pathname: '/club/create', params: { kind: 'group' } })} /> : null}
               </Card>
             )}
           </Section>
-          <Section title="Your communities" icon="clubs" action={<Button variant="secondary" size="sm" icon="plus" label="New community" onPress={() => router.push({ pathname: '/club/create', params: { kind: 'community' } })} />}>
+          <Section title="Your communities" icon="clubs" action={canCreate ? <Button variant="secondary" size="sm" icon="plus" label="New community" onPress={() => router.push({ pathname: '/club/create', params: { kind: 'community' } })} /> : undefined}>
             {communities.length ? rail(communities) : <Txt color="textMuted">Running clubs and local communities you join appear here. Find one below, or start one.</Txt>}
             {requested.length ? (
               <ListGroup>

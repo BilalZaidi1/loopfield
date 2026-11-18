@@ -5,7 +5,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Txt } from '@/components/ui';
 import { CommunityArt, HexBoard, ProgressArt } from '@/features/onboarding/Illustrations';
 import { markTourSeen } from '@/features/onboarding/tour';
-import { useSession } from '@/state/session';
+import { useSession, useUnits } from '@/state/session';
+import { useTerritoryRules } from '@/lib/gameRules';
+import { fmtRuleDistance } from '@/lib/format';
 import { useLayout } from '@/theme/layout';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 
@@ -41,12 +43,17 @@ const SLIDES: { title: string; body: string; art: (h: number) => ReactNode }[] =
 export default function Tour() {
   const p = usePalette();
   const { userId } = useSession();
+  // The loop rules of the running season (back office), built-in when offline.
+  const T = useTerritoryRules();
+  const units = useUnits();
+  const loopRule = `Start a territory run, run a loop of ${fmtRuleDistance(T.minLoopLengthMeters.value, units)} to ${fmtRuleDistance(T.maxLoopLengthMeters.value, units)} and finish within ${T.closureMaxGapMeters.value} m of where you began. The cells fully inside an eligible loop become yours on the shared map.`;
+  const slides = SLIDES.map((s, i) => (i === 0 ? { ...s, body: loopRule } : s));
   const { width, height, contentMax, gutter } = useLayout();
   const pageW = Math.min(width, contentMax);
   const [index, setIndex] = useState(0);
   const scroller = useRef<ComponentRef<typeof ScrollView>>(null);
   const artH = Math.min(300, Math.max(180, height * 0.34));
-  const last = index === SLIDES.length - 1;
+  const last = index === slides.length - 1;
 
   const close = () => {
     void markTourSeen(userId);
@@ -59,22 +66,22 @@ export default function Tour() {
   };
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const i = Math.round(e.nativeEvent.contentOffset.x / pageW);
-    if (i !== index && i >= 0 && i < SLIDES.length) setIndex(i);
+    if (i !== index && i >= 0 && i < slides.length) setIndex(i);
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: p.bg }} edges={['top', 'bottom']}>
       <View style={{ width: pageW, alignSelf: 'center', flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: gutter, minHeight: 56 }}>
-          <View style={{ flex: 1, flexDirection: 'row', gap: 6 }} accessibilityRole="progressbar" accessibilityLabel={`Page ${index + 1} of ${SLIDES.length}`}>
-            {SLIDES.map((_, i) => (
+          <View style={{ flex: 1, flexDirection: 'row', gap: 6 }} accessibilityRole="progressbar" accessibilityLabel={`Page ${index + 1} of ${slides.length}`}>
+            {slides.map((_, i) => (
               <View key={i} style={{ height: 6, width: i === index ? 24 : 6, borderRadius: radius.pill, backgroundColor: i === index ? p.primaryFill : p.borderStrong }} />
             ))}
           </View>
           {last ? null : <Button label="Skip" variant="ghost" size="sm" onPress={close} />}
         </View>
         <ScrollView ref={scroller} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScroll} onScroll={onScroll} scrollEventThrottle={64} style={{ flex: 1 }}>
-          {SLIDES.map((s, i) => (
+          {slides.map((s, i) => (
             <View key={s.title} style={{ width: pageW, paddingHorizontal: gutter, paddingTop: spacing.lg, gap: spacing.xl }} accessibilityElementsHidden={i !== index} importantForAccessibility={i === index ? 'auto' : 'no-hide-descendants'}>
               {s.art(artH)}
               <View style={{ gap: spacing.md }}>

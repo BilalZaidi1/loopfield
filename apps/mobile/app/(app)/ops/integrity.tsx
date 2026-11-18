@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@/lib/api';
 import { fmtRelative } from '@/lib/format';
 import { Badge, EmptyState, ErrorState, LoadingState, Row, Screen } from '@/components/ui';
+import { StaffGate } from '@/features/ops/StaffGate';
 
 interface IntegrityRow {
   id: string;
@@ -17,7 +18,15 @@ interface IntegrityRow {
 }
 
 /** Integrity queue (integrity_reviewer): automated flags and competitive appeals. */
-export default function IntegrityQueue() {
+export default function IntegrityQueueScreen() {
+  return (
+    <StaffGate need="integrity" title="Integrity cases">
+      <IntegrityQueue />
+    </StaffGate>
+  );
+}
+
+function IntegrityQueue() {
   const q = useQuery({ queryKey: ['ops_integrity_queue'], queryFn: () => rpc<IntegrityRow[]>('ops_integrity_queue', { p_limit: 100 }) });
   return (
     <Screen onRefresh={() => void q.refetch()} refreshing={q.isRefetching}>

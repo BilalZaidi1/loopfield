@@ -12,7 +12,9 @@ import { Icon, type IconName } from '@/components/icons';
 import { StepHeader } from '@/features/onboarding/StepHeader';
 import { requestNotificationPermission, notificationPermission } from '@/notifications/push';
 import { ensureLocationPermission } from '@/recording/recorder';
-import { useSession } from '@/state/session';
+import { useSession, useUnits } from '@/state/session';
+import { useTerritoryRules } from '@/lib/gameRules';
+import { fmtRuleDistance } from '@/lib/format';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 
 type LocState = 'unknown' | 'granted' | 'foreground_only' | 'denied' | 'services_disabled';
@@ -20,6 +22,9 @@ type LocState = 'unknown' | 'granted' | 'foreground_only' | 'denied' | 'services
 /** S05 Permissions setup — location and background readiness; optional notifications; health later. */
 export default function PermissionsSetup() {
   const { userId, refresh } = useSession();
+  // The running season's loop rules (back office), built-in when offline.
+  const T = useTerritoryRules();
+  const units = useUnits();
   const status = useQuery({
     queryKey: ['permission-status'],
     queryFn: async () => {
@@ -115,7 +120,7 @@ export default function PermissionsSetup() {
           <Chip label="Social" icon="clubs" selected={mode === 'social'} onPress={() => setMode('social')} />
         </View>
         <ListGroup>
-          <Toggle label="Take part in territory" description="Eligible loops you start in competitive mode can claim land on the shared map. You can turn this off later; your land is then withdrawn." value={territory} onChange={setTerritory} />
+          <Toggle label="Take part in territory" description={`Loops of ${fmtRuleDistance(T.minLoopLengthMeters.value, units)} to ${fmtRuleDistance(T.maxLoopLengthMeters.value, units)} that you start in competitive mode and finish within ${T.closureMaxGapMeters.value} m of their start can claim land on the shared map. You can turn this off later; your land is then withdrawn.`} value={territory} onChange={setTerritory} />
           <Toggle label="Take part in route titles" description="Timed attempts on approved routes can earn titles. Separate from land." value={speed} onChange={setSpeed} />
         </ListGroup>
         <Txt variant="caption">Competition rules and thresholds are proposed pilot values and may change after field testing.</Txt>

@@ -25,7 +25,7 @@ export default function MyProfile() {
   const p = usePalette();
   const { gutter, contentMax } = useLayout();
   const units = useUnits();
-  const { userId, profile, roles } = useSession();
+  const { userId, profile, staff } = useSession();
   const { competition, season, home, homeSeason } = useCompetition();
   const card = useProfileCard(userId ?? undefined);
   const avatar = useSignedUrl('avatars', profile?.avatar_path);
@@ -134,7 +134,7 @@ export default function MyProfile() {
         <Row icon="edit" title="Edit profile" onPress={() => router.push('/settings/profile')} />
         <Row icon="calendar" title="Season history" onPress={() => router.push('/seasons')} />
         <Row icon="settings" title="Settings" subtitle="Privacy, notifications, theme and account" onPress={() => router.push('/settings')} />
-        {roles.length ? <Row icon="shield" title="Operator tools" onPress={() => router.push('/ops')} /> : null}
+        {staff.permissions.length ? <Row icon="shield" title="Operator tools" onPress={() => router.push('/ops')} /> : null}
       </ListGroup>
       <Txt variant="headline">Your posts</Txt>
     </View>

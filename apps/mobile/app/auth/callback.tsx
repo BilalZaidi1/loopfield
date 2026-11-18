@@ -27,7 +27,7 @@ export default function AuthCallback() {
     return (
       <Screen maxWidth={520} footer={<Button label="Back to log in" size="lg" arrow onPress={() => router.replace('/sign-in')} />}>
         <View style={{ marginTop: spacing.huge }}>
-          <ErrorState title="This link could not be used" error={new Error(error ?? 'The link is missing its code or has expired. Request a new one.')} />
+          <ErrorState title="This link could not be used" error={new Error(error ?? 'The link is missing its code or has expired. Request a new one.')} support={false} />
         </View>
       </Screen>
     );

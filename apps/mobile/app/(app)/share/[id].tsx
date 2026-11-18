@@ -3,6 +3,8 @@ import { View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { friendlyError } from '@/lib/api';
+import { useAppConfig } from '@/lib/appConfig';
+import { SuspendedNotice, useSuspended } from '@/components/Notices';
 import { fmtArea, fmtDate, fmtDistance, fmtDuration, fmtPace, splitValue } from '@/lib/format';
 import { Badge, Banner, BigNumber, Button, Card, Chip, ListGroup, LoadingState, Screen, Section, TextField, Toggle, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
@@ -24,6 +26,8 @@ export default function SharePreview() {
   const [fields, setFields] = useState<Record<ShareField, boolean>>({ distance: true, duration: true, pace: true, date: true, land: true, title: true, route: true });
   const [audience, setAudience] = useState<'only_me' | 'followers' | 'public'>(settings?.default_post_audience ?? 'followers');
   const [body, setBody] = useState('');
+  const postMax = useAppConfig().settings.postMaxChars;
+  const suspended = useSuspended();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const a = detail.data?.activity;
@@ -52,7 +56,7 @@ export default function SharePreview() {
   const dist = splitValue(fmtDistance(a.distance_m, units));
   const meta = [fields.duration ? fmtDuration(a.elapsed_ms) : null, fields.pace ? fmtPace(a.avg_pace_s_per_km, units) : null, fields.date ? fmtDate(a.started_at) : null].filter(Boolean);
   return (
-    <Screen footer={<Button label="Publish" size="lg" arrow icon="send" onPress={() => void publish()} loading={busy} disabled={busy || (!chosen.length && !body.trim())} />}>
+    <Screen footer={<Button label="Publish" size="lg" arrow icon="send" onPress={() => void publish()} loading={busy} disabled={busy || suspended || (!chosen.length && !body.trim())} />}>
       <Stack.Screen options={{ title: 'Share run' }} />
       <Card tone="blue" accessibilityLabel="Preview">
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -83,7 +87,8 @@ export default function SharePreview() {
           {titleHeld ? <Toggle label="Route title" value={fields.title} onChange={toggle('title')} /> : null}
         </ListGroup>
       </Section>
-      <TextField label="Caption (optional)" value={body} onChangeText={setBody} multiline maxLength={2000} />
+      {suspended ? <SuspendedNotice what="post" /> : null}
+      <TextField label="Caption (optional)" value={body} onChangeText={setBody} multiline maxLength={postMax} />
       <Section title="Who can see it" icon="eye">
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }} accessibilityRole="radiogroup" accessibilityLabel="Audience">
           <Chip icon="lock" label="Only me" selected={audience === 'only_me'} onPress={() => setAudience('only_me')} />

@@ -20,6 +20,7 @@ import { getGoals } from '@/health/cache';
 import { layerTitle, useCompetition } from '@/state/competition';
 import { useNow } from '@/lib/useNow';
 import { useSession, useUnits } from '@/state/session';
+import { isSuspended, SuspendedNotice } from '@/components/Notices';
 import { useLayout } from '@/theme/layout';
 import { spacing, usePalette } from '@/theme/tokens';
 
@@ -60,6 +61,7 @@ export default function Home() {
     <View style={{ gap: spacing.xl, paddingTop: insets.top + spacing.xs }}>
       <TopBar title="Home" subtitle={greeting(profile?.display_name)} />
       <OfflineBanner />
+      {isSuspended(profile?.status) ? <SuspendedNotice what="account" /> : null}
       <View style={isTablet ? { flexDirection: 'row', gap: spacing.lg, alignItems: 'stretch' } : { gap: spacing.lg }}>
         <View style={{ flex: isTablet ? 1 : undefined, gap: spacing.lg }}>
           <WeekCard acts={acts} />

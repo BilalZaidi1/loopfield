@@ -2,6 +2,13 @@
 
 Working file kept current so work survives context limits. Newest first.
 
+## 18 Nov 2026: the app follows the back office
+
+* Requested 18 Nov (traced as BS1–BS12 in `TRACEABILITY.md`; decisions in `DECISIONS.md`, "Back-office sync"). Branch `app/backoffice-sync` from `feat/back-office`, PR into `feat/back-office`. JavaScript only: no database object or edge function changed.
+* One settings source; maintenance screen; update prompt and forced update; kill switches, limits and season rules in the UI; share card explanations; support badge and Contact support links; operator screens by permission behind an authenticator code; suspended state; city picker with location detection.
+* Checks: typecheck, lint (0 errors), jest 153 tests in 20 suites (34 new), client queries, generated types; web screenshots of the new screens in light and dark.
+* Found on the server and left unchanged (see `BACK_OFFICE.md`, "Known server gaps"): drawn avatars are blocked with photo uploads; suspended runners cannot file appeals; paused reclaiming is reported as a closed season.
+
 ## 12 Nov 2026: owner feedback on the pilot APK
 
 * Reported with screenshots from the pilot APK (version code 3); traced as FB1–FB8 in `TRACEABILITY.md`, decisions in `DECISIONS.md` ("Owner feedback round").

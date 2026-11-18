@@ -8,6 +8,18 @@ export function fmtDistance(m: number | null | undefined, units: Units, digits =
   return `${d.value.toFixed(digits)} ${d.unit}`;
 }
 
+/**
+ * A rule's distance (a minimum loop, a route's length): metres or feet below a kilometre or a mile, then
+ * at most one decimal, so a 400 m minimum never reads as "0 km".
+ */
+export function fmtRuleDistance(m: number, units: Units): string {
+  if (units === 'imperial') {
+    const mi = m / 1609.344;
+    return mi < 1 ? `${Math.round(m * 3.28084).toLocaleString('en')} ft` : `${+mi.toFixed(1)} mi`;
+  }
+  return m < 1000 ? `${Math.round(m)} m` : `${+(m / 1000).toFixed(1)} km`;
+}
+
 export function fmtPace(secPerKm: number | null | undefined, units: Units): string {
   if (!secPerKm) return '—';
   const p = paceToDisplay(secPerKm, units);
