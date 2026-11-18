@@ -38,7 +38,7 @@ on conflict (user_id, role) do update set revoked_at = null;
 ## Screens
 
 * **Overview:** what needs a person now, alerts, and widgets each staff member picks and orders (Customize). Saved per person.
-* **Analytics:** headline numbers against the previous period, daily trends, when and how far people run, loop outcomes and why loops fail, sign-up funnel, weekly retention, community, trust and support, platform. CSV export.
+* **Analytics:** headline numbers against the previous period, daily trends, when and how far people run, loop outcomes and why loops fail, sign-up funnel, weekly retention, community, trust and support, platform. CSV export. Each source loads on its own: one that fails shows *Not loaded* where its charts would be and names the error at the top, and the rest of the page still loads (Overview does the same and never shows a failed figure as zero).
 * **Runners:** directory with search, filters and sorting; runner profile with stats, runs, cases, support, account state and staff actions; suspend, reinstate, sign out everywhere, reset profile fields. Exact-email lookup is audited.
 * **Support inbox:** conversations from Help and feedback in the app; assign, prioritise, reply (the runner is notified), internal notes, saved replies.
 * **Game rules:** loop, GPS, vehicle and speed-route thresholds as versioned rule sets. A change starts with the next season; *apply now* moves running seasons. Shows what stays in code.
@@ -53,8 +53,9 @@ cp apps/admin/.env.example apps/admin/.env.local   # fill in the publishable key
 npm install
 npm run dev -w @loopfield/admin                    # http://localhost:3100
 npm run dev:fixtures -w @loopfield/admin           # sample data, no database or sign-in (dev only)
+CONSOLE_FIXTURES_FAIL=ops_metrics npm run dev:fixtures -w @loopfield/admin   # make chosen calls fail, to see how pages degrade
 npm run typecheck -w @loopfield/admin && npm run lint -w @loopfield/admin && npm run test -w @loopfield/admin
-npm run test:db                                    # includes 12_backoffice.sql and 13_backoffice_controls.sql
+npm run test:db                                    # includes 12_backoffice.sql, 13_backoffice_controls.sql and 14_api_guards.sql
 ```
 
 ## Deploy
@@ -117,6 +118,7 @@ Found while wiring the app; the server was left unchanged.
 
 ## Database
 
+* **Every UPDATE and DELETE needs a WHERE clause** (`where true` when every row is meant). Supabase's Data API preloads the `safeupdate` library, which rejects them otherwise ("UPDATE requires a WHERE clause", HTTP 400), while migrations, pg_cron and the SQL tests connect directly and never meet that check. `14_api_guards.sql` fails on any function that would trip it and, where the library is installed, runs the console's metrics through it. `*_api_safeupdate_fixes.sql` fixed the two that did: the metrics refresh behind Overview and Analytics, and the app's `reclaim_cells`.
 * `*_backoffice.sql`: config registry and history, `ops_set_config`, overview, staff, users search, appeals, audit log, `ops_require_mfa`, `maintenance_mode`, `latest_app_version`.
 * `*_backoffice_rbac.sql`: permissions, role definitions, `ops_rbac`, `ops_save_role`, `ops_delete_role`, `ops_grant_role` with escalation guards.
 * `*_backoffice_rules.sql`: `internal.rule_catalog`, `internal.rule_versions`, `internal.rule_next`, season pinning trigger and season timing columns, `game_rules()` for the app, `ops_rules`, `ops_save_rules`, `ops_set_next_rules`, `ops_apply_rules_now`, rate-limit overrides and action kill switches in `internal.enforce_rate_limit`, post and comment length limits, sharing settings in `internal.share_route` and `internal.share_payload`.
