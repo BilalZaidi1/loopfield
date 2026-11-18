@@ -9,7 +9,8 @@ import { track } from '@/lib/analytics';
 import { Badge, Banner, Button, Screen, Segmented, TextField, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import type { ClubKind } from '@/features/clubs/api';
-import { useDistricts } from '@/features/profile/ProfileForm';
+import { useDistricts } from '@/features/profile/districts';
+import { placeText } from '@/features/profile/location';
 import { useSession } from '@/state/session';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 
@@ -49,9 +50,11 @@ export default function CreateClub() {
         p_join_policy: group ? 'invite_only' : visibility === 'private' && joinPolicy === 'open' ? 'request' : joinPolicy,
         p_description: description.trim() || null,
         p_rules: group ? null : rules.trim() || null,
+        // The community's race runs in the playing area the phone found the creator in, if any; its home
+        // city is the creator's (the server adds the country).
         p_region: district?.region_id ?? null,
         p_district: district?.id ?? null,
-        p_city_label: district?.name ?? null
+        p_city_label: profile?.city_label?.trim() || null
       });
       track('club_action', { action: 'created', club_kind: kind, visibility: group ? 'private' : visibility });
       void qc.invalidateQueries({ queryKey: ['my_clubs'] });
@@ -89,7 +92,8 @@ export default function CreateClub() {
             <Txt variant="label">How people join</Txt>
             <Segmented label="How people join" value={joinPolicy} onChange={setJoinPolicy} options={[...(visibility === 'public' ? [{ value: 'open' as const, label: 'Open' }] : []), { value: 'request', label: 'Request' }, { value: 'invite_only', label: 'Invite only' }]} />
           </View>
-          <Badge icon="pin" tone={district ? 'violet' : 'muted'} label={district ? `Area: ${district.name} (with its own members' race)` : 'Set your city in your profile to list this community locally'} />
+          <Badge icon="pin" tone={profile?.city_label ? 'violet' : 'muted'} label={profile?.city_label ? `Home city: ${placeText(profile.city_label, profile.country_code) ?? profile.city_label}` : 'Add your city to your profile so runners near you can find this community'} />
+          {district ? <Txt variant="caption">{"It also gets its own members' race on the map where you run."}</Txt> : null}
         </>
       )}
       {error ? <Banner tone="danger" text={error} /> : null}

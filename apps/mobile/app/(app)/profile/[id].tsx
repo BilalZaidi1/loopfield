@@ -7,6 +7,7 @@ import { useLayout } from '@/theme/layout';
 import { startConversation } from '@/chat/client';
 import { useFeature } from '@/lib/appConfig';
 import { PausedNote, SuspendedNotice, useSuspended } from '@/components/Notices';
+import { placeText } from '@/features/profile/location';
 import { useSignedUrl } from '@/features/social/media';
 import { PostCard, useFeed } from '@/features/social/PostCard';
 import { BadgeStrip } from '@/features/achievements/Badges';
@@ -58,7 +59,7 @@ export default function OtherProfile() {
       <View style={{ alignItems: 'center', gap: spacing.sm }}>
         <Avatar name={c.display_name} uri={avatar.data} size={96} ring />
         <Txt variant="title" align="center">{c.display_name}</Txt>
-        <Txt variant="caption" align="center">{`@${c.handle}${c.city_label ? ` · ${c.city_label}` : ''}`}</Txt>
+        <Txt variant="caption" align="center">{[`@${c.handle}`, placeText(c.city_label, c.country_code, c.area_label)].filter(Boolean).join(' · ')}</Txt>
         {c.follows_me ? <Badge label="Follows you" tone="violet" icon="check" /> : null}
         {c.bio ? <Txt align="center" style={{ maxWidth: 520 }}>{c.bio}</Txt> : null}
       </View>

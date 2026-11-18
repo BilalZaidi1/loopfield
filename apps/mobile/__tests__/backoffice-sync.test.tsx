@@ -228,12 +228,12 @@ describe('support', () => {
     expect(router().push).toHaveBeenCalledWith({ pathname: '/support/new', params: { category: 'account', subject: 'My account is suspended', context: 'account:suspended' } });
   });
 
-  it('gives a suspended account its ways out: support and appeals', async () => {
+  it('gives a suspended account its ways out: support and a review of the suspension', async () => {
     await render(<SuspendedNotice what="account" />);
     expect(screen.getByText('Your account is suspended')).toBeTruthy();
     await fireEvent.press(screen.getByText('Message support'));
     expect(router().push).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/support/new', params: expect.objectContaining({ category: 'account' }) }));
-    await fireEvent.press(screen.getByLabelText('Your reviews and appeals'));
-    expect(router().push).toHaveBeenCalledWith('/appeals');
+    await fireEvent.press(screen.getByLabelText('Ask for a review of your suspension'));
+    expect(router().push).toHaveBeenCalledWith({ pathname: '/appeals', params: { type: 'account_action', id: 'me' } });
   });
 });

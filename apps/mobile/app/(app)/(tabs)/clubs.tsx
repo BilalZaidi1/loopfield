@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@/lib/api';
-import { ArrowLink, Badge, Button, Card, CardRail, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, TextField, Txt } from '@/components/ui';
+import { ArrowLink, Badge, Button, Card, CardRail, Chip, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, TextField, Txt } from '@/components/ui';
 import { ClubCard, ClubLogo } from '@/features/clubs/ClubBits';
 import { useLayout } from '@/theme/layout';
 import { TopBar } from '@/components/TopBar';
@@ -48,9 +48,14 @@ export default function Clubs() {
   const suspended = useSuspended();
   const canCreate = creationOn && !suspended;
   const [query, setQuery] = useState('');
+  // Communities in the city on your profile first; everywhere when you have none or ask for it.
+  const city = profile?.city_label?.trim() || null;
+  const country = profile?.country_code ?? null;
+  const [near, setNear] = useState(true);
+  const local = near && Boolean(city && country);
   const discover = useQuery({
-    queryKey: ['discover_clubs', profile?.district_id, query],
-    queryFn: () => rpc<DiscoverClub[]>('discover_clubs', { p_district: profile?.district_id ?? null, p_query: query.trim() || null, p_limit: 30 })
+    queryKey: ['discover_clubs', local ? [country, city] : null, query],
+    queryFn: () => rpc<DiscoverClub[]>('discover_clubs', { p_query: query.trim() || null, p_limit: 30, ...(local ? { p_country: country, p_city: city } : {}) })
   });
   const active = (mine.data ?? []).filter((c) => c.state === 'active');
   const groups = active.filter((c) => c.kind === 'group');
@@ -88,8 +93,14 @@ export default function Clubs() {
           </Section>
         </>
       )}
-      <Section title="Discover communities" icon="search" subtitle={profile?.city_label ? `Around ${profile.city_label}` : undefined}>
-        <TextField label="Search communities" value={query} onChangeText={setQuery} autoCapitalize="none" placeholder="Name or area" />
+      <Section title="Discover communities" icon="search" subtitle={local ? `In ${city}` : 'Everywhere'}>
+        <TextField label="Search communities" value={query} onChangeText={setQuery} autoCapitalize="none" placeholder="Name" />
+        {city && country ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }} accessibilityRole="radiogroup" accessibilityLabel="Where">
+            <Chip icon="pin" label={city} selected={local} onPress={() => setNear(true)} />
+            <Chip icon="globe" label="Everywhere" selected={!local} onPress={() => setNear(false)} />
+          </View>
+        ) : null}
         {discover.isLoading ? <LoadingState /> : discover.error ? <ErrorState error={discover.error} onRetry={() => void discover.refetch()} /> : discover.data?.length ? (
           <ListGroup>
             {discover.data.map((c) => (
@@ -104,7 +115,9 @@ export default function Clubs() {
             ))}
           </ListGroup>
         ) : (
-          <EmptyState icon="clubs" title="No public communities found" body={profile?.district_id ? 'Try another search, or start a community.' : 'Set your city in your profile to see communities near you.'} />
+          <EmptyState icon="clubs" title={local ? `No public communities in ${city} yet` : 'No public communities found'}
+            body={local ? 'Look everywhere, or start the first one here.' : city && country ? 'Try another search, or start a community.' : 'Add your city and country to your profile to see communities near you.'}
+            action={local ? { label: 'Look everywhere', onPress: () => setNear(false) } : undefined} />
         )}
       </Section>
     </Screen>

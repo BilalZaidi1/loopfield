@@ -29,7 +29,7 @@ interface CellDetail {
   held_by: 'loop' | 'reclaim' | null;
   was_mine: boolean;
   reclaimable: boolean;
-  blocked_reason: 'season_closed' | 'not_participating' | 'taken_with_points' | null;
+  blocked_reason: 'season_closed' | 'reclaim_paused' | 'not_participating' | 'taken_with_points' | null;
   reclaim_cost: number | null;
 }
 
@@ -48,6 +48,7 @@ interface TerritoryEvent {
 const BLOCKED: Record<string, string> = {
   taken_with_points: 'They reclaimed it from you with movement points, so only a run can win it back.',
   season_closed: 'The season is closed, so it can no longer be reclaimed.',
+  reclaim_paused: 'Reclaiming land with points is paused for now, so it cannot be reclaimed at the moment.',
   not_participating: 'Turn on territory in Privacy settings to reclaim it.'
 };
 

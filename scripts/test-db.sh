@@ -40,7 +40,7 @@ psql -q "$URL" -v ON_ERROR_STOP=1 -c "create extension if not exists pgtap with 
 fail=0
 for t in "$ROOT"/supabase/tests/sql/*.sql; do
   out=$(psql "$URL" -X -v ON_ERROR_STOP=1 -t -A -f "$t" 2>&1) || { echo "ERROR in $(basename "$t")"; echo "$out" | tail -20; fail=1; continue; }
-  if echo "$out" | grep -qE "^not ok|Looks like you failed"; then echo "FAIL $(basename "$t")"; echo "$out" | grep -E "^not ok|#" | head -40; fail=1;
+  if echo "$out" | grep -qE "^not ok|Looks like you (failed|planned)"; then echo "FAIL $(basename "$t")"; echo "$out" | grep -E "^not ok|#" | head -40; fail=1;
   else echo "ok   $(basename "$t") ($(echo "$out" | grep -cE '^ok') assertions)"; fi
 done
 exit $fail

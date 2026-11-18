@@ -205,7 +205,7 @@ export const PAUSED_TEXT: Record<SwitchKey, string> = {
   messaging_enabled: 'Messaging is paused for now.',
   reclaim_enabled: 'Reclaiming land with points is paused for now.',
   comments_enabled: 'Comments are paused for now.',
-  avatar_uploads_enabled: 'New profile pictures are paused for now. Your current picture stays.',
+  avatar_uploads_enabled: 'New profile photos are paused for now. You can still make a drawn avatar, and your current picture stays.',
   club_creation_enabled: 'Creating clubs is paused for now.',
   route_proposals_enabled: 'Proposing routes is paused for now.'
 };

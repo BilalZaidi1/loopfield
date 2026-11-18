@@ -86,10 +86,3 @@ export interface AreaShape {
 export function areaAt(areas: readonly AreaShape[], lng: number, lat: number): AreaShape | null {
   return areas.find((a) => contains(a.polygons, [lng, lat])) ?? null;
 }
-
-/** How a detected place reads: "Karachi, Pakistan", falling back to what the phone and the area know. */
-export function placeLabel(place: { city?: string | null; subregion?: string | null; region?: string | null; country?: string | null } | null, fallbackCountry: string | null): string | null {
-  const city = place?.city || place?.subregion || place?.region || null;
-  const country = place?.country || fallbackCountry;
-  return [city, country].filter(Boolean).join(', ') || null;
-}

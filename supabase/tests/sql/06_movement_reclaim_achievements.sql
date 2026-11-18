@@ -3,7 +3,7 @@
 -- ping-pong, running retakes, replay, refunds when the capture is invalidated, withdrawal when the
 -- ownership basis is invalid; challenge evaluation, badges, score and leaderboard scopes and privacy.
 begin;
-select plan(77);
+select plan(78);
 
 create temp table g as select 0.0009::float8 as dlat, 0.001::float8 as dlng, 67.0::float8 as lng0, 24.86::float8 as lat0;
 insert into internal.territory_cells (cell, resolution, geom, area_m2, parent_r7)
@@ -95,6 +95,15 @@ select pg_temp.as_user((select a from u));
 select is((select count(*)::int from public.my_lost_cells((select comp from ids), (select season from ids))), 4, 'A sees exactly the 4 cells B took');
 select is((select count(*)::int from public.my_lost_cells((select comp from ids), (select season from ids)) where reclaimable and cost = 3), 4, 'all 4 are reclaimable at 3 points each');
 select is((select count(*)::int from public.my_lost_cells((select comp from ids), (select season from ids), 66.99, 24.85, 67.02, 24.88)), 4, 'the viewport form returns the same cells');
+reset role;
+update public.app_config set value = 'false'::jsonb where key = 'reclaim_enabled';
+set local role authenticated;
+select pg_temp.as_user((select a from u));
+select is((select count(*)::int from public.my_lost_cells((select comp from ids), (select season from ids)) where not reclaimable and blocked_reason = 'reclaim_paused'), 4,
+          'with reclaiming switched off the cells say it is paused, not that the season closed');
+reset role;
+update public.app_config set value = 'true'::jsonb where key = 'reclaim_enabled';
+set local role authenticated;
 select pg_temp.as_user((select c from u));
 select is((select count(*)::int from public.my_lost_cells((select comp from ids), (select season from ids))), 0, 'a runner who never held ground has nothing to reclaim');
 select throws_ok($$select public.reclaim_cells(gen_random_uuid(), (select comp from ids), (select season from ids), array[pg_temp.cell(0, 6)])$$,

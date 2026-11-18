@@ -24,11 +24,16 @@ export interface Profile {
   avatar_style?: unknown;
   /** The last photo uploaded, to switch back from a cartoon. */
   avatar_photo_path?: string | null;
+  /** Loopfield's playing area the phone found the runner in (set only by "Use my location"). */
   district_id: string | null;
+  /** Where the runner runs: a city name and an ISO country code, shown with the profile. */
   city_label: string | null;
+  country_code?: string | null;
   visibility: 'public' | 'private';
   discoverable: boolean;
   status: string;
+  /** When the status last changed, for example when a suspension started. */
+  status_changed_at?: string | null;
   onboarding_completed_at: string | null;
 }
 
@@ -41,6 +46,9 @@ export interface Settings {
   territory_competition_enabled: boolean;
   speed_competition_enabled: boolean;
   selected_competition_id: string | null;
+  /** The runner's neighbourhood: only they can read it; shown on the profile when show_area is on. */
+  area_label?: string | null;
+  show_area?: boolean;
 }
 
 export { NO_STAFF, parseWhoAmI, type StaffAccess } from './staff';

@@ -464,6 +464,7 @@ function LostCallout({ count, reclaimable, cost, balance, scope, onPress, paused
 const BLOCKED_TEXT: Record<string, string> = {
   taken_with_points: 'Taken back with movement points, so only a run can win it back.',
   season_closed: 'The season is closed, so it can no longer be reclaimed.',
+  reclaim_paused: 'Reclaiming land with points is paused for now.',
   not_participating: 'Turn on territory in Privacy settings to reclaim it.'
 };
 

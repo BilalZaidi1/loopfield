@@ -11,13 +11,11 @@ import { useSession, type Profile } from '@/state/session';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 import { prepareImage, uploadToBucket, useSignedUrl } from '@/features/social/media';
 import { AvatarBuilder } from '@/features/avatar/AvatarBuilder';
-import { AreaPicker } from './AreaPicker';
+import { LocationPicker, type LocationDraft } from './LocationPicker';
+import { cleanCountry, cleanPlace } from './location';
 import { parseAvatar, shuffleAvatar, type AvatarSpec } from '@/features/avatar/spec';
 
-// The area list lives with the picker; other screens import it from here as before.
-export { useDistricts, type District } from './AreaPicker';
-
-/** Shared by S04 Profile setup and the profile editor: name, avatar, bio, city, units, visibility. */
+/** Shared by S04 Profile setup and the profile editor: name, avatar, bio, where you run, units, visibility. */
 export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved, extraValid = true, beforeSave }: {
   profile: Profile;
   units: 'metric' | 'imperial';
@@ -27,13 +25,17 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
   beforeSave?: () => Promise<void>;
 }) {
   const p = usePalette();
-  const { userId, refresh } = useSession();
+  const { userId, refresh, settings } = useSession();
   const [handle, setHandle] = useState(profile.handle.startsWith('runner_') ? '' : profile.handle);
   const [name, setName] = useState(profile.display_name === 'New runner' ? '' : profile.display_name);
   const [bio, setBio] = useState(profile.bio ?? '');
-  const [district, setDistrict] = useState<string | null>(profile.district_id);
-  // Shown as the profile's city: the area's name, or a detected city outside every area.
-  const [cityLabel, setCityLabel] = useState<string | null>(profile.city_label);
+  const [place, setPlace] = useState<LocationDraft>({
+    city: profile.city_label ?? '',
+    countryCode: profile.country_code ?? null,
+    area: settings?.area_label ?? '',
+    showArea: settings?.show_area ?? false,
+    districtId: profile.district_id
+  });
   const [visibility, setVisibility] = useState<'public' | 'private'>(profile.visibility);
   const [discoverable, setDiscoverable] = useState(profile.discoverable);
   const [units, setUnits] = useState(initialUnits);
@@ -47,8 +49,8 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const avatarUrl = useSignedUrl('avatars', avatarPath);
-  // App control can pause new profile pictures. Photos and drawn avatars are both saved as pictures, so
-  // both wait; switching back to an earlier photo still works because nothing new is uploaded.
+  // App control can pause new profile photos. Drawn avatars keep working (the server lets their pictures
+  // through), and switching back to an earlier photo still works because nothing new is uploaded.
   const uploadsOn = useFeature('avatar_uploads_enabled');
 
   const handleOk = /^[A-Za-z0-9_]{3,24}$/.test(handle);
@@ -77,13 +79,19 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
     setError(null);
     try {
       await beforeSave?.();
+      const city = cleanPlace(place.city);
+      const country = cleanCountry(place.countryCode);
+      // No place, no playing area: the area comes only from the phone's check, which a cleared place undoes.
+      const districtId = city || country ? place.districtId : null;
+      const area = city ? cleanPlace(place.area) : null;
       const { error: e1 } = await supabase()
         .from('profiles')
-        .update({ handle, display_name: name.trim(), bio: bio.trim() || null, district_id: district, city_label: cityLabel?.slice(0, 60) ?? null, visibility, discoverable: visibility === 'public' && discoverable, avatar_path: avatarPath,
+        .update({ handle, display_name: name.trim(), bio: bio.trim() || null, district_id: districtId, city_label: city, country_code: country, visibility, discoverable: visibility === 'public' && discoverable, avatar_path: avatarPath,
                   avatar_kind: avatarKind, avatar_style: avatarStyle, avatar_photo_path: photoPath })
         .eq('id', userId!);
       if (e1) throw e1.code === '23505' ? new Error('That handle is taken. Try another.') : e1;
-      const { error: e2 } = await supabase().from('user_settings').update({ units }).eq('user_id', userId!);
+      // The neighbourhood lives in the runner's own settings, which nobody else can read.
+      const { error: e2 } = await supabase().from('user_settings').update({ units, area_label: area, show_area: Boolean(area) && place.showArea }).eq('user_id', userId!);
       if (e2) throw e2;
       await refresh();
       onSaved();
@@ -97,7 +105,7 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
   return (
     <View style={{ gap: spacing.xl }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
-        <Pressable onPress={uploadsOn ? pickAvatar : undefined} disabled={!uploadsOn} accessibilityRole="button" accessibilityState={{ disabled: !uploadsOn }} accessibilityLabel={avatarPath ? 'Change your picture to a photo' : 'Add a photo (optional)'} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
+        <Pressable onPress={uploadsOn ? pickAvatar : () => setBuilding(true)} accessibilityRole="button" accessibilityLabel={uploadsOn ? (avatarPath ? 'Change your picture to a photo' : 'Add a photo (optional)') : (avatarKind === 'cartoon' ? 'Edit your avatar' : 'Make an avatar (optional)')} style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>
           <Avatar name={name || 'You'} uri={avatarUrl.data} size={84} />
           <View style={{ position: 'absolute', right: -2, bottom: -2, width: 32, height: 32, borderRadius: 16, backgroundColor: p.primaryFill, borderWidth: 3, borderColor: p.bg, alignItems: 'center', justifyContent: 'center' }}>
             <Icon name={avatarKind === 'cartoon' ? 'sparkle' : 'camera'} color="#FFFFFF" size={16} />
@@ -107,7 +115,7 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
           <Txt variant="caption">Optional. Your picture marks your land on the map and shows on your profile, posts and rankings.</Txt>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
             {uploadsOn ? <Button label={avatarKind === 'photo' ? 'New photo' : 'Photo'} icon="camera" size="sm" variant="secondary" onPress={() => void pickAvatar()} /> : null}
-            {uploadsOn ? <Button label={avatarKind === 'cartoon' ? 'Edit avatar' : 'Avatar'} icon="sparkle" size="sm" variant="secondary" onPress={() => setBuilding(true)} /> : null}
+            <Button label={avatarKind === 'cartoon' ? 'Edit avatar' : 'Avatar'} icon="sparkle" size="sm" variant="secondary" onPress={() => setBuilding(true)} />
             {avatarKind === 'cartoon' && photoPath ? (
               <Button label="Use my photo" size="sm" variant="ghost" onPress={() => { setAvatarPath(photoPath); setAvatarKind('photo'); }} />
             ) : null}
@@ -135,7 +143,7 @@ export function ProfileForm({ profile, units: initialUnits, submitLabel, onSaved
         <TextField label="Handle" value={handle} onChangeText={setHandle} autoCapitalize="none" maxLength={24} hint="3–24 letters, numbers or underscores. Others can @mention you with it." error={handle && !handleOk ? 'Use 3–24 letters, numbers or underscores.' : undefined} />
         <TextField label="Bio (optional)" value={bio} onChangeText={setBio} multiline maxLength={280} />
       </View>
-      <AreaPicker value={district} cityLabel={cityLabel} onChange={(id, label) => { setDistrict(id); setCityLabel(label); }} />
+      <LocationPicker value={place} onChange={setPlace} />
       <View style={{ gap: spacing.sm }}>
         <Txt variant="label">Units</Txt>
         <Segmented label="Units" value={units} onChange={setUnits} options={[{ value: 'metric', label: 'Kilometres' }, { value: 'imperial', label: 'Miles' }]} />

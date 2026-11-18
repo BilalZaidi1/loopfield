@@ -36,3 +36,17 @@ export function countryName(code: string | null | undefined): string | null {
   const c = code.trim().toUpperCase();
   return NAMES.get(c) ?? c;
 }
+
+/** Every country with its code, in name order (for the country picker). */
+export const COUNTRIES: readonly { code: string; name: string }[] = [...NAMES.entries()]
+  .map(([code, name]) => ({ code, name }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+
+/** Countries whose name (or code) matches what was typed: names starting with it first. */
+export function findCountries(query: string, limit = 60): { code: string; name: string }[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return COUNTRIES.slice(0, limit);
+  const starts = COUNTRIES.filter((c) => c.name.toLowerCase().startsWith(q) || c.code.toLowerCase() === q);
+  const within = COUNTRIES.filter((c) => !starts.includes(c) && c.name.toLowerCase().includes(q));
+  return [...starts, ...within].slice(0, limit);
+}

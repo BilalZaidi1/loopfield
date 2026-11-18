@@ -12,6 +12,7 @@ import { useAchievementProfile, useMyChallenges } from '@/features/achievements/
 import { useMovement } from '@/features/movement/api';
 import { useLayout } from '@/theme/layout';
 import { kindLabel, roleLabel, useMyClubs } from '@/features/clubs/api';
+import { placeText } from '@/features/profile/location';
 import { useSignedUrl } from '@/features/social/media';
 import { PostCard, useFeed } from '@/features/social/PostCard';
 import { useProfileCard } from '@/features/social/profile';
@@ -25,7 +26,7 @@ export default function MyProfile() {
   const p = usePalette();
   const { gutter, contentMax } = useLayout();
   const units = useUnits();
-  const { userId, profile, staff } = useSession();
+  const { userId, profile, settings, staff } = useSession();
   const { competition, season, home, homeSeason } = useCompetition();
   const card = useProfileCard(userId ?? undefined);
   const avatar = useSignedUrl('avatars', profile?.avatar_path);
@@ -55,7 +56,7 @@ export default function MyProfile() {
           </View>
         </Pressable>
         <Txt variant="title" align="center">{profile.display_name}</Txt>
-        <Txt variant="caption" align="center">{`@${profile.handle}${profile.city_label ? ` · ${profile.city_label}` : ''} · ${profile.visibility === 'private' ? 'Private profile' : 'Public profile'}`}</Txt>
+        <Txt variant="caption" align="center">{[`@${profile.handle}`, placeText(profile.city_label, profile.country_code, settings?.area_label), profile.visibility === 'private' ? 'Private profile' : 'Public profile'].filter(Boolean).join(' · ')}</Txt>
         {profile.bio ? <Txt align="center" style={{ maxWidth: 520 }}>{profile.bio}</Txt> : null}
       </View>
       <Card padded={false} style={{ flexDirection: 'row', paddingVertical: spacing.lg }}>

@@ -51,12 +51,20 @@ const BLOCKED: Record<'account' | 'compete' | 'post' | 'message' | 'comment' | '
   club: 'Creating and managing clubs is paused while your account is suspended.'
 };
 
+/** Opens the request for a review of the runner's own suspension (one per suspension). */
+export function appealSuspension(userId: string | null): void {
+  if (userId) router.push({ pathname: '/appeals', params: { type: 'account_action', id: userId } });
+  else router.push('/appeals');
+}
+
 /**
  * The suspended state, where an action is blocked: what is paused, what still works, and where to go.
- * Suspended runners can still record privately, see their history and message support.
+ * Suspended runners can still record privately, see their history, message support and ask for a
+ * review of the suspension.
  */
 export function SuspendedNotice({ what, compact }: { what: keyof typeof BLOCKED; compact?: boolean }) {
   const p = usePalette();
+  const { userId } = useSession();
   if (compact) {
     return <Banner tone="warning" text={BLOCKED[what]} action={{ label: 'Get help', onPress: () => contactSupport('account', 'My account is suspended', 'account:suspended') }} />;
   }
@@ -69,7 +77,7 @@ export function SuspendedNotice({ what, compact }: { what: keyof typeof BLOCKED;
       <Txt color="textMuted">{`${BLOCKED[what]} Your runs and history are safe.`}</Txt>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
         <Button size="sm" icon="chat" label="Message support" onPress={() => contactSupport('account', 'My account is suspended', 'account:suspended')} />
-        <Button size="sm" variant="secondary" icon="flag" label="Appeals" onPress={() => router.push('/appeals')} accessibilityLabel="Your reviews and appeals" />
+        <Button size="sm" variant="secondary" icon="flag" label="Ask for a review" onPress={() => appealSuspension(userId)} accessibilityLabel="Ask for a review of your suspension" />
       </View>
     </Card>
   );

@@ -4,10 +4,10 @@ import { router, Stack } from 'expo-router';
 import { fmtArea, splitValue } from '@/lib/format';
 import { Avatar, Card, Chip, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Segmented, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
-import { useDistricts } from '@/features/profile/ProfileForm';
+import { useDistricts } from '@/features/profile/districts';
 import { daysLeft, useLeaderboard, type LeaderRow, type TerritoryScope } from '@/features/territory/useTerritoryStats';
 import { layerTitle, useCompetition } from '@/state/competition';
-import { useSession, useUnits } from '@/state/session';
+import { useUnits } from '@/state/session';
 import { radius, spacing, useTheme } from '@/theme/tokens';
 
 /**
@@ -17,7 +17,6 @@ import { radius, spacing, useTheme } from '@/theme/tokens';
  */
 export default function Leaderboard() {
   const units = useUnits();
-  const { profile } = useSession();
   const { competition, season, home, homeSeason } = useCompetition();
   const districts = useDistricts();
   const [district, setDistrict] = useState<string>('all');
@@ -104,7 +103,7 @@ export default function Leaderboard() {
           <Txt variant="caption">{allTime ? 'Published land held now.' : 'Published land held in this season\'s race.'}</Txt>
         </>
       ) : (
-        <EmptyState icon="hexagon" title="No published land yet" body={profile?.district_id ? (allTime ? 'Be the first to close a loop here.' : 'Be the first to close a loop this season.') : undefined} action={{ label: 'Start a run', onPress: () => router.push('/run/active') }} />
+        <EmptyState icon="hexagon" title="No published land yet" body={allTime ? 'Be the first to close a loop here.' : 'Be the first to close a loop this season.'} action={{ label: 'Start a run', onPress: () => router.push('/run/active') }} />
       )}
       <ListGroup>
         <Row icon="flag" title="Events" subtitle="Weekend challenges, city takeovers and distance months, with their own standings" onPress={() => router.push('/events')} />

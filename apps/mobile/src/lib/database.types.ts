@@ -479,6 +479,7 @@ export type Database = {
           artwork: string | null
           avatar_path: string | null
           city_label: string | null
+          country_code: string | null
           cover_path: string | null
           created_at: string
           created_by: string | null
@@ -502,6 +503,7 @@ export type Database = {
           artwork?: string | null
           avatar_path?: string | null
           city_label?: string | null
+          country_code?: string | null
           cover_path?: string | null
           created_at?: string
           created_by?: string | null
@@ -524,6 +526,7 @@ export type Database = {
           artwork?: string | null
           avatar_path?: string | null
           city_label?: string | null
+          country_code?: string | null
           cover_path?: string | null
           created_at?: string
           created_by?: string | null
@@ -1931,6 +1934,7 @@ export type Database = {
           avatar_style: Json | null
           bio: string | null
           city_label: string | null
+          country_code: string | null
           created_at: string
           discoverable: boolean
           display_name: string
@@ -1939,6 +1943,7 @@ export type Database = {
           id: string
           onboarding_completed_at: string | null
           status: string
+          status_changed_at: string | null
           updated_at: string
           visibility: string
         }
@@ -1950,6 +1955,7 @@ export type Database = {
           avatar_style?: Json | null
           bio?: string | null
           city_label?: string | null
+          country_code?: string | null
           created_at?: string
           discoverable?: boolean
           display_name: string
@@ -1958,6 +1964,7 @@ export type Database = {
           id: string
           onboarding_completed_at?: string | null
           status?: string
+          status_changed_at?: string | null
           updated_at?: string
           visibility?: string
         }
@@ -1968,6 +1975,7 @@ export type Database = {
           avatar_style?: Json | null
           bio?: string | null
           city_label?: string | null
+          country_code?: string | null
           created_at?: string
           discoverable?: boolean
           display_name?: string
@@ -1976,6 +1984,7 @@ export type Database = {
           id?: string
           onboarding_completed_at?: string | null
           status?: string
+          status_changed_at?: string | null
           updated_at?: string
           visibility?: string
         }
@@ -2679,10 +2688,12 @@ export type Database = {
       user_settings: {
         Row: {
           analytics_enabled: boolean
+          area_label: string | null
           default_post_audience: string
           full_private_mode: boolean
           messages_from: string
           selected_competition_id: string | null
+          show_area: boolean
           speed_competition_enabled: boolean
           territory_competition_enabled: boolean
           units: string
@@ -2692,10 +2703,12 @@ export type Database = {
         ComputedFields: never
         Insert: {
           analytics_enabled?: boolean
+          area_label?: string | null
           default_post_audience?: string
           full_private_mode?: boolean
           messages_from?: string
           selected_competition_id?: string | null
+          show_area?: boolean
           speed_competition_enabled?: boolean
           territory_competition_enabled?: boolean
           units?: string
@@ -2704,10 +2717,12 @@ export type Database = {
         }
         Update: {
           analytics_enabled?: boolean
+          area_label?: string | null
           default_post_audience?: string
           full_private_mode?: boolean
           messages_from?: string
           selected_competition_id?: string | null
+          show_area?: boolean
           speed_competition_enabled?: boolean
           territory_competition_enabled?: boolean
           units?: string
@@ -2894,7 +2909,13 @@ export type Database = {
       delete_comment: { Args: { p_comment: string }; Returns: undefined }
       delete_post: { Args: { p_post: string }; Returns: undefined }
       discover_clubs: {
-        Args: { p_district?: string; p_limit?: number; p_query?: string }
+        Args: {
+          p_city?: string
+          p_country?: string
+          p_district?: string
+          p_limit?: number
+          p_query?: string
+        }
         Returns: {
           artwork: string
           avatar_path: string
@@ -2940,7 +2961,9 @@ export type Database = {
         Args: {
           p_before?: string
           p_before_id?: string
-          p_district: string
+          p_city?: string
+          p_country?: string
+          p_district?: string
           p_limit?: number
         }
         Returns: Json[]
@@ -3563,10 +3586,17 @@ export type Database = {
       }
       revoke_activity_link: { Args: { p_token: string }; Returns: undefined }
       search_profiles: {
-        Args: { p_district?: string; p_limit?: number; p_query: string }
+        Args: {
+          p_city?: string
+          p_country?: string
+          p_district?: string
+          p_limit?: number
+          p_query: string
+        }
         Returns: {
           avatar_path: string
           city_label: string
+          country_code: string
           display_name: string
           follow_state: string
           handle: string

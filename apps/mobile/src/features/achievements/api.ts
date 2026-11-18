@@ -52,7 +52,8 @@ export function useAchievementProfile(userId?: string | null) {
   });
 }
 
-export type RankingScope = 'everyone' | 'country' | 'region' | 'friends' | 'club';
+/** 'city' and 'country' come from the profile's place ('region' is the server's older name for 'city'). */
+export type RankingScope = 'everyone' | 'country' | 'city' | 'friends' | 'club';
 
 export interface RankingRow {
   rank: number;

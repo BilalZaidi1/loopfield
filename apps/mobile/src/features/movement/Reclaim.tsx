@@ -109,6 +109,7 @@ function Check({ on }: { on: boolean }) {
 const BLOCKED: Record<string, string> = {
   taken_with_points: 'Taken back with points: only a run can win it back',
   season_closed: 'The season is closed',
+  reclaim_paused: 'Reclaiming is paused for now',
   not_participating: 'Turn on territory in Privacy settings'
 };
 

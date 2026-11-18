@@ -19,6 +19,7 @@ import { daysLeft, useLeaderboard, useMyTerritorySummary } from '@/features/terr
 import { getGoals } from '@/health/cache';
 import { layerTitle, useCompetition } from '@/state/competition';
 import { useNow } from '@/lib/useNow';
+import { countryName } from '@/lib/countries';
 import { useSession, useUnits } from '@/state/session';
 import { isSuspended, SuspendedNotice } from '@/components/Notices';
 import { useLayout } from '@/theme/layout';
@@ -41,8 +42,11 @@ export default function Home() {
   const { gutter, contentMax, isTablet } = useLayout();
   const { profile, userId } = useSession();
   const [feed, setFeed] = useState<'following' | 'discover'>('following');
-  const district = profile?.district_id ?? null;
-  const q = useFeed(feed === 'following' ? 'feed_following' : 'feed_discover', feed === 'following' ? {} : { p_district: district }, feed === 'following' || Boolean(district));
+  // Discover: public posts from runners in the city (else the country) on your profile.
+  const city = profile?.city_label?.trim() || null;
+  const country = profile?.country_code ?? null;
+  const place = country ? (city ? { p_country: country, p_city: city } : { p_country: country }) : null;
+  const q = useFeed(feed === 'following' ? 'feed_following' : 'feed_discover', feed === 'following' ? {} : place ?? {}, feed === 'following' || Boolean(place));
   const items: PostJson[] = q.data?.pages.flat() ?? [];
   const acts = useActivities(90);
   const following = useQuery({
@@ -89,8 +93,8 @@ export default function Home() {
   );
 
   let empty: ReactNode = null;
-  if (feed === 'discover' && !district) {
-    empty = <EmptyState icon="pin" title="Choose your city" body="Discover shows public posts from runners in your city or district." action={{ label: 'Set city', onPress: () => router.push('/settings/profile') }} />;
+  if (feed === 'discover' && !place) {
+    empty = <EmptyState icon="pin" title="Add your city" body="Discover shows public posts from runners in your city. Add your city and country to your profile." action={{ label: 'Add city', onPress: () => router.push('/settings/profile') }} />;
   } else if (q.isLoading) empty = <LoadingState label="Loading posts…" />;
   else if (q.error) empty = <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   else
@@ -98,14 +102,14 @@ export default function Home() {
       feed === 'following' ? (
         <EmptyState icon="clubs" title="Nothing from people you follow yet" body="Follow runners or join a club to see their posts here." action={{ label: 'Discover runners', onPress: () => router.push('/discover') }} />
       ) : (
-        <EmptyState icon="globe" title="No public posts in your area yet" body="Posts appear here when runners nearby share publicly." />
+        <EmptyState icon="globe" title={`No public posts in ${city ?? countryName(country) ?? 'your area'} yet`} body="Posts appear here when runners there share publicly and choose to appear in Discover." action={{ label: 'Find runners', onPress: () => router.push('/discover') }} />
       );
 
   return (
     <FlatList
       style={{ backgroundColor: p.bg }}
       contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: spacing.huge, gap: spacing.lg, width: '100%', maxWidth: contentMax, alignSelf: 'center' }}
-      data={feed === 'discover' && !district ? [] : items}
+      data={feed === 'discover' && !place ? [] : items}
       keyExtractor={(i) => i.id}
       renderItem={({ item }) => <PostCard post={item} />}
       ListHeaderComponent={header}
