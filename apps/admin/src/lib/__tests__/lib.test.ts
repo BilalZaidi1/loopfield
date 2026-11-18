@@ -87,7 +87,7 @@ describe('safety helpers', () => {
 });
 
 import { bandSpans, chosenWidgets, DEFAULT_WIDGETS } from '../widgets';
-import { niceTicks } from '../../components/charts';
+import { niceTicks, placeLabels, tickFormat } from '../../components/charts';
 
 describe('bandSpans', () => {
   it('fills complete rows and shares the last row evenly', () => {
@@ -110,5 +110,29 @@ describe('niceTicks', () => {
     expect(niceTicks(416)).toEqual([0, 200, 400, 600]);
     expect(niceTicks(9.5)).toEqual([0, 2.5, 5, 7.5, 10]);
     expect(niceTicks(0)).toEqual([0, 1]);
+  });
+
+  it('steps counts by whole numbers', () => {
+    expect(niceTicks(1, 4, true)).toEqual([0, 1]);
+    expect(niceTicks(3, 4, true)).toEqual([0, 1, 2, 3]);
+    expect(niceTicks(7, 4, true)).toEqual([0, 2, 4, 6, 8]);
+    expect(niceTicks(10, 4, true)).toEqual([0, 5, 10]);
+    expect(niceTicks(1)).toEqual([0, 0.25, 0.5, 0.75, 1]);
+  });
+
+  it('labels each tick with its true value', () => {
+    expect(niceTicks(1).map(tickFormat(niceTicks(1)))).toEqual(['0', '0.25', '0.5', '0.75', '1']);
+    expect(niceTicks(9.5).map(tickFormat(niceTicks(9.5)))).toEqual(['0', '2.5', '5', '7.5', '10']);
+    expect(niceTicks(52_000).map(tickFormat(niceTicks(52_000)))).toEqual(['0', '20K', '40K', '60K']);
+  });
+});
+
+describe('placeLabels', () => {
+  it('keeps the latest day inside the chart and drops labels that would touch it', () => {
+    const placed = placeLabels([
+      { i: 0, x: 60, text: '20 Oct' }, { i: 15, x: 200, text: '5 Nov' }, { i: 25, x: 280, text: '13 Nov' }, { i: 29, x: 296, text: '18 Nov' }
+    ], 300);
+    expect(placed.map((l) => [l.text, l.anchor])).toEqual([['20 Oct', 'middle'], ['5 Nov', 'middle'], ['18 Nov', 'end']]);
+    expect(placed.at(-1)!.x).toBeLessThan(300);
   });
 });

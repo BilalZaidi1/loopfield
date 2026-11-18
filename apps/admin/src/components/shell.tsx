@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Icon, type IconName } from './icons';
 import { Brand } from './brand';
 import { CountPill, cx } from './ui';
@@ -50,9 +50,24 @@ function NavLinks({ groups, onNavigate }: { groups: NavGroup[]; onNavigate?: () 
   );
 }
 
+/**
+ * Fixed to the left edge at the full height of the window, whatever the page does; on a short screen it
+ * scrolls on its own (without scrolling the page) and keeps the current page's item in view.
+ */
 export function Sidebar({ groups }: { groups: NavGroup[] }) {
+  const ref = useRef<HTMLElement>(null);
+  const path = usePathname();
+  useEffect(() => {
+    const aside = ref.current;
+    const active = aside?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!aside || !active) return;
+    const box = aside.getBoundingClientRect();
+    const item = active.getBoundingClientRect();
+    if (item.top < box.top || item.bottom > box.bottom) aside.scrollTop += item.top - box.top - (box.height - item.height) / 2;
+  }, [path]);
   return (
-    <aside className="hidden lg:flex w-[260px] shrink-0 flex-col gap-7 border-r border-line bg-surface px-4 pt-7 pb-5 sticky top-0 h-dvh overflow-y-auto">
+    <aside ref={ref}
+      className="hidden lg:flex fixed inset-y-0 left-0 z-20 w-[260px] flex-col gap-7 border-r border-line bg-surface px-4 pt-7 pb-5 overflow-y-auto overscroll-contain [scrollbar-width:thin] [scrollbar-color:var(--lf-border-strong)_transparent]">
       <div className="px-2"><Brand /></div>
       <NavLinks groups={groups} />
     </aside>

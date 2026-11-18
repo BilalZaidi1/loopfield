@@ -58,7 +58,7 @@ export default async function ConsoleLayout({ children }: { children: ReactNode 
   return (
     <div className="min-h-dvh flex">
       <Sidebar groups={groups} />
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col lg:pl-[260px]">
         <header className="sticky top-0 z-30 flex h-16 items-center gap-3 bg-bg/90 backdrop-blur px-5 md:px-7">
           <MobileNav groups={groups} />
           <div className="hidden sm:flex items-center gap-2">

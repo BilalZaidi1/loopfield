@@ -27,17 +27,52 @@ function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] 
   return [ref, w];
 }
 
-/** Clean axis maximum and ticks: 0, step, 2·step… with step from 1, 2, 2.5, 5 × 10ⁿ. */
-export function niceTicks(max: number, count = 4): number[] {
+/**
+ * Clean axis maximum and ticks: 0, step, 2·step… with step from 1, 2, 2.5, 5 × 10ⁿ. Counts (`integer`)
+ * step by whole numbers, so a chart whose highest day is 1 shows 0 and 1, not quarter gridlines.
+ */
+export function niceTicks(max: number, count = 4, integer = false): number[] {
   if (!(max > 0)) return [0, 1];
   const raw = max / count;
   const mag = 10 ** Math.floor(Math.log10(raw));
-  const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => s >= raw) ?? 10 * mag;
+  let step = (integer ? [1, 2, 5, 10] : [1, 2, 2.5, 5, 10]).map((m) => +(m * mag).toPrecision(6)).find((s) => s >= raw) ?? 10 * mag;
+  if (integer) step = Math.max(1, Math.round(step));
   const top = Math.ceil(max / step) * step;
   return Array.from({ length: Math.round(top / step) + 1 }, (_, i) => +(i * step).toFixed(6));
 }
 
-const tick = (v: number) => num(v, { compact: true });
+/** Tick labels with as many decimals as the step needs (0.25 reads 0.25, never a rounded 0.3). */
+export function tickFormat(ticks: number[]): (v: number) => string {
+  const dp = (String(ticks[1] ?? 1).split('.')[1] ?? '').length;
+  return dp ? (v) => num(v, { digits: dp }) : (v) => num(v, { compact: true });
+}
+
+const isCount = (vs: number[]) => vs.every((v) => Number.isInteger(v));
+
+/** An axis label centred on x, or pinned to the edge it would run past (11 px text, about 6.4 px a character). */
+function fitLabel(x: number, text: string, width: number): { x: number; anchor: 'start' | 'middle' | 'end' } {
+  const half = (text.length * 6.4) / 2;
+  if (x + half > width - 1) return { x: width - 1, anchor: 'end' };
+  if (x - half < 1) return { x: 1, anchor: 'start' };
+  return { x, anchor: 'middle' };
+}
+
+/**
+ * Axis labels kept inside the chart and never touching: placed from the right, so the latest day always
+ * shows, and any label that would run into the one after it is left out.
+ */
+export function placeLabels(items: { i: number; x: number; text: string }[], width: number) {
+  const kept: { i: number; x: number; text: string; anchor: 'start' | 'middle' | 'end'; left: number }[] = [];
+  for (const it of [...items].reverse()) {
+    const at = fitLabel(it.x, it.text, width);
+    const size = it.text.length * 6.4;
+    const left = at.anchor === 'start' ? at.x : at.anchor === 'end' ? at.x - size : at.x - size / 2;
+    const next = kept[kept.length - 1];
+    if (next && left + size > next.left - 8) continue;
+    kept.push({ ...it, ...at, left });
+  }
+  return kept.reverse();
+}
 
 function Tooltip({ x, y, width, children }: { x: number; y: number; width: number; children: ReactNode }) {
   const left = Math.min(Math.max(x, 70), width - 70);
@@ -49,13 +84,20 @@ function Tooltip({ x, y, width, children }: { x: number; y: number; width: numbe
   );
 }
 
+/**
+ * The chart's numbers for screen readers. The visually hidden box wraps the table rather than being it:
+ * a table ignores its height and grows to fit its rows, so a hidden 30-row table hung below the page and
+ * stretched it with empty space.
+ */
 function DataTable({ caption, head, rows }: { caption: string; head: string[]; rows: (string | number)[][] }) {
   return (
-    <table className="sr-only">
-      <caption>{caption}</caption>
-      <thead><tr>{head.map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead>
-      <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
-    </table>
+    <div className="sr-only">
+      <table>
+        <caption>{caption}</caption>
+        <thead><tr>{head.map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead>
+        <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
   );
 }
 
@@ -74,7 +116,9 @@ export function LineChart({ days, values, previous, label, unit, height = 220, f
   const n = values.length;
   const pad = { l: 44, r: 16, t: 14, b: 26 };
   const w = Math.max(width, 100);
-  const ticks = niceTicks(Math.max(1, ...values, ...(previous ?? [])));
+  const all = [...values, ...(previous ?? [])];
+  const ticks = niceTicks(Math.max(1, ...all), 4, isCount(all));
+  const tick = tickFormat(ticks);
   const max = ticks[ticks.length - 1]!;
   const x = (i: number) => pad.l + (n <= 1 ? 0 : (i * (w - pad.l - pad.r)) / (n - 1));
   const y = (v: number) => pad.t + (height - pad.t - pad.b) * (1 - v / max);
@@ -140,12 +184,17 @@ export function ColumnChart({ labels, values, label, unit, height = 220, formatA
   const n = values.length;
   const pad = { l: 44, r: 8, t: 18, b: 26 };
   const w = Math.max(width, 100);
-  const ticks = niceTicks(Math.max(1, ...values));
+  const ticks = niceTicks(Math.max(1, ...values), 4, isCount(values));
+  const tick = tickFormat(ticks);
   const max = ticks[ticks.length - 1]!;
   const band = (w - pad.l - pad.r) / Math.max(n, 1);
   const bw = Math.max(2, Math.min(24, band - 2));
   const y = (v: number) => pad.t + (height - pad.t - pad.b) * (1 - v / max);
   const every = labelEvery ?? Math.max(1, Math.ceil(n / Math.max(1, Math.floor((w - pad.l) / 56))));
+  const axisLabels = placeLabels(
+    values.map((_, i) => i).filter((i) => i % every === 0 || i === n - 1).map((i) => ({ i, x: pad.l + i * band + band / 2, text: labels[i] ?? '' })),
+    w
+  );
   const bar = (i: number, v: number) => {
     const x0 = pad.l + i * band + (band - bw) / 2;
     const top = y(v);
@@ -166,15 +215,15 @@ export function ColumnChart({ labels, values, label, unit, height = 220, formatA
           {values.map((v, i) => (
             <g key={i}>
               {v > 0 ? <path d={bar(i, v)} fill={C.series} opacity={hover == null || hover === i ? 1 : 0.55} /> : null}
-              {(i % every === 0 && n - 1 - i >= Math.ceil(every / 2) + 1) || i === n - 1 ? (
-                <text x={pad.l + i * band + band / 2} y={height - 6} textAnchor="middle" fontSize={11} fill={C.text}>{labels[i]}</text>
-              ) : null}
               <rect x={pad.l + i * band} y={pad.t} width={band} height={height - pad.t - pad.b} fill="transparent" onMouseEnter={() => setHover(i)} />
             </g>
           ))}
-          {n > 0 && values[n - 1]! > 0 && hover == null ? (
-            <text x={pad.l + (n - 1) * band + band / 2} y={y(values[n - 1]!) - 6} textAnchor="middle" fontSize={11} fontWeight={600} fill="var(--lf-text)">{format(values[n - 1]!)}</text>
-          ) : null}
+          {axisLabels.map((l) => <text key={l.i} x={l.x} y={height - 6} textAnchor={l.anchor} fontSize={11} fill={C.text}>{l.text}</text>)}
+          {n > 0 && values[n - 1]! > 0 && hover == null ? (() => {
+            const text = format(values[n - 1]!);
+            const at = fitLabel(pad.l + (n - 1) * band + band / 2, text, w);
+            return <text x={at.x} y={y(values[n - 1]!) - 6} textAnchor={at.anchor} fontSize={11} fontWeight={600} fill="var(--lf-text)">{text}</text>;
+          })() : null}
         </svg>
       ) : <div style={{ height }} />}
       {hover != null && width > 0 ? (
