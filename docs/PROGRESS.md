@@ -8,6 +8,7 @@ Working file kept current so work survives context limits. Newest first.
 * One settings source; maintenance screen; update prompt and forced update; kill switches, limits and season rules in the UI; share card explanations; support badge and Contact support links; operator screens by permission behind an authenticator code; suspended state; city picker with location detection.
 * Checks: typecheck, lint (0 errors), jest 153 tests in 20 suites (34 new), client queries, generated types; web screenshots of the new screens in light and dark.
 * Found on the server and left unchanged (see `BACK_OFFICE.md`, "Known server gaps"): drawn avatars are blocked with photo uploads; suspended runners cannot file appeals; paused reclaiming is reported as a closed season.
+* Published from `3d9cb50` (PR #2): pilot update `a453fbf4…` (update `01a1eda5…`), runtime `219bb6f…`, the installed APK's; the app's installed version stays 0.1.0, shown in Settings with the update id. CI: `mobile-bundle` passes; `verify` stops at installing pgTAP, as on PR #1.
 
 ## 12 Nov 2026: owner feedback on the pilot APK
 
