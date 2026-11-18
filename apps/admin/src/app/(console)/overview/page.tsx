@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { can, requireStaff } from '@/lib/auth';
 import { getMetrics, getOverview, getPreferences } from '@/lib/data';
-import { rpc } from '@/lib/rpc';
+import { rpc, settle } from '@/lib/rpc';
 import { viewerTimeZone } from '@/lib/tz';
 import { age, ageMinutes, change, count, dateTime, num, relativeTime, shortDay } from '@/lib/format';
 import { SWITCHES, asMaintenance } from '@/lib/switches';
@@ -25,11 +25,11 @@ export default async function OverviewPage() {
   const ctx = await requireStaff();
   const today = new Date();
   const from = isoDay(new Date(today.getTime() - 13 * 86_400_000));
-  const [o, tz, prefs, metrics, support] = await Promise.all([
+  const [o, tz, prefs, loaded, support] = await Promise.all([
     getOverview(),
     viewerTimeZone(),
     getPreferences().catch(() => ({}) as Record<string, unknown>),
-    can(ctx, 'analytics') ? getMetrics(from, isoDay(today)).catch(() => null) : Promise.resolve(null),
+    can(ctx, 'analytics') ? settle(getMetrics(from, isoDay(today))) : Promise.resolve(null),
     can(ctx, 'support') ? rpc<SupportQueue>('ops_support_queue', { p_view: 'open', p_limit: 5 }).catch(() => null) : Promise.resolve(null)
   ]);
   const widgets = chosenWidgets(prefs.overview_widgets, ctx.permissions);
@@ -49,7 +49,10 @@ export default async function OverviewPage() {
   ];
   const waiting = reviewLinks.filter((l) => l.show).reduce((n, l) => n + l.n, 0);
   const oldest = [q.moderation.oldest, q.integrity.oldest, q.appeals.oldest, q.routes.oldest, support?.counts.oldest_open ?? null].filter(Boolean).sort()[0] ?? null;
-  const env = { o, tz: tz ?? 'UTC', metrics, support, ctx };
+  // A metrics failure shows as "Not loaded" in the widgets, never as zeros.
+  const metrics = loaded?.ok ? loaded.data : null;
+  const metricsError = loaded && !loaded.ok ? loaded.error : null;
+  const env = { o, tz: tz ?? 'UTC', metrics, metricsError, support, ctx };
 
   return (
     <>
@@ -108,7 +111,7 @@ export default async function OverviewPage() {
   );
 }
 
-type Env = { o: Overview; tz: string; metrics: Metrics | null; support: SupportQueue | null; ctx: Awaited<ReturnType<typeof requireStaff>> };
+type Env = { o: Overview; tz: string; metrics: Metrics | null; metricsError: string | null; support: SupportQueue | null; ctx: Awaited<ReturnType<typeof requireStaff>> };
 
 const KPI_ICON: Record<string, IconName> = { kpi_active: 'users', kpi_runs: 'route', kpi_distance: 'map', kpi_loops: 'hexagon', kpi_signups: 'plus', kpi_land: 'hexagon' };
 const UNIT: Record<string, string> = { distance_km: 'km', land_km2: 'km²' };
@@ -121,7 +124,8 @@ function Widget({ w, env }: { w: WidgetDef; env: Env }) {
       return <Tile icon="chat" label={w.label} value={count(c?.open ?? 0)} note={c ? `${c.unassigned} unassigned · ${c.urgent} urgent` : 'Not available'} href="/support" />;
     }
     if (w.id === 'kpi_runners') return <Tile icon="users" label={w.label} value={count(o.totals.runners)} note={`${count(o.totals.suspended)} suspended · ${count(o.totals.clubs)} clubs`} href="/runners" />;
-    const s = m?.series[w.metric!] ?? [];
+    if (!m) return <Tile icon={KPI_ICON[w.id] ?? 'pulse'} label={w.label} value="–" note={<NotLoadedNote error={env.metricsError} />} href="/analytics" />;
+    const s = m.series[w.metric!] ?? [];
     const todayVal = s[s.length - 1] ?? 0;
     const week = s.slice(-7).reduce((a, b) => a + b, 0);
     const prevWeek = s.slice(-14, -7).reduce((a, b) => a + b, 0);
@@ -132,7 +136,16 @@ function Widget({ w, env }: { w: WidgetDef; env: Env }) {
     );
   }
   if (w.band === 'chart') {
-    if (!m) return <Card className="w-full" title={w.label}><p className="type-body text-muted">Analytics is not available.</p></Card>;
+    if (!m) {
+      return (
+        <Card className="w-full" title={w.label}>
+          <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 rounded-md bg-surface-alt/50 px-4 text-center type-caption text-muted">
+            <Icon name="alert" size={16} />
+            <NotLoadedNote error={env.metricsError} />
+          </div>
+        </Card>
+      );
+    }
     const values = m.series[w.metric!] ?? [];
     const unit = UNIT[w.metric!] ?? m.catalog.find((c) => c.key === w.metric)?.unit;
     const total = values.reduce((a, b) => a + b, 0);
@@ -164,6 +177,10 @@ function Tile({ icon, label, value, unit, note, spark, href }: { icon: IconName;
     </div>
   );
   return href ? <Link href={href} className="flex w-full rounded-lg focus-visible:outline-2 focus-visible:outline-primary">{body}</Link> : body;
+}
+
+function NotLoadedNote({ error }: { error: string | null }) {
+  return <span title={error ?? undefined}>{error ? `Not loaded: ${error}` : 'Not loaded'}</span>;
 }
 
 function Delta({ value }: { value: number }) {
