@@ -6,6 +6,8 @@ import { friendlyError, rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { supabase } from '@/lib/supabase';
 import { Banner, ErrorState, IconButton, LoadingState, PressableScale, TextField, Txt } from '@/components/ui';
+import { useFeature } from '@/lib/appConfig';
+import { PausedNote, SuspendedNotice, useSuspended } from '@/components/Notices';
 import { Icon } from '@/components/icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DM_CHANNEL_TYPE, GROUP_CHANNEL_TYPE, reportMessage, useConversation, type UiMessage } from '@/chat/client';
@@ -23,6 +25,9 @@ export default function Conversation() {
   const { channel, name, conversation, kind, title } = useLocalSearchParams<{ channel: string; name?: string; conversation?: string; kind?: 'group'; title?: string }>();
   const isGroup = kind === 'group';
   const { userId } = useSession();
+  // Direct messages follow App control's messaging switch; a suspended account cannot send in any chat.
+  const dmPaused = !useFeature('messaging_enabled') && !isGroup;
+  const suspended = useSuspended();
   const chat = useConversation(userId, channel, isGroup ? GROUP_CHANNEL_TYPE : DM_CHANNEL_TYPE);
   const [text, setText] = useState('');
   const conv = useQuery({
@@ -123,7 +128,11 @@ export default function Conversation() {
         />
       )}
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: Math.max(insets.bottom, spacing.md), gap: spacing.xs, backgroundColor: p.bg }}>
-        {frozen ? <Banner tone="info" text="This conversation is closed. Messages can no longer be sent." /> : (
+        {frozen ? <Banner tone="info" text="This conversation is closed. Messages can no longer be sent." /> : dmPaused ? (
+          <PausedNote feature="messaging_enabled" text="Direct messages are paused for now. You can still read this conversation." />
+        ) : suspended ? (
+          <SuspendedNotice what="message" compact />
+        ) : (
           <>
             <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm }}>
               <View style={{ flex: 1 }}>

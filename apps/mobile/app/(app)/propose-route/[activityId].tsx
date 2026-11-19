@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { buildCourse, decodePolyline, haversineMeters, SPEED_RULES } from '@loopfield/core';
+import { buildCourse, decodePolyline, haversineMeters } from '@loopfield/core';
 import { ROUTE_PUBLICATION_CONSENT_VERSION } from '@/config/env';
 import { friendlyError, rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
-import { fmtDistance } from '@/lib/format';
+import { fmtDistance, fmtRuleDistance } from '@/lib/format';
+import { useFeature } from '@/lib/appConfig';
+import { useSpeedRules } from '@/lib/gameRules';
+import { PausedNote, SuspendedNotice, useSuspended } from '@/components/Notices';
 import { Banner, Button, Card, ListGroup, LoadingState, Screen, TextField, Toggle, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { spacing, usePalette } from '@/theme/tokens';
@@ -24,14 +27,18 @@ export default function ProposeRoute() {
   const [founding, setFounding] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The running season's route rules (back office), built-in when offline; reviewers and the server check again.
+  const S = useSpeedRules();
+  const proposalsOn = useFeature('route_proposals_enabled');
+  const suspended = useSuspended();
   const a = detail.data?.activity;
   const points = useMemo(() => (a?.personal_route ? decodePolyline(a.personal_route) : []), [a]);
-  const closed = points.length > 1 && haversineMeters(points[0]!, points[points.length - 1]!) <= SPEED_RULES.corridorMeters.value * 1.5;
+  const closed = points.length > 1 && haversineMeters(points[0]!, points[points.length - 1]!) <= S.corridorMeters.value * 1.5;
   const preview = useMemo(() => (points.length > 1 ? buildCourse(points, { closed }) : null), [points, closed]);
   if (detail.isLoading) return <LoadingState />;
   const path = points.map((x) => [x.lng, x.lat] as [number, number]);
   const markers: MapMarker[] = path.length ? [{ id: 's', coord: path[0]!, label: 'Start', kind: 'start' }, { id: 'f', coord: path[path.length - 1]!, label: 'Finish', kind: 'finish' }] : [];
-  const lengthOk = preview ? preview.lengthM >= SPEED_RULES.minCourseLengthMeters.value && preview.lengthM <= SPEED_RULES.maxCourseLengthMeters.value : false;
+  const lengthOk = preview ? preview.lengthM >= S.minCourseLengthMeters.value && preview.lengthM <= S.maxCourseLengthMeters.value : false;
 
   const submit = async () => {
     setBusy(true);
@@ -49,8 +56,9 @@ export default function ProposeRoute() {
   };
 
   return (
-    <Screen footer={<Button label="Submit for review" size="lg" arrow onPress={() => void submit()} loading={busy} disabled={!consent || name.trim().length < 3 || !path.length || !lengthOk || busy} />}>
+    <Screen footer={<Button label="Submit for review" size="lg" arrow onPress={() => void submit()} loading={busy} disabled={!consent || name.trim().length < 3 || !path.length || !lengthOk || busy || !proposalsOn || suspended} />}>
       <Stack.Screen options={{ title: 'Propose a route' }} />
+      {!proposalsOn ? <PausedNote feature="route_proposals_enabled" /> : suspended ? <SuspendedNotice what="compete" /> : null}
       {!path.length ? <Banner tone="warning" text="This run has no processed route yet, so it cannot be proposed." /> : (
         <>
           <MapCanvas height={260} layers={{ path, markers }} accessibilityLabel="Proposed route geometry with start and finish." />
@@ -60,7 +68,7 @@ export default function ProposeRoute() {
               <Txt variant="headline" style={{ flex: 1 }}>{`${preview ? fmtDistance(preview.lengthM, units) : '—'} · ${closed ? 'loop' : 'one way'}`}</Txt>
             </View>
             <Txt color="textMuted">Direction follows your run. Start and finish gates are placed across the path at each end; a reviewer may adjust gates and checkpoints and will check it is public, safe and not a duplicate.</Txt>
-            {!lengthOk ? <Banner tone="warning" text={`Routes must be ${fmtDistance(SPEED_RULES.minCourseLengthMeters.value, units, 0)}–${fmtDistance(SPEED_RULES.maxCourseLengthMeters.value, units, 0)} long.`} /> : null}
+            {!lengthOk ? <Banner tone="warning" text={`Routes must be ${fmtRuleDistance(S.minCourseLengthMeters.value, units)}–${fmtRuleDistance(S.maxCourseLengthMeters.value, units)} long this season.`} /> : null}
           </Card>
         </>
       )}

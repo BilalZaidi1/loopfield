@@ -1,6 +1,7 @@
+import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { rpc } from '@/lib/api';
-import { supabase } from '@/lib/supabase';
+import { useAppConfig } from '@/lib/appConfig';
 import type { BadgeTier, ChallengeCategory } from '@loopfield/core';
 
 export type { BadgeTier, ChallengeCategory };
@@ -51,7 +52,8 @@ export function useAchievementProfile(userId?: string | null) {
   });
 }
 
-export type RankingScope = 'everyone' | 'country' | 'region' | 'friends' | 'club';
+/** 'city' and 'country' come from the profile's place ('region' is the server's older name for 'city'). */
+export type RankingScope = 'everyone' | 'country' | 'city' | 'friends' | 'club';
 
 export interface RankingRow {
   rank: number;
@@ -81,22 +83,19 @@ export interface RankingRules {
   categoryBonus: number;
 }
 
-/** The published ranking formula (public config), so the explanation always matches the server. */
-export function useRankingRules() {
-  return useQuery({
-    queryKey: ['ranking_rules'],
-    staleTime: 3_600_000,
-    queryFn: async (): Promise<RankingRules> => {
-      const { data, error } = await supabase().from('app_config').select('key, value').in('key', ['achievement_tier_points', 'achievement_category_bonus']);
-      if (error) throw error;
-      const map = new Map((data ?? []).map((r) => [r.key as string, r.value as unknown]));
-      return {
-        tierPoints: (map.get('achievement_tier_points') as Record<BadgeTier, number>) ?? { bronze: 10, silver: 25, gold: 60, platinum: 150 },
-        categoryBonus: Number(map.get('achievement_category_bonus') ?? 25)
-      };
-    }
-  });
+/** The published ranking formula (App control settings), so the explanation always matches the server. */
+export function useRankingRules(): { data: RankingRules | undefined } {
+  const { settings, loaded } = useAppConfig();
+  const tiers = settings.achievementTierPoints;
+  const bonus = settings.achievementCategoryBonus;
+  const data = useMemo(
+    () => (loaded ? { tierPoints: { ...DEFAULT_TIER_POINTS, ...(tiers ?? {}) } as Record<BadgeTier, number>, categoryBonus: bonus ?? 25 } : undefined),
+    [loaded, tiers, bonus]
+  );
+  return { data };
 }
+
+const DEFAULT_TIER_POINTS: Record<BadgeTier, number> = { bronze: 10, silver: 25, gold: 60, platinum: 150 };
 
 /** Re-evaluate my achievements now (pull to refresh); the server also does this every minute. */
 export function useRefreshAchievements() {

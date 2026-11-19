@@ -10,7 +10,7 @@ import { isExpoGo } from '@/lib/runtime';
 import { activeSession, addEvent, appendSamples, eventsFor, getSession, recordingDb, samplesFor, setSessionState, type RunMode } from './db';
 import { LOCATION_TASK } from './task';
 import { checkIntegrity, setAutoPauseHandler, setIntegrityOverrides, startSteps, stopSteps } from './integrity';
-import { supabase } from '@/lib/supabase';
+import { fetchAppConfig } from '@/lib/appConfig';
 
 // The live movement check pauses through the same path as the Pause button.
 setAutoPauseHandler((id) => pauseRun(id));
@@ -18,8 +18,7 @@ setAutoPauseHandler((id) => pauseRun(id));
 /** Backend-tuned integrity thresholds for this run; the defaults apply when offline. */
 async function loadIntegrityOverrides(): Promise<void> {
   try {
-    const { data } = await supabase().from('app_config').select('value').eq('key', 'integrity_overrides').maybeSingle();
-    setIntegrityOverrides(data?.value ?? null);
+    setIntegrityOverrides((await fetchAppConfig()).integrityOverrides);
   } catch {
     setIntegrityOverrides(null);
   }

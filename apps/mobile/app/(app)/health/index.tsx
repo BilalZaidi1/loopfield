@@ -1,11 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { router, Stack } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
 import { localDayKey } from '@loopfield/core';
 import { track } from '@/lib/analytics';
 import { fmtDuration, fmtRelative } from '@/lib/format';
-import { supabase } from '@/lib/supabase';
+import { useAppConfig } from '@/lib/appConfig';
 import { Banner, Button, Card, EmptyState, ListGroup, Row, Screen, Txt } from '@/components/ui';
 import { Icon, type IconName } from '@/components/icons';
 import { dailyValues, METRICS, sourcesFor, type MetricId } from '@/features/health/metrics';
@@ -21,11 +20,8 @@ export default function HealthDashboard() {
   const p = usePalette();
   const conn = useHealthConnection();
   const d = useHealthDerived();
-  const disabled = useQuery({
-    queryKey: ['app_config', 'disabled_health_cards'],
-    staleTime: 10 * 60_000,
-    queryFn: async () => ((await supabase().from('app_config').select('value').eq('key', 'disabled_health_cards').maybeSingle()).data?.value as string[] | undefined) ?? []
-  });
+  // Health cards the back office has suspended (App control → switches).
+  const disabledCards = useAppConfig().settings.disabledHealthCards;
   useEffect(() => track('health_viewed', { screen: 'dashboard', session_count: d.sessions.length }), []); // eslint-disable-line react-hooks/exhaustive-deps
   const now = useNow();
   const today = localDayKey(now, deviceOffsetMin());
@@ -63,7 +59,7 @@ export default function HealthDashboard() {
       {cards.length === 0 ? <EmptyState icon="pulse" title="No cards enabled" action={{ label: 'Choose data types', onPress: () => router.push('/health/connections') }} /> : null}
       <View style={styles.grid}>
         {cards.map((c) => {
-          if (disabled.data?.includes(c.meta.card)) {
+          if (disabledCards.includes(c.meta.card)) {
             return <View key={c.id} style={{ flexBasis: '100%' }}><Banner tone="warning" text={`${c.meta.title} is temporarily unavailable while a data-quality problem is fixed.`} /></View>;
           }
           const value = c.todayValue ?? c.lastValue;

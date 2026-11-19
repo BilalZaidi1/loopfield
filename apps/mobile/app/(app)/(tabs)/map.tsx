@@ -20,6 +20,8 @@ import { layerSubtitle, layerTitle, useCompetition, type Competition } from '@/s
 import { useSession, useUnits } from '@/state/session';
 import { boundsAround, cellsToFeatures, gridFeatures, lostToFeatures, resolutionOf, summarizeCells, type Bounds, type ViewportCell } from '@/territory/h3';
 import { useLostCells, useMovement, useReclaimQuote, type LostCell } from '@/features/movement/api';
+import { PAUSED_TEXT, useAppConfig } from '@/lib/appConfig';
+import { PausedNote } from '@/components/Notices';
 import { PointsChip, ReclaimDone, ReclaimReceipt, ReclaimSheet, useReclaimFlow } from '@/features/movement/Reclaim';
 import { tick } from '@/theme/motion';
 import { controllerColor, radius, spacing, useTheme } from '@/theme/tokens';
@@ -58,6 +60,10 @@ export default function TerritoryMap() {
   const [sheet, setSheet] = useState<'legend' | 'competition' | null>(null);
   const [sheetH, setSheetH] = useState(240);
   const [reclaiming, setReclaiming] = useState(false);
+  // App control: reclaiming needs both its own switch and land capture; publication can be held back.
+  const { settings: cfg } = useAppConfig();
+  const reclaimPaused = !cfg.enabled.reclaim_enabled || !cfg.enabled.territory_capture_enabled;
+  const publicationPaused = !cfg.enabled.public_publication_enabled;
   const [threeD, setThreeD] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [listOpen, setListOpen] = useState(false);
@@ -252,14 +258,15 @@ export default function TerritoryMap() {
             </View>
           )
         ) : selectedCell ? (
-          <CellPanel cell={selectedCell} lost={lostByCell.get(selectedCell.cell)} rivalHues={tc.rivalHues} onClose={() => setSelected(null)} onReclaim={() => startReclaim(selectedCell.cell)} />
+          <CellPanel cell={selectedCell} lost={lostByCell.get(selectedCell.cell)} reclaimPaused={reclaimPaused} rivalHues={tc.rivalHues} onClose={() => setSelected(null)} onReclaim={() => startReclaim(selectedCell.cell)} />
         ) : selectedRoute ? (
           <RoutePanel route={selectedRoute} onClose={() => setSelected(null)} />
         ) : (
           <>
             <InView summary={summary} loading={cells.isFetching && !cells.data} available={available} expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+            {publicationPaused ? <PausedNote feature="public_publication_enabled" /> : null}
             {lost.data?.length ? (
-              <LostCallout count={lost.data.length} reclaimable={reclaimable} cost={lost.data.find((c) => c.reclaimable)?.cost ?? null} balance={movement.data?.balance ?? null} scope={available ? 'in view' : layer?.kind === 'permanent' ? 'so far' : 'this season'} onPress={() => startReclaim()} />
+              <LostCallout count={lost.data.length} reclaimable={reclaimPaused ? 0 : reclaimable} paused={reclaimPaused} cost={lost.data.find((c) => c.reclaimable)?.cost ?? null} balance={movement.data?.balance ?? null} scope={available ? 'in view' : layer?.kind === 'permanent' ? 'so far' : 'this season'} onPress={() => startReclaim()} />
             ) : null}
           </>
         )}
@@ -434,10 +441,10 @@ function LostSwatch({ faded, size = 26 }: { faded?: boolean; size?: number }) {
 }
 
 /** "You lost N cells": the way into reclaiming, with the price and my balance up front. */
-function LostCallout({ count, reclaimable, cost, balance, scope, onPress }: { count: number; reclaimable: number; cost: number | null; balance: number | null; scope: string; onPress: () => void }) {
+function LostCallout({ count, reclaimable, cost, balance, scope, onPress, paused }: { count: number; reclaimable: number; cost: number | null; balance: number | null; scope: string; onPress: () => void; paused?: boolean }) {
   const t = useTheme();
   const p = t.palette;
-  const sub = reclaimable && cost
+  const sub = paused ? PAUSED_TEXT.reclaim_enabled : reclaimable && cost
     ? `${reclaimable === count ? 'All' : reclaimable} reclaimable at ${cost} points a cell${balance != null ? ` · you have ${balance.toLocaleString()}` : ''}`
     : 'Taken back with points: only a run can win it back';
   return (
@@ -457,10 +464,11 @@ function LostCallout({ count, reclaimable, cost, balance, scope, onPress }: { co
 const BLOCKED_TEXT: Record<string, string> = {
   taken_with_points: 'Taken back with movement points, so only a run can win it back.',
   season_closed: 'The season is closed, so it can no longer be reclaimed.',
+  reclaim_paused: 'Reclaiming land with points is paused for now.',
   not_participating: 'Turn on territory in Privacy settings to reclaim it.'
 };
 
-function CellPanel({ cell, lost, rivalHues, onClose, onReclaim }: { cell: ViewportCell; lost?: LostCell; rivalHues: readonly string[]; onClose: () => void; onReclaim: () => void }) {
+function CellPanel({ cell, lost, reclaimPaused, rivalHues, onClose, onReclaim }: { cell: ViewportCell; lost?: LostCell; reclaimPaused?: boolean; rivalHues: readonly string[]; onClose: () => void; onReclaim: () => void }) {
   const t = useTheme();
   const tc = t.territory;
   const excluded = cell.status === 'excluded';
@@ -485,13 +493,13 @@ function CellPanel({ cell, lost, rivalHues, onClose, onReclaim }: { cell: Viewpo
         <View style={[styles.callout, { backgroundColor: t.palette.primarySoft }]}>
           <LostSwatch faded={!lost.reclaimable} size={22} />
           <Txt variant="label" style={{ flex: 1, color: t.palette.onPrimarySoft }}>
-            {lost.reclaimable ? `This was yours until ${fmtDate(lost.lost_on)}. Reclaim it for ${lost.cost} points.` : BLOCKED_TEXT[lost.blocked_reason ?? ''] ?? 'This was yours earlier this season.'}
+            {reclaimPaused ? `This was yours until ${fmtDate(lost.lost_on)}. ${PAUSED_TEXT.reclaim_enabled}` : lost.reclaimable ? `This was yours until ${fmtDate(lost.lost_on)}. Reclaim it for ${lost.cost} points.` : BLOCKED_TEXT[lost.blocked_reason ?? ''] ?? 'This was yours earlier this season.'}
           </Txt>
         </View>
       ) : (
         <Txt color="textMuted">{body}</Txt>
       )}
-      {lost?.reclaimable ? <Button label={`Reclaim for ${lost.cost} points`} size="lg" arrow icon="bolt" onPress={onReclaim} /> : null}
+      {lost?.reclaimable && !reclaimPaused ? <Button label={`Reclaim for ${lost.cost} points`} size="lg" arrow icon="bolt" onPress={onReclaim} /> : null}
       <Button label="Cell details" variant="secondary" icon="hexagon" onPress={() => router.push({ pathname: '/territory/[cell]', params: { cell: cell.cell } })} />
     </View>
   );

@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { Platform, Share, View, useWindowDimensions, type HostInstance } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
 import { activeEnergyDuring, heartRateSummary } from '@loopfield/core';
 import { ActionBar, Banner, ChipGroup, ListGroup, LoadingState, Screen, Section, Toggle, Txt, type ActionItem } from '@/components/ui';
 import { env } from '@/config/env';
@@ -15,29 +14,11 @@ import type { ShareField } from '@/features/social/publish';
 import { friendlyError } from '@/lib/api';
 import { track } from '@/lib/analytics';
 import { fmtDate, fmtDistance } from '@/lib/format';
-import { supabase } from '@/lib/supabase';
+import { shareRouteMinMeters, useAppConfig } from '@/lib/appConfig';
 import { useNow } from '@/lib/useNow';
 import { useSession, useUnits } from '@/state/session';
 import { useLayout } from '@/theme/layout';
 import { spacing } from '@/theme/tokens';
-
-/** Whether the back office allows a street map under shared routes (public config; on unless switched off). */
-function useStreetMapAllowed() {
-  return useQuery({
-    queryKey: ['app_config', 'share_street_map_enabled'],
-    staleTime: 10 * 60_000,
-    queryFn: async () => (await supabase().from('app_config').select('value').eq('key', 'share_street_map_enabled').maybeSingle()).data?.value !== false
-  });
-}
-
-/** Metres hidden at each end of a shared route (public config; 200 unless changed). */
-function useRouteTrim() {
-  return useQuery({
-    queryKey: ['app_config', 'share_route_trim_m'],
-    staleTime: 10 * 60_000,
-    queryFn: async () => Number((await supabase().from('app_config').select('value').eq('key', 'share_route_trim_m').maybeSingle()).data?.value ?? 200) || 200
-  });
-}
 
 /** Waits (up to `ms`) until the card's pictures have loaded, so the image is never taken half-drawn. */
 async function untilReady(ready: { current: boolean }, ms = 6000) {
@@ -57,7 +38,7 @@ export default function ShareCardScreen() {
   const units = useUnits();
   const { profile } = useSession();
   const avatar = useSignedUrl('avatars', profile?.avatar_path);
-  const trim = useRouteTrim();
+  const { settings } = useAppConfig();
   const { width } = useWindowDimensions();
   const { gutter } = useLayout();
   const now = useNow();
@@ -68,8 +49,8 @@ export default function ShareCardScreen() {
   const [format, setFormat] = useState<CardFormat>('9:16');
   const [route, setRoute] = useState(true);
   const [streetMap, setStreetMap] = useState(true);
-  const streetMapAllowed = useStreetMapAllowed();
-  const mapAvailable = Boolean(env.mapboxToken) && streetMapAllowed.data !== false;
+  // The back office can switch the street map off (App control → sharing); the route is then drawn on its own.
+  const mapAvailable = Boolean(env.mapboxToken) && settings.shareStreetMap;
   const cardReady = useRef(false);
   const [land, setLand] = useState(true);
   const [pace, setPace] = useState(true);
@@ -100,13 +81,20 @@ export default function ShareCardScreen() {
   const { w, h } = CARD_SIZE[format];
   const scale = Math.min(1, (Math.min(width, 520) - gutter * 2) / w);
   const props = { format, with_route: Boolean(route && preview.data?.route?.length), with_land: Boolean(land && preview.data?.land), with_qr: Boolean(url), with_map: Boolean(route && streetMap && preview.data?.route?.length && mapAvailable) };
-  // Why the image has no route when the runner asked for one: the server keeps the ends of every route private.
-  const trimM = trim.data ?? 200;
+  // Why the image has no route or no map when the runner asked for one. The server keeps the ends of every
+  // route private and shares no route at all for runs shorter than the larger of the back office's minimum and
+  // three times the hidden distance.
+  const trimM = settings.shareRouteTrimM;
+  const minM = shareRouteMinMeters(settings);
   const short = (m: number) => (units === 'metric' ? `${Math.round(m)} m` : fmtDistance(m, units, 2));
-  const routeHidden = route && preview.isSuccess && !preview.data?.route?.length
-    ? (a.distance_m ?? 0) < trimM * 3
-      ? `No route on this image: the first and last ${short(trimM)} of every route stay private, so runs shorter than ${short(trimM * 3)} keep their whole route private. Longer runs show it on a street map.`
-      : `No route on this image: once its first and last ${short(trimM)} and your private areas are hidden, too little of this route is left to show.`
+  const hasRoute = Boolean(preview.data?.route?.length);
+  const routeHidden = route && preview.isSuccess && !hasRoute
+    ? (a.distance_m ?? 0) < minM
+      ? `No route or map on this image: runs shorter than ${short(minM)} are shared without their route, and the first and last ${short(trimM)} of every route stay private. Longer runs show their route on a street map.`
+      : `No route or map on this image: once its first and last ${short(trimM)} and your private areas are hidden, too little of this route is left to show.`
+    : null;
+  const mapOff = route && streetMap && hasRoute && !mapAvailable
+    ? settings.shareStreetMap ? 'No street map on this image: maps are not set up in this version of the app, so the route is drawn on its own.' : 'No street map on this image: street maps are switched off for now, so the route is drawn on its own.'
     : null;
 
   const run = async (label: string, fn: () => Promise<void>) => {
@@ -196,6 +184,7 @@ export default function ShareCardScreen() {
       {linkWaits ? <Banner text="The link opens 30 minutes after your run, when its results are published." /> : null}
 
       {routeHidden ? <Banner text={routeHidden} /> : null}
+      {mapOff ? <Banner text={mapOff} /> : null}
 
       <Section title="On the image" icon="image">
         <ListGroup>

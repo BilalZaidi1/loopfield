@@ -11,6 +11,7 @@ import { createSession, discardRun, ensureLocationPermission, startRun } from '@
 import { useCompetition, type Competition, type Season } from '@/state/competition';
 import { useEvents, type EventRow } from '@/features/events/api';
 import { useSession } from '@/state/session';
+import { PAUSED_TEXT, useAppConfig } from '@/lib/appConfig';
 
 /** Runs are recorded only in the phone app; the browser shows the recorder for reference. */
 export const BROWSER = Platform.OS === 'web';
@@ -88,7 +89,12 @@ interface CourseOption {
  * (the recorder screen then switches to the live view on its own).
  */
 export function usePreRun(initialCourse?: string | null) {
-  const { userId, settings } = useSession();
+  const { userId, settings, profile } = useSession();
+  // App control switches and the account's status decide which competitive run types are open right now.
+  const { settings: cfg } = useAppConfig();
+  const suspended = profile?.status === 'suspended';
+  const captureOn = cfg.enabled.territory_capture_enabled && !suspended;
+  const titlesOn = cfg.enabled.speed_titles_enabled && !suspended;
   const { competition, season } = useCompetition();
   const events = useEvents('current');
   const [mode, setMode] = useState<RunMode>(initialCourse ? 'speed' : 'private');
@@ -117,9 +123,12 @@ export function usePreRun(initialCourse?: string | null) {
   const joinedEvents = (events.data ?? []).filter((e) => e.joined && e.phase === 'live');
   const landEvents = joinedEvents.filter((e) => e.event_type === 'territory' && e.region_id === competition?.region_id);
   const distanceEvents = joinedEvents.filter((e) => e.event_type === 'distance');
-  const blockers: { text: string; settings?: boolean; route?: boolean }[] = [];
+  const blockers: { text: string; settings?: boolean; route?: boolean; support?: boolean }[] = [];
   if (BROWSER) blockers.push({ text: 'Runs are recorded in the Loopfield phone app. The browser version shows everything else.' });
   if (mode !== 'private') {
+    if (suspended) blockers.push({ text: 'Competing is paused while your account is suspended. You can still record privately.', support: true });
+    if (wantsTerritory && !suspended && !cfg.enabled.territory_capture_enabled) blockers.push({ text: PAUSED_TEXT.territory_capture_enabled });
+    if (wantsSpeed && !suspended && !cfg.enabled.speed_titles_enabled) blockers.push({ text: PAUSED_TEXT.speed_titles_enabled });
     if (settings?.full_private_mode) blockers.push({ text: 'Full private mode is on, so competitive runs are unavailable.', settings: true });
     if (!competition || !season) blockers.push({ text: 'There is no active season here yet.' });
     if (wantsTerritory && !settings?.territory_competition_enabled) blockers.push({ text: 'Turn on territory in Privacy settings to claim land.', settings: true });
@@ -128,6 +137,8 @@ export function usePreRun(initialCourse?: string | null) {
     if (wantsSpeed && course.data && course.data.status !== 'active') blockers.push({ text: 'This route is not accepting attempts right now.', route: true });
   }
   const counts = mode !== 'private' && competition ? countsFor(competition, season, wantsTerritory, landEvents) : null;
+  // Run types that cannot start right now (shown as paused in the picker).
+  const paused = new Set<RunMode>([...(captureOn ? [] : (['territory', 'territory_speed'] as const)), ...(titlesOn ? [] : (['speed', 'territory_speed'] as const))]);
 
   const start = async (forceMode?: RunMode): Promise<boolean> => {
     const m = forceMode ?? mode;
@@ -172,7 +183,7 @@ export function usePreRun(initialCourse?: string | null) {
     }
   };
 
-  return { mode, setMode, captureNow, setCaptureNow, courseId, course, wantsTerritory, wantsSpeed, distanceEvents, blockers, counts, busy, error, start };
+  return { mode, setMode, captureNow, setCaptureNow, courseId, course, wantsTerritory, wantsSpeed, distanceEvents, blockers, counts, paused, busy, error, start };
 }
 
 export type PreRun = ReturnType<typeof usePreRun>;

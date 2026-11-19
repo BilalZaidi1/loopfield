@@ -4,6 +4,7 @@ import NetInfo from '@react-native-community/netinfo';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { queryClient } from '@/lib/query';
+import { APP_CONFIG_QUERY_KEY, parseAppConfig, type AppConfigRaw } from '@/lib/appConfig';
 import { log } from '@/lib/log';
 import { processUploads } from '@/recording/uploader';
 import { checkRecovery } from '@/recording/recorder';
@@ -16,7 +17,8 @@ const HEALTH_SYNC_MIN_INTERVAL_MS = 15 * 60_000;
 /**
  * App-level background duties for a signed-in runner:
  *  - recover an interrupted recording (never reconstructing missing movement),
- *  - drain the upload queue on launch, foreground and reconnect,
+ *  - drain the upload queue on launch, foreground and reconnect (held while the back office has the app in
+ *    maintenance, and drained as soon as maintenance ends),
  *  - incremental on-device health sync on foreground,
  *  - push registration and notification-tap routing.
  */
@@ -26,7 +28,10 @@ export function useBackgroundServices(userId: string | null): void {
     if (!userId) return;
     let cancelled = false;
 
+    const maintenance = () => parseAppConfig(queryClient.getQueryData<AppConfigRaw>(APP_CONFIG_QUERY_KEY)).maintenance.enabled;
     const drain = async () => {
+      // Finished runs stay queued on the phone during maintenance and upload once it is over.
+      if (maintenance()) return;
       try {
         const n = await processUploads(userId);
         if (n > 0) {
@@ -74,6 +79,17 @@ export function useBackgroundServices(userId: string | null): void {
     const recvSub = Notifications.addNotificationReceivedListener(() => {
       void queryClient.invalidateQueries({ queryKey: ['badge_counts'] });
       void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      // Pushes carry only an id, so any push may be a support reply: the unread count is a cheap read.
+      void queryClient.invalidateQueries({ queryKey: ['support_unread'] });
+      void queryClient.invalidateQueries({ queryKey: ['support_inbox'] });
+    });
+    // When the settings show maintenance has ended, upload what was held back.
+    let wasMaintenance = maintenance();
+    const configSub = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type !== 'updated' || event.query.queryKey[0] !== APP_CONFIG_QUERY_KEY[0]) return;
+      const now = maintenance();
+      if (wasMaintenance && !now) void drain();
+      wasMaintenance = now;
     });
     return () => {
       cancelled = true;
@@ -81,6 +97,7 @@ export function useBackgroundServices(userId: string | null): void {
       netSub();
       tapSub.remove();
       recvSub.remove();
+      configSub();
     };
   }, [userId]);
 }

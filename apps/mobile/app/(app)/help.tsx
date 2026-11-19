@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
 import { Linking, View } from 'react-native';
 import { router, Stack } from 'expo-router';
-import { MOVEMENT_RULES, RETENTION_RULES, SEASON_RULES, SPEED_RULES, SPEED_RULES_VERSION, TERRITORY_RULES, TERRITORY_RULES_VERSION } from '@loopfield/core';
+import { MOVEMENT_RULES, RETENTION_RULES, SEASON_RULES } from '@loopfield/core';
 import { env } from '@/config/env';
-import { fmtDistance } from '@/lib/format';
+import { useAppConfig } from '@/lib/appConfig';
+import { useSpeedRules, useTerritoryRules } from '@/lib/gameRules';
+import { fmtRuleDistance } from '@/lib/format';
 import { ArrowLink, Banner, Button, Card, Screen, Section, Txt } from '@/components/ui';
 import { spacing, usePalette } from '@/theme/tokens';
 import { useUnits } from '@/state/session';
@@ -21,8 +23,14 @@ function Bullet({ children }: { children: ReactNode }) {
 
 export default function Help() {
   const units = useUnits();
-  const T = TERRITORY_RULES;
-  const S = SPEED_RULES;
+  // The running season's rules from the back office (built-in values when offline), so Help always
+  // matches what the server applies. Movement points come from App control.
+  const T = useTerritoryRules();
+  const S = useSpeedRules();
+  const { settings } = useAppConfig();
+  const perKm = settings.movementPointsPerKm ?? MOVEMENT_RULES.pointsPerKm.value;
+  const dailyCap = settings.movementPointsDailyCap ?? MOVEMENT_RULES.dailyPointsCap.value;
+  const proposed = (settings.rulesStatus ?? 'proposed') === 'proposed';
   return (
     <Screen>
       <Stack.Screen options={{ title: 'Help and game rules' }} />
@@ -31,12 +39,12 @@ export default function Help() {
         <Txt color="textMuted">The tour shows how land, rivals, route titles, progress and clubs fit together.</Txt>
         <Button label="Replay the app tour" arrow onPress={() => router.push('/tour')} />
       </Card>
-      <Banner tone="info" text={`Pilot rules: every number below is a proposed value that may change after field testing (${TERRITORY_RULES_VERSION}, ${SPEED_RULES_VERSION}).`} />
+      <Banner tone="info" text={proposed ? `Pilot rules for the current season: every number below is a proposed value that may change after field testing (${T.version}, ${S.version}).` : `Rules for the current season (${T.version}, ${S.version}).`} />
       <Section title="Claiming land with loops" icon="hexagon">
         <Card>
         <Bullet>Choose Territory before you start, then start a loop capture. Travel before the capture stays private.</Bullet>
         <Bullet>Run any loop and finish within {T.closureMaxGapMeters.value} m of where the capture started, with good GPS at both ends.</Bullet>
-        <Bullet>Loops must be {fmtDistance(T.minLoopLengthMeters.value, units, 0)}–{fmtDistance(T.maxLoopLengthMeters.value, units, 0)} long and enclose at most {(T.maxCandidateAreaSquareMeters.value / 1_000_000).toFixed(0)} km².</Bullet>
+        <Bullet>Loops must be {fmtRuleDistance(T.minLoopLengthMeters.value, units)}–{fmtRuleDistance(T.maxLoopLengthMeters.value, units)} long and enclose at most {+(T.maxCandidateAreaSquareMeters.value / 1_000_000).toFixed(2)} km².</Bullet>
         <Bullet>The map is divided into small hexagonal cells. You claim the cells that lie fully inside your loop after a {T.boundaryUncertaintyBandMeters.value} m edge band that allows for GPS error.</Bullet>
         <Bullet>Overlap: the latest eligible completed loop takes every cell it fully encloses, even if another runner held them.</Bullet>
         <Bullet>Some areas (for example private, restricted or unsafe land) are unavailable and never awarded. Roads or parks appearing on the map does not by itself make an area eligible.</Bullet>
@@ -49,12 +57,12 @@ export default function Help() {
         <Bullet>Titles are earned on reviewed routes, in their set direction, through the start gate, every checkpoint and the finish gate, staying within {S.corridorMeters.value} m of the course.</Bullet>
         <Bullet>To take a title you must beat the record by a clear margin: the larger of {S.marginMinSeconds.value} s, {S.marginFraction.value * 100}% of the record, or the combined timing uncertainty. Near ties do not change the title.</Bullet>
         <Bullet>Titles count only on the same version of a route. Speed never moves land, and land never protects a title.</Bullet>
-        <Bullet>Anyone can propose a route ({fmtDistance(S.minCourseLengthMeters.value, units, 0)}–{fmtDistance(S.maxCourseLengthMeters.value, units, 0)}) from one of their runs; reviewers check safety, public access and duplicates.</Bullet>
+        <Bullet>Anyone can propose a route ({fmtRuleDistance(S.minCourseLengthMeters.value, units)}–{fmtRuleDistance(S.maxCourseLengthMeters.value, units)}) from one of their runs; reviewers check safety, public access and duplicates.</Bullet>
         </Card>
       </Section>
       <Section title="Movement points and reclaiming" icon="bolt">
         <Card>
-        <Bullet>Every verified run earns {MOVEMENT_RULES.pointsPerKm.value} points per kilometre, including private runs, up to {MOVEMENT_RULES.dailyPointsCap.value} a day. Private runs still never post, claim land or appear on a map.</Bullet>
+        <Bullet>Every verified run earns {perKm} points per kilometre, including private runs, up to {dailyCap} a day. Private runs still never post, claim land or appear on a map.</Bullet>
         <Bullet>Only distance the server can verify counts: mocked locations earn nothing, and gaps, pauses, GPS jumps and stretches at vehicle speed are left out.</Bullet>
         <Bullet>Spend points to reclaim cells you held this season and lost to another runner’s loop. Tap the dashed cells on the Map, or choose them from the list. Points never buy ground you did not hold.</Bullet>
         <Bullet>A cell someone took back from you with points can only be won back by running, so points never trade back and forth. If the run that took your cell is ruled invalid, the points you spent are refunded.</Bullet>

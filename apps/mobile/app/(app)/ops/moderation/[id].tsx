@@ -5,6 +5,7 @@ import { friendlyError, rpc } from '@/lib/api';
 import { fmtDate } from '@/lib/format';
 import { Button, Card, EmptyState, ErrorState, LoadingState, Screen, Section, Txt } from '@/components/ui';
 import { useReasonPrompt } from '@/features/ops/ReasonPrompt';
+import { StaffGate } from '@/features/ops/StaffGate';
 
 interface CaseJson {
   case: { id: string; object_type: string; object_id: string; status: string; priority: string; outcome: string | null; subject_user_id: string | null };
@@ -24,7 +25,15 @@ const ACTIONS = [
 ];
 
 /** Moderation case detail with minimal restricted evidence and reasoned actions. */
-export default function ModerationCase() {
+export default function ModerationCaseScreen() {
+  return (
+    <StaffGate need="moderation" title="Moderation case">
+      <ModerationCase />
+    </StaffGate>
+  );
+}
+
+function ModerationCase() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const detail = useQuery({ queryKey: ['ops_moderation_case', id], queryFn: () => rpc<CaseJson | null>('ops_moderation_case', { p_case: id }) });
   const prompt = useReasonPrompt();

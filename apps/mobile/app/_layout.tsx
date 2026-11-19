@@ -4,18 +4,17 @@ import { AppState, View } from 'react-native';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider as NavigationThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import Constants from 'expo-constants';
 import NetInfo from '@react-native-community/netinfo';
-import { focusManager, onlineManager, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { focusManager, onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { assertNoSecrets, missingRequiredConfig } from '@/config/env';
 import { initAnalytics } from '@/lib/analytics';
 import { initSentry, Sentry } from '@/lib/sentry';
 import { queryClient } from '@/lib/query';
-import { supabase } from '@/lib/supabase';
-import { Banner, Button, ErrorState, setCustomFontsActive, Txt } from '@/components/ui';
+import { Button, ErrorState, setCustomFontsActive, Txt } from '@/components/ui';
 import { BrandSplash } from '@/components/Brand';
 import { installWebShims, WebAlertHost } from '@/components/WebAlertHost';
+import { SystemGate } from '@/features/system/SystemGate';
 import { SessionProvider, useSession } from '@/state/session';
 import { CompetitionProvider } from '@/state/competition';
 import { useBackgroundServices } from '@/state/services';
@@ -32,29 +31,6 @@ void SplashScreen.preventAutoHideAsync().catch(() => {});
 onlineManager.setEventListener((setOnline) => NetInfo.addEventListener((s) => setOnline(Boolean(s.isConnected))));
 AppState.addEventListener('change', (s) => focusManager.setFocused(s === 'active'));
 
-function versionBelow(current: string, min: string): boolean {
-  const a = current.split('.').map(Number);
-  const b = min.split('.').map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) < (b[i] ?? 0);
-  }
-  return false;
-}
-
-function UpdateGate() {
-  const q = useQuery({
-    queryKey: ['app_config', 'min_version'],
-    staleTime: 30 * 60_000,
-    queryFn: async () => {
-      const { data } = await supabase().from('app_config').select('value').eq('key', 'min_supported_app_version').maybeSingle();
-      return (data?.value as string | undefined) ?? null;
-    }
-  });
-  const current = Constants.expoConfig?.version ?? '0.0.0';
-  if (q.data && versionBelow(current, q.data)) return <Banner tone="warning" text={`This version (${current}) is no longer supported. Please update the app to keep uploading runs.`} />;
-  return null;
-}
-
 function Gate({ fontsReady }: { fontsReady: boolean }) {
   const t = useTheme();
   const p = t.palette;
@@ -65,15 +41,15 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
   const onboarded = Boolean(profile?.onboarding_completed_at);
   let content: ReactNode = null;
   if (!loading && fontsReady) {
-    content =
-      session && !profile ? (
-        <View style={{ flex: 1, justifyContent: 'center', padding: spacing.xl, backgroundColor: p.bg, gap: spacing.md }}>
-          <ErrorState title="Your profile could not be loaded" error={new Error('Check your connection and try again.')} onRetry={() => void refresh()} />
-          <Button variant="ghost" label="Sign out" onPress={() => void signOut()} />
-        </View>
-      ) : (
-        <>
-          {session ? <UpdateGate /> : null}
+    // Maintenance mode and forced updates from the back office cover everything below, signed in or not.
+    content = (
+      <SystemGate promptReady={splashDone}>
+        {session && !profile ? (
+          <View style={{ flex: 1, justifyContent: 'center', padding: spacing.xl, backgroundColor: p.bg, gap: spacing.md }}>
+            <ErrorState title="Your profile could not be loaded" error={new Error('Check your connection and try again.')} onRetry={() => void refresh()} support={false} />
+            <Button variant="ghost" label="Sign out" onPress={() => void signOut()} />
+          </View>
+        ) : (
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: p.bg } }}>
             <Stack.Protected guard={!session}>
               <Stack.Screen name="(auth)" />
@@ -91,8 +67,9 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
             <Stack.Screen name="unsubscribe" />
             <Stack.Screen name="auth/reset-password" />
           </Stack>
-        </>
-      );
+        )}
+      </SystemGate>
+    );
   }
   return (
     <View style={{ flex: 1, backgroundColor: p.bg }}>

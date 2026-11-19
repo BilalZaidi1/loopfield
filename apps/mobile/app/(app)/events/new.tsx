@@ -4,6 +4,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Banner, Button, ChipGroup, EmptyState, Screen, TextField, Txt } from '@/components/ui';
 import { useClub } from '@/features/clubs/api';
+import { StaffGate } from '@/features/ops/StaffGate';
 import { startOptions, useCreateEvent, windowFrom } from '@/features/events/api';
 import { friendlyError } from '@/lib/api';
 import { fmtDate } from '@/lib/format';
@@ -19,11 +20,23 @@ type Goal = 'none' | '50000' | '100000' | '200000';
  * make region or worldwide events, including club-against-club ones. Dates are chosen from simple
  * presets so every event starts and ends at a clear local time.
  */
-export default function NewEvent() {
+export default function NewEventScreen() {
+  const { club } = useLocalSearchParams<{ club?: string }>();
+  // Region-wide events are an operator action: territory permission and an authenticator code first.
+  // Club challenges are made by the club's own organisers and need neither.
+  if (club) return <NewEvent />;
+  return (
+    <StaffGate need="territory" title="New event">
+      <NewEvent />
+    </StaffGate>
+  );
+}
+
+function NewEvent() {
   const { club: clubId } = useLocalSearchParams<{ club?: string }>();
-  const { roles } = useSession();
+  const { can } = useSession();
   const club = useClub(clubId);
-  const operator = roles.includes('territory_operator') || roles.includes('admin');
+  const operator = can('territory');
   const regions = useQuery({
     queryKey: ['regions'],
     enabled: !clubId,

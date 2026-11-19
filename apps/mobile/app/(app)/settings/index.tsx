@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import { Linking, View } from 'react-native';
 import { router, Stack } from 'expo-router';
-import Constants from 'expo-constants';
 import { env } from '@/config/env';
 import { cuePreferences, saveCuePreferences } from '@/lib/cues';
 import { supabase } from '@/lib/supabase';
-import { Button, confirm, ListGroup, PressableScale, Row, Screen, Section, Segmented, Toggle, Txt } from '@/components/ui';
+import { Badge, Button, confirm, ListGroup, PressableScale, Row, Screen, Section, Segmented, Toggle, Txt } from '@/components/ui';
 import { Icon, type IconName } from '@/components/icons';
 import { radius, spacing, themes, useTheme, useThemeMode, type ThemeMode } from '@/theme/tokens';
 import { useBillingConfig } from '@/billing/purchases';
+import { useSupportUnread } from '@/features/support/api';
+import { installedVersion, runningUpdate } from '@/lib/version';
 import { useSession } from '@/state/session';
 
 /** S43 Settings — units, accessibility, profile, notification, privacy, support and sign-out controls. */
 export default function Settings() {
-  const { userId, settings, refresh, signOut, roles } = useSession();
+  const { userId, settings, refresh, signOut, staff } = useSession();
   const billing = useBillingConfig();
+  const supportUnread = useSupportUnread();
   const [cues, setCues] = useState(cuePreferences());
   const setUnits = async (units: 'metric' | 'imperial') => {
     await supabase().from('user_settings').update({ units }).eq('user_id', userId!);
@@ -53,16 +55,24 @@ export default function Settings() {
       <Section title="Support" icon="help">
         <ListGroup>
           <Row icon="help" title="Help and game rules" onPress={() => router.push('/help')} />
-          <Row icon="mail" title="Message support" subtitle="Report a problem or send feedback" onPress={() => router.push('/support')} />
+          <Row
+            icon="mail"
+            title="Message support"
+            subtitle={supportUnread ? (supportUnread === 1 ? 'Support replied to you' : `Support replied in ${supportUnread} conversations`) : 'Report a problem or send feedback'}
+            highlight={supportUnread > 0}
+            right={supportUnread ? <Badge label={supportUnread === 1 ? 'New reply' : `${supportUnread} new`} tone="warning" /> : undefined}
+            onPress={() => router.push('/support')}
+            accessibilityLabel={supportUnread ? `Message support. ${supportUnread} unread ${supportUnread === 1 ? 'reply' : 'replies'}.` : 'Message support'}
+          />
           <Row icon="sparkle" title="Replay the app tour" onPress={() => router.push('/tour')} />
           <Row icon="flag" title="Reviews and appeals" onPress={() => router.push('/appeals')} />
           <Row icon="route" title="My route proposals" onPress={() => router.push('/proposals')} />
           {env.supportEmail ? <Row icon="mail" title="Contact support" subtitle={env.supportEmail} onPress={() => void Linking.openURL(`mailto:${env.supportEmail}`)} /> : null}
-          {roles.length ? <Row icon="shield" title="Operator tools" onPress={() => router.push('/ops')} /> : null}
+          {staff.permissions.length ? <Row icon="shield" title="Operator tools" onPress={() => router.push('/ops')} /> : null}
         </ListGroup>
       </Section>
       <Button variant="danger" icon="logout" label="Sign out" onPress={() => confirm('Sign out?', 'Imported health data on this phone is cleared when you sign out. Runs waiting to upload stay on this phone for your account.', 'Sign out', () => void signOut(), false)} />
-      <Txt variant="caption" align="center">Version {Constants.expoConfig?.version ?? '—'} · {env.appEnv}</Txt>
+      <Txt variant="caption" align="center" selectable>{`Version ${installedVersion()}${runningUpdate() ? ` · update ${runningUpdate()}` : ''} · ${env.appEnv}`}</Txt>
     </Screen>
   );
 }

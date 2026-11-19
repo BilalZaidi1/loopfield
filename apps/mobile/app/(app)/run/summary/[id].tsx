@@ -94,8 +94,8 @@ export default function RunSummary() {
           {detail.error ? <Banner tone="danger" text={friendlyError(detail.error)} action={{ label: 'Retry', onPress: () => void detail.refetch() }} /> : null}
           <IntegrityCard activity={detail.data?.activity} />
           <RunPointsCard activityId={id} />
-          <LandCard claim={detail.data?.claim ?? null} territoryRequested={territoryRequested} layers={detail.data?.layers} />
-          <TitleCards attempts={detail.data?.attempts ?? []} context={detail.data?.title_context ?? []} />
+          <LandCard claim={detail.data?.claim ?? null} territoryRequested={territoryRequested} layers={detail.data?.layers} activityId={id} />
+          <TitleCards attempts={detail.data?.attempts ?? []} context={detail.data?.title_context ?? []} activityId={id} />
         </>
       ) : territoryRequested || local.mode !== 'private' ? (
         <Txt variant="caption">Land and title results appear after the upload is checked.</Txt>

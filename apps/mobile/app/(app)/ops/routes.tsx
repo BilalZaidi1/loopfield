@@ -7,6 +7,7 @@ import { Button, Card, EmptyState, ErrorState, LoadingState, Screen, Txt } from 
 import { MapCanvas } from '@/features/map/MapCanvas';
 import { useReasonPrompt } from '@/features/ops/ReasonPrompt';
 import { useUnits } from '@/state/session';
+import { StaffGate } from '@/features/ops/StaffGate';
 
 interface ProposalRow {
   id: string;
@@ -20,7 +21,15 @@ interface ProposalRow {
 }
 
 /** Route review queue (route_reviewer): safety, public access, duplicates; reasons recorded. */
-export default function RouteQueue() {
+export default function RouteQueueScreen() {
+  return (
+    <StaffGate need="routes" title="Route proposals">
+      <RouteQueue />
+    </StaffGate>
+  );
+}
+
+function RouteQueue() {
   const units = useUnits();
   const qc = useQueryClient();
   const q = useQuery({ queryKey: ['ops_route_queue'], queryFn: () => rpc<ProposalRow[]>('ops_route_queue', { p_limit: 50 }) });

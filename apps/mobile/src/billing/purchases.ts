@@ -1,8 +1,10 @@
+import { useMemo } from 'react';
 import { Platform } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import Purchases, { type PurchasesOffering, type PurchasesPackage } from 'react-native-purchases';
 import { env } from '@/config/env';
 import { callFunction } from '@/lib/api';
+import { useAppConfig } from '@/lib/appConfig';
 import { track } from '@/lib/analytics';
 import { log } from '@/lib/log';
 import { supabase } from '@/lib/supabase';
@@ -101,17 +103,14 @@ export interface BillingConfig {
   premiumFeatures: string[];
 }
 
-export function useBillingConfig() {
-  return useQuery({
-    queryKey: ['app_config', 'billing'],
-    staleTime: 5 * 60_000,
-    queryFn: async (): Promise<BillingConfig> => {
-      const { data, error } = await supabase().from('app_config').select('key, value').in('key', ['paywall_enabled', 'premium_features']);
-      if (error) throw error;
-      const m = new Map((data ?? []).map((r) => [r.key as string, r.value as unknown]));
-      return { paywallEnabled: m.get('paywall_enabled') === true, premiumFeatures: (m.get('premium_features') as string[] | undefined) ?? [] };
-    }
-  });
+/** The paywall switch and premium list from App control (shared settings; read again on foreground). */
+export function useBillingConfig(): { data: BillingConfig | undefined; isLoading: boolean } {
+  const { settings, loaded, error } = useAppConfig();
+  const data = useMemo(
+    () => (loaded ? { paywallEnabled: settings.paywallEnabled, premiumFeatures: settings.premiumFeatures } : undefined),
+    [loaded, settings.paywallEnabled, settings.premiumFeatures]
+  );
+  return { data, isLoading: !loaded && !error };
 }
 
 export function useEntitlements() {

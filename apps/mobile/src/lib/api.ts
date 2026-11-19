@@ -13,6 +13,8 @@ const FRIENDLY: Record<string, string> = {
   unauthenticated: 'Please sign in again.',
   rate_limited: 'Too many requests. Please try again shortly.',
   feature_paused: 'This is switched off for now. Please try again later.',
+  'account not active': 'Your account is suspended, so this is paused. You can still record private runs, or message support from Settings.',
+  account_inactive: 'Your account is suspended, so competing is paused. You can still record private runs, or message support from Settings.',
   zoom_in: 'Zoom in to load territory for this area.',
   temporarily_unavailable: 'This feature is temporarily unavailable.',
   not_configured: 'This service has not been configured yet.',
@@ -35,8 +37,10 @@ const FRIENDLY: Record<string, string> = {
   region_suspended: 'Competition in this area is suspended.',
   too_many_cells: 'Choose at most 200 cells at a time.',
   reclaim_conflict: 'The map changed while you were reclaiming. Nothing was charged; please try again.',
-  set_city: 'Set your city in your profile to see regional rankings.',
-  no_country: 'Country rankings are not available for your area yet.',
+  set_city: 'Add your city and country to your profile to see city rankings.',
+  no_country: 'Add your country to your profile to see country rankings.',
+  already_appealed: 'You have already asked for a review of this. The answer will appear here.',
+  'nothing to appeal': 'There is nothing to review here.',
   event_finished: 'This event has finished.',
   event_needs_territory: 'Turn on territory in Privacy settings to join territory events.',
   members_only: 'This challenge is for club members.',
@@ -56,6 +60,7 @@ export function friendlyError(err: unknown): string {
   if (err instanceof ApiError) {
     const known = FRIENDLY[err.code] ?? FRIENDLY[err.message];
     if (known) return known;
+    if (err.code === 'P0429') return FRIENDLY.rate_limited!;
     if (err.details && KEY_LIKE.test(err.message) && err.details.length < 200) return err.details;
     return err.message;
   }

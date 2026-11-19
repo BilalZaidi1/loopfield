@@ -10,6 +10,9 @@ export interface ProfileCard {
   avatar_path: string | null;
   bio: string | null;
   city_label: string | null;
+  country_code?: string | null;
+  /** The runner's neighbourhood, present only when they show it (or for their own card). */
+  area_label?: string | null;
   visibility: 'public' | 'private';
   is_me: boolean;
   follow_state: 'none' | 'pending' | 'accepted';

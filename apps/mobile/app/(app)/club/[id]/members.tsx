@@ -3,7 +3,7 @@ import { Alert, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError, rpc } from '@/lib/api';
-import { supabase } from '@/lib/supabase';
+import { useAppConfig } from '@/lib/appConfig';
 import { track } from '@/lib/analytics';
 import { Avatar, Badge, Banner, Button, Card, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, TextField, Txt } from '@/components/ui';
 import { roleLabel, useClub, useClubAdmin } from '@/features/clubs/api';
@@ -37,12 +37,7 @@ export default function Members() {
   const organizer = role === 'owner' || role === 'organizer';
   const group = club.data?.kind === 'group';
   const admin = useClubAdmin(club.data);
-  const cap = useQuery({
-    queryKey: ['app_config', 'group_max_members'],
-    enabled: group,
-    staleTime: 60 * 60_000,
-    queryFn: async () => Number((await supabase().from('app_config').select('value').eq('key', 'group_max_members').maybeSingle()).data?.value ?? 0) || null
-  });
+  const cap = useAppConfig().settings.groupMaxMembers;
   const onError = (e: unknown) => Alert.alert('Not changed', friendlyError(e));
 
   const act = useMutation({
@@ -101,7 +96,7 @@ export default function Members() {
     <Screen>
       <Stack.Screen options={{ title: 'Members' }} />
       {members.isLoading ? <LoadingState /> : members.error ? <ErrorState error={members.error} onRetry={() => void members.refetch()} /> : members.data?.length ? (
-        <Section title={group && cap.data ? `${members.data.length} of ${cap.data} people` : `${members.data.length} members`} icon="clubs">
+        <Section title={group && cap ? `${members.data.length} of ${cap} people` : `${members.data.length} members`} icon="clubs">
           <ListGroup>
             {members.data.map((m) => (
               <Row key={m.user_id} leading={<Avatar name={m.display_name} size={40} />} title={m.display_name} subtitle={`@${m.handle}`} right={m.role !== 'member' ? <Badge label={roleLabel(m.role)} tone="violet" /> : undefined} onPress={() => manage(m)} />
