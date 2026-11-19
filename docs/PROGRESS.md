@@ -2,6 +2,10 @@
 
 Working file kept current so work survives context limits. Newest first.
 
+## 19 Nov 2026: CI green again
+
+* CI's `verify` job used the `postgis/postgis:16-3.4` container, built on Debian 11 "bullseye"; bullseye's PostgreSQL packages left apt.postgresql.org at the end of September, so installing pgTAP there failed and the job stopped before any check (PR #1 and PR #2). The job now installs PostgreSQL 16, PostGIS and pgTAP from Ubuntu 24.04's packages, like the local checks; a type error that had been hidden behind it (two samples without `seq` in `packages/core/test/rule-overrides.test.ts`) is fixed. Commit `7f90e7e`: `verify` (all 15 steps executed) and `mobile-bundle` pass on GitHub.
+
 ## 18 Nov 2026 (later): location for a global app, and the three server gaps fixed
 
 * Owner's decisions (traced as BS13–BS16; reasons in `DECISIONS.md`, "Location and review fixes"): Loopfield is global, so a runner's place is a city and a country found by the phone's own geocoder (not Mapbox, whose stored results need paid permanent geocoding), with the neighbourhood private unless shown; and fix drawn avatars, suspension reviews and the paused-reclaim reason. These change the server, with the owner's approval.
