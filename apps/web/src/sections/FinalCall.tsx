@@ -17,22 +17,22 @@ export function FinalCall() {
           headline={
             <Lines
               lines={copy.final.lines}
-              className="font-display text-[clamp(42px,6.6vw,108px)] font-black uppercase italic leading-[0.92] tracking-[-0.035em] text-white [@media(max-height:760px)]:text-[clamp(38px,5.4vw,84px)]"
+              className="font-display text-[clamp(38px,min(6.6vw,12svh),108px)] font-black uppercase italic leading-[0.92] tracking-[-0.035em] text-white"
             />
           }
         >
-          <p className="t-body mt-6 max-w-[34ch] text-white/90 sm:text-[20px] sm:leading-[30px]">{waitlist ? copy.final.waitlistBody : copy.final.body}</p>
+          <p className="t-body mt-4 max-w-[34ch] text-white/90 sm:mt-5 sm:text-[20px] sm:leading-[30px] [@media(max-height:640px)]:mt-3">{waitlist ? copy.final.waitlistBody : copy.final.body}</p>
           {waitlist ? (
-            <div className="mt-8 flex w-full justify-center text-left">
+            <div className="mt-6 flex w-full justify-center text-left md:mt-8 [@media(max-height:640px)]:mt-4">
               <WaitlistForm source="final" />
             </div>
           ) : (
-            <div className="mt-9 flex flex-wrap items-center justify-center gap-x-7 gap-y-4">
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-x-7 gap-y-4 md:mt-9 [@media(max-height:640px)]:mt-5">
               <StoreButtons placement="final" onBlock className="justify-center" />
               <QrCode caption={copy.hero.scan} placement="final" onBlock />
             </div>
           )}
-          <p className="t-caption mt-7 text-white/75">{requirementsLine}</p>
+          <p className="t-caption mt-5 text-white/75 md:mt-6 [@media(max-height:640px)]:mt-3">{requirementsLine}</p>
         </FinalStage>
       </div>
     </section>
