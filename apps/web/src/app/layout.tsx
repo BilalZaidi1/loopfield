@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
+import { VercelInsights } from '@/components/VercelInsights';
 import { site } from '@/config/site';
 import { copy } from '@/content/en';
 import './globals.css';
@@ -73,7 +74,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <style>{noScriptCss}</style>
         </noscript>
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Vercel Web Analytics and Speed Insights, on Vercel deployments only: elsewhere their scripts don't exist. */}
+        {process.env.VERCEL ? <VercelInsights /> : null}
+      </body>
     </html>
   );
 }

@@ -47,6 +47,11 @@ export default function PrivacyPage() {
             <strong>On this website:</strong> PostHog (EU) in cookieless mode. Nothing is stored in your browser, there is no session recording, and only a short list of
             events is counted, such as which section was viewed and which store button was tapped.
           </li>
+          <li>
+            <strong>Vercel, which hosts this website:</strong> Web Analytics counts page views without cookies, telling visitors apart only by an anonymous ID that
+            resets every day, so nobody can be followed across days or sites. Speed Insights measures how quickly pages load. Both receive the page address without its
+            query (campaign tags aside), with details such as the referring site, rough location, browser and device type.
+          </li>
         </ul>
 
         <h2>The waitlist</h2>

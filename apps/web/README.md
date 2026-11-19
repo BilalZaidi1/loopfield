@@ -32,6 +32,10 @@ With no variables set, the site is safe to deploy: it shows the waitlist, no sto
 | `NEXT_PUBLIC_POSTHOG_KEY` | PostHog EU, cookieless. Turn on "Enable cookieless tracking" in the project |
 | `RESEND_API_KEY`, `RESEND_SEGMENT_ID`, `WAITLIST_FROM`, `WAITLIST_SECRET` | The waitlist's double opt-in. `WAITLIST_SECRET` must be at least 32 characters. Until all four are set, sign-ups answer "open soon" |
 
+Vercel Web Analytics and Speed Insights need no variables: they load on Vercel deployments once each is turned on in the
+project (the Analytics and Speed Insights tabs). Page addresses reach them with only their `utm_` tags, so the waitlist
+link's token never does (`src/lib/insights.ts`).
+
 ## How the page works
 
 - **Story clock** (`src/story/state.ts`, `src/components/StoryDriver.tsx`). T = section index + progress through

@@ -1,8 +1,8 @@
 import type { NextConfig } from 'next';
 
 /*
- * Strict CSP: only our own code, PostHog EU (when a key is set) and Vercel Speed Insights, which is served from
- * this origin. No other third-party scripts; three.js is bundled.
+ * Strict CSP: only our own code, PostHog EU (when a key is set), and Vercel Web Analytics and Speed Insights, which
+ * are served from this origin. No other third-party scripts; three.js is bundled.
  */
 // Preview deployments also allow Vercel's toolbar, so reviewers can leave comments on a preview link.
 const toolbar = process.env.VERCEL_ENV === 'preview';

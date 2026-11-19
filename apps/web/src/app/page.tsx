@@ -1,4 +1,3 @@
-import { SpeedInsights } from '@vercel/speed-insights/next';
 import { Analytics } from '@/components/Analytics';
 import { Header } from '@/components/Header';
 import { SmoothScroll } from '@/components/SmoothScroll';
@@ -72,7 +71,6 @@ export default function Home() {
       <StoryDriver />
       <SmoothScroll />
       <Analytics />
-      {process.env.VERCEL ? <SpeedInsights /> : null}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(appJsonLd()).replace(/</g, '\\u003c') }} />
     </>
   );
