@@ -35,8 +35,8 @@ describe('withRuleOverrides', () => {
   });
 
   it('feeds the live closing hint', () => {
-    const first = { t: 0, lat: 24.86, lng: 67, acc: 5 };
-    const near = { t: 1, lat: 24.86, lng: 67.0001, acc: 5 };
+    const first = { seq: 0, t: 0, lat: 24.86, lng: 67, acc: 5 };
+    const near = { seq: 1, t: 1, lat: 24.86, lng: 67.0001, acc: 5 };
     expect(closureHint(first, near, 800)).toBe('open');
     expect(closureHint(first, near, 800, withRuleOverrides(TERRITORY_RULES, { minLoopLengthMeters: 600 }, 'v'))).toBe('possible_closure');
   });

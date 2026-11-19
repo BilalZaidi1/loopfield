@@ -4,7 +4,7 @@
 #
 #   npm run verify                 everything available on this machine
 #   DENO=/path/to/deno npm run verify    use a specific Deno binary for the edge-function steps
-#   PGTEST_URL=postgres://…/postgres     use an existing PostgreSQL 16+ server with PostGIS and pgTAP (CI)
+#   PGTEST_URL=postgres://…/postgres     use an existing PostgreSQL 16+ server with PostGIS and pgTAP
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
