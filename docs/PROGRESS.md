@@ -2,6 +2,16 @@
 
 Working file kept current so work survives context limits. Newest first.
 
+## 19 Nov 2026 (later): marketing site
+
+* New workspace `apps/web` (`@loopfield/web`, Next.js 16.4 App Router). Branch `feat/marketing-site` from `enhancements`. Plan: the claude.ai project doc `marketing-site-plan.md`.
+* One scroll-driven page in the app's dark theme. A 3D hex city (three.js, React Three Fiber 9, WebGL 2) plays the story beside the copy: the hero loop closes, how it works, a practice board where the visitor draws a loop, rivals, route titles, clubs, progress badges, privacy, a phone tour and the final call. Store buttons go through `/get`; the waitlist uses Resend double opt-in.
+* Pages the stores require: `/privacy` and `/terms` (pilot drafts), `/support`, `/delete-account` and `/press`. Also Open Graph image, sitemap, robots and 404.
+* Defaults until the owner decides: both stores in waitlist state; Loopfield's own pills until the official badges are added; publisher "Loopfield"; placeholder support email; 18+; no "free forever" promise.
+* Checks: typecheck, lint, vitest 92 (brand drift against `apps/mobile`), production build. Headless Chrome screenshots at desktop and phone sizes with WebGL, reduced motion, and a scroll-through video. First-load JS is about 173 KB gzipped (Next and React about 130 KB of it); the 3D bundle is about 292 KB gzipped.
+* The install moved the shared `@posthog/core` from 1.63.1 to 1.69.1 and `@posthog/types` from 1.419.0 to 1.425.1. `posthog-react-native` in the app uses them too, within its declared ranges; the app's typecheck and jest (161 in 21 suites) still pass.
+* Opened as a pull request into `enhancements`; no Vercel project or deployment yet.
+
 ## 19 Nov 2026: CI green again
 
 * CI's `verify` job used the `postgis/postgis:16-3.4` container, built on Debian 11 "bullseye"; bullseye's PostgreSQL packages left apt.postgresql.org at the end of September, so installing pgTAP there failed and the job stopped before any check (PR #1 and PR #2). The job now installs PostgreSQL 16, PostGIS and pgTAP from Ubuntu 24.04's packages, like the local checks; a type error that had been hidden behind it (two samples without `seq` in `packages/core/test/rule-overrides.test.ts`) is fixed. Commit `7f90e7e`: `verify` (all 15 steps executed) and `mobile-bundle` pass on GitHub.
