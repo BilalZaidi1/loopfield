@@ -8,13 +8,15 @@ import { BadgeMedal, byTier, CATEGORY_ICON, RankingExplainer } from '@/features/
 import { useAchievementLeaderboard, useAchievementProfile, useRankingRules, type RankingRow, type RankingScope } from '@/features/achievements/api';
 import { useMyClubs } from '@/features/clubs/api';
 import { useSignedUrl } from '@/features/social/media';
+import { countryName } from '@/lib/countries';
+import { useSession } from '@/state/session';
 import { useLayout } from '@/theme/layout';
 import { spacing, usePalette } from '@/theme/tokens';
 
 const SCOPES: { value: Exclude<RankingScope, 'club'>; label: string; icon: 'globe' | 'pin' | 'compass' | 'heart' }[] = [
   { value: 'everyone', label: 'Everyone', icon: 'globe' },
   { value: 'country', label: 'Country', icon: 'compass' },
-  { value: 'region', label: 'Region', icon: 'pin' },
+  { value: 'city', label: 'City', icon: 'pin' },
   { value: 'friends', label: 'Friends', icon: 'heart' }
 ];
 
@@ -48,6 +50,7 @@ function RankRow({ r }: { r: RankingRow }) {
 /** Global ranking by challenge badges (never movement points), for everyone or a narrower circle. */
 export default function Ranking() {
   const p = usePalette();
+  const { profile } = useSession();
   const { gutter } = useLayout();
   const [scope, setScope] = useState<RankingScope>('everyone');
   const [club, setClub] = useState<string | null>(null);
@@ -75,7 +78,8 @@ export default function Ranking() {
       <Card tone="violet" accessibilityLabel={mine ? `Your rank: ${mine.rank} of ${mine.total}` : 'You are not ranked here yet'}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.lg }}>
           <View style={{ flex: 1, gap: 2 }}>
-            <Txt variant="label">{scope === 'everyone' ? 'Your global rank' : scope === 'club' ? `Your rank in ${clubName ?? 'the club'}` : `Your rank among ${SCOPES.find((s) => s.value === scope)?.label.toLowerCase()}`}</Txt>
+            <Txt variant="label">{scope === 'everyone' ? 'Your global rank' : scope === 'club' ? `Your rank in ${clubName ?? 'the club'}` : scope === 'friends' ? 'Your rank among friends'
+              : scope === 'city' ? `Your rank in ${profile?.city_label?.trim() || 'your city'}` : `Your rank in ${countryName(profile?.country_code) ?? 'your country'}`}</Txt>
             <Txt variant="display" tabular>{mine ? `#${mine.rank}` : '–'}</Txt>
             <Txt variant="caption">{mine ? `of ${mine.total.toLocaleString()} ${mine.total === 1 ? 'runner' : 'runners'} · score ${mine.score}` : 'Complete a challenge to appear here'}</Txt>
           </View>
@@ -86,7 +90,7 @@ export default function Ranking() {
         <ArrowLink label="How ranking works" onPress={() => setExplain(true)} />
       </Card>
 
-      {board.isLoading ? <LoadingState /> : errText && (board.error as { message?: string })?.message === 'set_city' ? (
+      {board.isLoading ? <LoadingState /> : errText && ['set_city', 'no_country'].includes((board.error as { message?: string })?.message ?? '') ? (
         <Banner tone="info" text={errText} action={{ label: 'Edit profile', onPress: () => router.push('/settings/profile') }} />
       ) : board.error ? (
         <ErrorState error={board.error} onRetry={() => void board.refetch()} />

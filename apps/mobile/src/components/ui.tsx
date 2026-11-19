@@ -621,16 +621,29 @@ export function EmptyState({ title, body, action, icon = 'sparkle' }: { title: s
   );
 }
 
-export function ErrorState({ error, onRetry, title = 'Could not load this' }: { error: unknown; onRetry?: () => void; title?: string }) {
+/**
+ * A screen or section that failed to load: what went wrong, Try again, and a way to tell support (with the
+ * error attached). `support={false}` where support cannot be reached (signed out, before the app loads).
+ */
+export function ErrorState({ error, onRetry, title = 'Could not load this', support = true }: { error: unknown; onRetry?: () => void; title?: string; support?: boolean }) {
   const { palette: p } = useTheme();
+  const message = friendlyError(error);
   return (
     <View style={[styles.center, { paddingVertical: spacing.xxl }]} accessibilityRole="alert">
       <View style={[styles.stateIcon, { backgroundColor: p.dangerSoft }]}>
         <Icon name="alert" color={p.danger} size={26} />
       </View>
       <Txt variant="heading" align="center">{title}</Txt>
-      <Txt color="textMuted" align="center" style={{ maxWidth: 420 }}>{friendlyError(error)}</Txt>
+      <Txt color="textMuted" align="center" style={{ maxWidth: 420 }}>{message}</Txt>
       {onRetry ? <Button label="Try again" icon="refresh" onPress={onRetry} variant="secondary" /> : null}
+      {support ? (
+        <ArrowLink
+          label="Contact support"
+          accessibilityLabel="Contact support about this error"
+          // Loaded on press: this file is shared by screens and tests that run without the router.
+          onPress={() => void import('expo-router').then(({ router }) => router.push({ pathname: '/support/new', params: { category: 'bug', subject: title.slice(0, 120), context: `error:${message}`.slice(0, 300) } }))}
+        />
+      ) : null}
     </View>
   );
 }
@@ -706,7 +719,7 @@ export function TextField({ label, value, onChangeText, error, secure, multiline
   placeholder?: string;
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   keyboardType?: 'default' | 'email-address' | 'number-pad';
-  autoComplete?: 'email' | 'password' | 'new-password' | 'current-password' | 'username' | 'off';
+  autoComplete?: 'email' | 'password' | 'new-password' | 'current-password' | 'username' | 'one-time-code' | 'off';
   hint?: string;
   onSubmitEditing?: () => void;
   returnKeyType?: 'done' | 'next' | 'go' | 'send';

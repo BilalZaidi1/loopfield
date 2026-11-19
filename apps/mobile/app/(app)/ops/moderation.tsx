@@ -7,6 +7,7 @@ import { fmtRelative } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, Row, Screen, Section, Segmented, Txt } from '@/components/ui';
 import { useReasonPrompt } from '@/features/ops/ReasonPrompt';
+import { StaffGate } from '@/features/ops/StaffGate';
 
 interface QueueRow {
   id: string;
@@ -20,7 +21,15 @@ interface QueueRow {
 }
 
 /** Moderation queue and content appeals (moderator role). */
-export default function ModerationQueue() {
+export default function ModerationQueueScreen() {
+  return (
+    <StaffGate need="moderation" title="Moderation">
+      <ModerationQueue />
+    </StaffGate>
+  );
+}
+
+function ModerationQueue() {
   const qc = useQueryClient();
   const [status, setStatus] = useState<'open' | 'in_review' | 'actioned' | 'dismissed'>('open');
   const queue = useQuery({ queryKey: ['ops_moderation_queue', status], queryFn: () => rpc<QueueRow[]>('ops_moderation_queue', { p_status: status, p_limit: 100 }) });

@@ -14,17 +14,7 @@ jobs:
   verify:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
-    services:
-      postgres:
-        image: postgis/postgis:16-3.4
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s --health-timeout 5s --health-retries 30
     env:
-      PGTEST_URL: postgresql://postgres:postgres@localhost:5432/postgres
       SUPABASE_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
@@ -38,13 +28,16 @@ jobs:
         with:
           deno-version: v2.9.x
 
-      - name: Install pgTAP in the database container
+      # PostgreSQL 16 with PostGIS and pgTAP from Ubuntu 24.04's own packages, the same set the local
+      # checks use; scripts/test-db.sh starts a throwaway database from them. CI used to run the
+      # postgis/postgis:16-3.4 container, which is built on Debian 11 "bullseye": when bullseye reached
+      # end of life its PostgreSQL packages left apt.postgresql.org, so installing pgTAP there failed.
+      - name: PostgreSQL 16, PostGIS and pgTAP
         run: |
-          docker exec ${{ job.services.postgres.id }} bash -c \
-            "apt-get update -qq && apt-get install -y -qq postgresql-16-pgtap > /dev/null"
-
-      - name: PostgreSQL client
-        run: psql --version || (sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client)
+          sudo apt-get update -qq -o Acquire::Retries=3
+          sudo apt-get install -y -qq -o Acquire::Retries=3 postgresql-16 postgresql-16-postgis-3 postgresql-16-pgtap > /dev/null
+          /usr/lib/postgresql/16/bin/pg_ctl --version
+          psql --version
 
       - name: Install dependencies
         run: npm ci

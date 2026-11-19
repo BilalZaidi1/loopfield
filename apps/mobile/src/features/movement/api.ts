@@ -66,7 +66,7 @@ export interface LostCell {
   controller_name: string | null;
   lost_on: string;
   reclaimable: boolean;
-  blocked_reason: 'season_closed' | 'not_participating' | 'taken_with_points' | null;
+  blocked_reason: 'season_closed' | 'reclaim_paused' | 'not_participating' | 'taken_with_points' | null;
   cost: number;
 }
 

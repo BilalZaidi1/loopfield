@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { Alert, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { SOCIAL_RULES } from '@loopfield/core';
 import { friendlyError, rpc } from '@/lib/api';
+import { useAppConfig } from '@/lib/appConfig';
+import { PausedNote, SuspendedNotice, useSuspended } from '@/components/Notices';
 import { track } from '@/lib/analytics';
 import { fmtRelative } from '@/lib/format';
 import { Avatar, Button, EmptyState, ErrorState, IconButton, ListGroup, LoadingState, Row, Screen, Section, TextField, Txt } from '@/components/ui';
@@ -28,6 +29,10 @@ export default function PostDetail() {
   const post = useQuery({ queryKey: ['post', id], queryFn: () => rpc<PostJson | null>('post_detail', { p_post: id }) });
   const comments = useQuery({ queryKey: ['comments', id], enabled: Boolean(post.data), queryFn: () => rpc<Comment[]>('post_comments', { p_post: id, p_limit: 100 }) });
   const [text, setText] = useState('');
+  // The comment box follows App control: switched off, it shows a note instead; its length limit is the setting's.
+  const { settings: cfg } = useAppConfig();
+  const commentsOn = cfg.enabled.comments_enabled;
+  const suspended = useSuspended();
   const add = useMutation({
     mutationFn: () => rpc<string>('add_comment', { p_post: id, p_body: text.trim() }),
     onSuccess: () => {
@@ -47,14 +52,18 @@ export default function PostDetail() {
   return (
     <Screen
       footer={
-        p.comments_enabled ? (
+        !p.comments_enabled ? undefined : suspended ? (
+          <SuspendedNotice what="comment" compact />
+        ) : !commentsOn ? (
+          <PausedNote feature="comments_enabled" text="Comments are paused for now. You can still read them." />
+        ) : (
           <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm }}>
             <View style={{ flex: 1 }}>
-              <TextField label="Add a comment" labelHidden compact placeholder="Add a comment" value={text} onChangeText={setText} multiline maxLength={SOCIAL_RULES.maxCommentChars.value} />
+              <TextField label="Add a comment" labelHidden compact placeholder="Add a comment" value={text} onChangeText={setText} multiline maxLength={cfg.commentMaxChars} />
             </View>
             <IconButton icon="send" label="Post comment" variant="soft" onPress={() => add.mutate()} disabled={!text.trim() || add.isPending} />
           </View>
-        ) : undefined
+        )
       }>
       <Stack.Screen options={{ title: 'Post' }} />
       <PostCard post={p} onOpen={false} />

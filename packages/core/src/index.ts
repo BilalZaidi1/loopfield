@@ -1,5 +1,6 @@
 export * from './rules/config.ts';
 export * from './rules/decisions.ts';
+export * from './rules/overrides.ts';
 export * from './geo/geo.ts';
 export * from './recording/types.ts';
 export * from './recording/summary.ts';

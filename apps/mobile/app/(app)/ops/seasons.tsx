@@ -7,7 +7,7 @@ import { friendlyError, rpc } from '@/lib/api';
 import { fmtDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { useCompetition } from '@/state/competition';
-import { useSession } from '@/state/session';
+import { StaffGate } from '@/features/ops/StaffGate';
 import { useNow } from '@/lib/useNow';
 import { spacing } from '@/theme/tokens';
 
@@ -28,8 +28,15 @@ const when = (iso: string) => fmtDate(iso, { weekday: 'short', day: 'numeric', m
  * events are created from Events. Every change is checked and audited on the server, and a season that
  * was already scheduled after the current one moves with it so there is never a gap or an overlap.
  */
-export default function OpsSeasons() {
-  const { roles } = useSession();
+export default function OpsSeasonsScreen() {
+  return (
+    <StaffGate need="territory" title="Seasons and events">
+      <OpsSeasons />
+    </StaffGate>
+  );
+}
+
+function OpsSeasons() {
   const { competitions } = useCompetition();
   const races = competitions.filter((c) => c.kind === 'public');
   const [raceId, setRaceId] = useState<string | null>(null);
@@ -54,7 +61,6 @@ export default function OpsSeasons() {
   const [nextLength, setNextLength] = useState<'14' | '28' | '42'>('28');
   const now = useNow();
 
-  if (!roles.includes('territory_operator') && !roles.includes('admin')) return <Screen><EmptyState title="Territory operators only" /></Screen>;
   const rows = seasons.data ?? [];
   const current = rows.find((s) => s.status === 'active') ?? null;
   const next = rows.find((s) => s.status === 'scheduled') ?? null;

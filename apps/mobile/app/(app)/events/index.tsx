@@ -12,10 +12,11 @@ import { spacing } from '@/theme/tokens';
  * Each has its own standings; none of them ever changes the all-time map or a season race.
  */
 export default function Events() {
-  const { roles } = useSession();
+  const { can } = useSession();
   const [scope, setScope] = useState<'current' | 'finished'>('current');
   const events = useEvents(scope);
-  const operator = roles.includes('territory_operator') || roles.includes('admin');
+  // Region-wide events are created by staff with the territory permission (any role that grants it).
+  const operator = can('territory');
   const rows = events.data ?? [];
   return (
     <Screen onRefresh={() => void events.refetch()} refreshing={events.isRefetching}>

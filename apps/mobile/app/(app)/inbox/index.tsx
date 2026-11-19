@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { fmtRelative } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { Avatar, Badge, Banner, EmptyState, ErrorState, IconButton, ListGroup, LoadingState, Row, Screen, Txt } from '@/components/ui';
+import { useFeature } from '@/lib/appConfig';
+import { PausedNote, SuspendedNotice, useSuspended } from '@/components/Notices';
 import { useSession } from '@/state/session';
 
 interface ConversationRow {
@@ -19,6 +21,8 @@ interface ConversationRow {
 /** S11 Inbox — authorized one-to-one conversations, unread state and new conversation action. */
 export default function Inbox() {
   const { userId, settings } = useSession();
+  const messagingOn = useFeature('messaging_enabled');
+  const suspended = useSuspended();
   const convs = useQuery({
     queryKey: ['conversations', userId],
     queryFn: async () => {
@@ -43,6 +47,7 @@ export default function Inbox() {
   return (
     <Screen onRefresh={() => void convs.refetch()} refreshing={convs.isRefetching}>
       <Stack.Screen options={{ title: 'Messages', headerRight: () => <IconButton icon="edit" label="New message" onPress={() => router.push({ pathname: '/connections', params: { tab: 'following' } })} /> }} />
+      {!messagingOn ? <PausedNote feature="messaging_enabled" text="Direct messages are paused for now. Your conversations are still here to read." /> : suspended ? <SuspendedNotice what="message" /> : null}
       {settings?.messages_from === 'nobody' ? <Banner tone="info" text="You do not accept new messages. Change this in Privacy settings." /> : null}
       <Txt variant="caption">Start a conversation from a runner’s profile. By default only mutual followers can message each other.</Txt>
       {convs.isLoading ? <LoadingState /> : convs.error ? <ErrorState error={convs.error} onRetry={() => void convs.refetch()} /> : convs.data?.length ? (

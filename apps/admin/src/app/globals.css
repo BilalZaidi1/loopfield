@@ -1,0 +1,260 @@
+@import "tailwindcss";
+
+/*
+ * Loopfield design tokens after the November redesign, mirrored 1:1 from apps/mobile/src/theme/tokens.ts
+ * (docs/DESIGN.md). One loud element per screen — heavy-italic numerals and saturated colour blocks —
+ * everything else quiet: white / near-black surfaces, hairline dividers, 2 px line icons, pill buttons.
+ * Module colours keep one meaning: violet = you and the brand, blue = runs, orange = competition,
+ * green = health and goals. Change colours in both places together.
+ */
+:root {
+  --lf-bg: #eef0f5;
+  --lf-surface: #ffffff;
+  --lf-surface-alt: #f3f4f8;
+  --lf-surface-sunken: #e6e9f0;
+  --lf-text: #121318;
+  --lf-text-muted: #5d6170;
+  --lf-text-subtle: #8a8f9e;
+  --lf-border: #e3e6ee;
+  --lf-border-strong: #cdd2de;
+  --lf-primary: #5b57e3;
+  --lf-primary-fill: #5b57e3;
+  --lf-primary-pressed: #4a46cf;
+  --lf-primary-soft: #ecebfe;
+  --lf-on-primary-soft: #3d39b5;
+  --lf-primary-text: #ffffff;
+  --lf-blue: #0a74e0;
+  --lf-blue-soft: #e4f0fd;
+  --lf-blue-text: #0a6cc9;
+  --lf-orange: #ff7a1a;
+  --lf-orange-soft: #ffeedf;
+  --lf-orange-text: #b4530f;
+  --lf-green: #5cc86a;
+  --lf-green-soft: #e3f6e6;
+  --lf-green-text: #1e7f3a;
+  --lf-magenta: #c04be0;
+  --lf-ink: #121318;
+  --lf-on-ink: #ffffff;
+  --lf-danger: #c62828;
+  --lf-danger-soft: #fdecec;
+  --lf-warning: #a05a00;
+  --lf-warning-soft: #fff3dc;
+  --lf-success: #1e7f3a;
+  --lf-success-soft: #e3f6e6;
+  --lf-info: #0a6cc9;
+  --lf-info-soft: #e4f0fd;
+  --lf-overlay: rgba(18, 19, 24, 0.48);
+  /* Map: routes green on a white casing, start green, finish ink (TerritoryColors). */
+  --lf-route: #12a36b;
+  --lf-chart-1: #5b57e3;
+  --lf-chart-ref: #a3a8b8;
+  --lf-chart-grid: #e7e9ef;
+  --lf-chart-axis: #c9ccd6;
+  --lf-route-casing: #ffffff;
+  --lf-start: #12a36b;
+  --lf-finish: #121318;
+  --lf-shadow-raised: 0px 4px 14px rgba(27, 31, 59, 0.1);
+  --lf-shadow-floating: 0px 10px 28px rgba(27, 31, 59, 0.16);
+  --lf-av1-bg: #ecebfe; --lf-av1-fg: #3d39b5;
+  --lf-av2-bg: #e4f0fd; --lf-av2-fg: #0a5baa;
+  --lf-av3-bg: #ffeedf; --lf-av3-fg: #9a460c;
+  --lf-av4-bg: #e3f6e6; --lf-av4-fg: #1a6e32;
+  --lf-av5-bg: #f7e6fb; --lf-av5-fg: #8a2da6;
+  color-scheme: light;
+}
+
+/* Dark mode is designed separately, not inverted: lighter tints for text, the same saturated blocks. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lf-bg: #101114;
+    --lf-surface: #1c1d22;
+    --lf-surface-alt: #24252b;
+    --lf-surface-sunken: #0b0c0e;
+    --lf-text: #f5f6fa;
+    --lf-text-muted: #a3a7b5;
+    --lf-text-subtle: #7a7e8c;
+    --lf-border: #2c2e35;
+    --lf-border-strong: #3a3d46;
+    --lf-primary: #8b87ff;
+    --lf-primary-fill: #6762f0;
+    --lf-primary-pressed: #5853e0;
+    --lf-primary-soft: #25244a;
+    --lf-on-primary-soft: #c9c7ff;
+    --lf-primary-text: #ffffff;
+    --lf-blue: #0a74e0;
+    --lf-blue-soft: #13263b;
+    --lf-blue-text: #5ab4ff;
+    --lf-orange: #ff7a1a;
+    --lf-orange-soft: #35210f;
+    --lf-orange-text: #ff9a4d;
+    --lf-green: #5cc86a;
+    --lf-green-soft: #15301b;
+    --lf-green-text: #4ade80;
+    --lf-magenta: #d57af0;
+    --lf-ink: #f5f6fa;
+    --lf-on-ink: #121318;
+    --lf-danger: #ff7b7b;
+    --lf-danger-soft: #3a1a1c;
+    --lf-warning: #f5b841;
+    --lf-warning-soft: #33280f;
+    --lf-success: #4ade80;
+    --lf-success-soft: #15301b;
+    --lf-info: #5ab4ff;
+    --lf-info-soft: #13263b;
+    --lf-overlay: rgba(0, 0, 0, 0.62);
+    --lf-route: #2bd38a;
+    --lf-chart-1: #7b77f2;
+    --lf-chart-ref: #5d6272;
+    --lf-chart-grid: #2a2c33;
+    --lf-chart-axis: #3a3d46;
+    --lf-route-casing: #101114;
+    --lf-start: #2bd38a;
+    --lf-finish: #f5f6fa;
+    --lf-shadow-raised: 0px 4px 14px rgba(0, 0, 0, 0.4);
+    --lf-shadow-floating: 0px 10px 28px rgba(0, 0, 0, 0.55);
+    --lf-av1-bg: #2b2a55; --lf-av1-fg: #c9c7ff;
+    --lf-av2-bg: #13304a; --lf-av2-fg: #8ccbff;
+    --lf-av3-bg: #3a2614; --lf-av3-fg: #ffb37a;
+    --lf-av4-bg: #173a22; --lf-av4-fg: #86e59a;
+    --lf-av5-bg: #3a1838; --lf-av5-fg: #f0a6f5;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --lf-bg: #101114;
+  --lf-surface: #1c1d22;
+  --lf-surface-alt: #24252b;
+  --lf-surface-sunken: #0b0c0e;
+  --lf-text: #f5f6fa;
+  --lf-text-muted: #a3a7b5;
+  --lf-text-subtle: #7a7e8c;
+  --lf-border: #2c2e35;
+  --lf-border-strong: #3a3d46;
+  --lf-primary: #8b87ff;
+  --lf-primary-fill: #6762f0;
+  --lf-primary-pressed: #5853e0;
+  --lf-primary-soft: #25244a;
+  --lf-on-primary-soft: #c9c7ff;
+  --lf-primary-text: #ffffff;
+  --lf-blue: #0a74e0;
+  --lf-blue-soft: #13263b;
+  --lf-blue-text: #5ab4ff;
+  --lf-orange: #ff7a1a;
+  --lf-orange-soft: #35210f;
+  --lf-orange-text: #ff9a4d;
+  --lf-green: #5cc86a;
+  --lf-green-soft: #15301b;
+  --lf-green-text: #4ade80;
+  --lf-magenta: #d57af0;
+  --lf-ink: #f5f6fa;
+  --lf-on-ink: #121318;
+  --lf-danger: #ff7b7b;
+  --lf-danger-soft: #3a1a1c;
+  --lf-warning: #f5b841;
+  --lf-warning-soft: #33280f;
+  --lf-success: #4ade80;
+  --lf-success-soft: #15301b;
+  --lf-info: #5ab4ff;
+  --lf-info-soft: #13263b;
+  --lf-overlay: rgba(0, 0, 0, 0.62);
+  --lf-route: #2bd38a;
+  --lf-chart-1: #7b77f2;
+  --lf-chart-ref: #5d6272;
+  --lf-chart-grid: #2a2c33;
+  --lf-chart-axis: #3a3d46;
+  --lf-route-casing: #101114;
+  --lf-start: #2bd38a;
+  --lf-finish: #f5f6fa;
+  --lf-shadow-raised: 0px 4px 14px rgba(0, 0, 0, 0.4);
+  --lf-shadow-floating: 0px 10px 28px rgba(0, 0, 0, 0.55);
+  --lf-av1-bg: #2b2a55; --lf-av1-fg: #c9c7ff;
+  --lf-av2-bg: #13304a; --lf-av2-fg: #8ccbff;
+  --lf-av3-bg: #3a2614; --lf-av3-fg: #ffb37a;
+  --lf-av4-bg: #173a22; --lf-av4-fg: #86e59a;
+  --lf-av5-bg: #3a1838; --lf-av5-fg: #f0a6f5;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--lf-bg);
+  --color-surface: var(--lf-surface);
+  --color-surface-alt: var(--lf-surface-alt);
+  --color-sunken: var(--lf-surface-sunken);
+  --color-ink: var(--lf-text);
+  --color-muted: var(--lf-text-muted);
+  --color-subtle: var(--lf-text-subtle);
+  --color-line: var(--lf-border);
+  --color-line-strong: var(--lf-border-strong);
+  --color-primary: var(--lf-primary);
+  --color-primary-fill: var(--lf-primary-fill);
+  --color-primary-pressed: var(--lf-primary-pressed);
+  --color-primary-soft: var(--lf-primary-soft);
+  --color-on-primary-soft: var(--lf-on-primary-soft);
+  --color-on-primary: var(--lf-primary-text);
+  --color-blue: var(--lf-blue);
+  --color-blue-soft: var(--lf-blue-soft);
+  --color-blue-text: var(--lf-blue-text);
+  --color-orange: var(--lf-orange);
+  --color-orange-soft: var(--lf-orange-soft);
+  --color-orange-text: var(--lf-orange-text);
+  --color-green: var(--lf-green);
+  --color-green-soft: var(--lf-green-soft);
+  --color-green-text: var(--lf-green-text);
+  --color-magenta: var(--lf-magenta);
+  --color-danger: var(--lf-danger);
+  --color-danger-soft: var(--lf-danger-soft);
+  --color-warning: var(--lf-warning);
+  --color-warning-soft: var(--lf-warning-soft);
+  --color-success: var(--lf-success);
+  --color-success-soft: var(--lf-success-soft);
+  --color-info: var(--lf-info);
+  --color-info-soft: var(--lf-info-soft);
+  --color-overlay: var(--lf-overlay);
+  /* Ink text for bright blocks (orange, green) and white for cool blocks (violet, blue), in both themes. */
+  --color-block-ink: #121318;
+
+  /* radius.xs / sm / md / lg / xl from the app */
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+
+  --font-sans: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --shadow-raised: var(--lf-shadow-raised);
+  --shadow-floating: var(--lf-shadow-floating);
+}
+
+/* Type scale from the app (Figtree: 500 body, 600 labels, 700 headings, 800 titles, 900 italic numerals). */
+@utility type-hero { font-size: 76px; line-height: 78px; font-weight: 900; font-style: italic; letter-spacing: -2.4px; font-variant-numeric: tabular-nums; }
+@utility type-display { font-size: 42px; line-height: 44px; font-weight: 900; font-style: italic; letter-spacing: -1.1px; }
+@utility type-metric { font-size: 34px; line-height: 38px; font-weight: 900; font-style: italic; letter-spacing: -0.8px; font-variant-numeric: tabular-nums; }
+@utility type-title { font-size: 28px; line-height: 34px; font-weight: 800; letter-spacing: -0.6px; }
+@utility type-headline { font-size: 20px; line-height: 26px; font-weight: 700; letter-spacing: -0.3px; }
+@utility type-heading { font-size: 17px; line-height: 22px; font-weight: 700; letter-spacing: -0.2px; }
+@utility type-body { font-size: 16px; line-height: 23px; font-weight: 500; }
+@utility type-body-strong { font-size: 16px; line-height: 23px; font-weight: 600; }
+@utility type-label { font-size: 14px; line-height: 19px; font-weight: 600; }
+@utility type-caption { font-size: 13px; line-height: 18px; font-weight: 500; }
+@utility type-micro { font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: 0.1px; }
+
+@layer base {
+  html { background: var(--lf-bg); }
+  body {
+    background: var(--lf-bg);
+    color: var(--lf-text);
+    font-family: var(--font-sans);
+    font-weight: 500;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible { outline: 2px solid var(--lf-primary); outline-offset: 2px; }
+  ::selection { background: color-mix(in srgb, var(--lf-primary) 28%, transparent); }
+  dialog::backdrop { background: var(--lf-overlay); }
+  input, textarea, select, button { font: inherit; }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
+
+.mapboxgl-ctrl-group { background: var(--lf-surface) !important; border: 1px solid var(--lf-border); border-radius: 12px !important; }

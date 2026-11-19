@@ -44,7 +44,7 @@ export default function PublicActivity() {
           <LoopMark size={30} />
           <Wordmark size={22} />
         </View>
-        {q.isLoading ? <LoadingState variant="cards" /> : q.error ? <ErrorState error={q.error} onRetry={() => void q.refetch()} /> : !d ? (
+        {q.isLoading ? <LoadingState variant="cards" /> : q.error ? <ErrorState error={q.error} onRetry={() => void q.refetch()} support={false} /> : !d ? (
           <EmptyState icon="lock" title="This run is not available" body="The runner may have turned the link off, or the run is still being published (results appear 30 minutes after a run)." />
         ) : (
           <>

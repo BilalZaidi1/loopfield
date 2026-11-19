@@ -80,6 +80,7 @@ export function routeForNotification(n: { kind: string; object_type: string | nu
   if (n.kind === 'title_digest') return '/routes';
   if (n.kind === 'badge_earned') return '/achievements';
   if (n.kind === 'points_refunded') return '/points';
+  if (n.kind === 'support_reply') return id ? { pathname: '/support/[id]', params: { id } } : '/support';
   switch (n.object_type) {
     case 'post':
       return { pathname: '/post/[id]', params: { id } };

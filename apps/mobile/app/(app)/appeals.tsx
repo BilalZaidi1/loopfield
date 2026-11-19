@@ -8,20 +8,12 @@ import { track } from '@/lib/analytics';
 import { fmtDate } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { Badge, Banner, Button, Card, EmptyState, ErrorState, LoadingState, Screen, Section, TextField, Txt } from '@/components/ui';
+import { isSuspended } from '@/components/Notices';
+import { useSession } from '@/state/session';
+import { existingRequest, type Appeal } from '@/features/appeals/requests';
 import { spacing } from '@/theme/tokens';
 
-interface Appeal {
-  id: string;
-  object_type: string;
-  object_id: string;
-  reason: string;
-  status: 'submitted' | 'in_review' | 'upheld' | 'overturned' | 'withdrawn';
-  response: string | null;
-  created_at: string;
-  decided_at: string | null;
-}
-
-const TYPE_LABEL: Record<string, string> = { activity: 'Run marked for review', loop_claim: 'Land result', speed_attempt: 'Route time', post: 'Removed post', comment: 'Removed comment', route_proposal: 'Route proposal decision', moderation_case: 'Account or content decision' };
+const TYPE_LABEL: Record<string, string> = { activity: 'Run marked for review', loop_claim: 'Land result', speed_attempt: 'Route time', post: 'Removed post', comment: 'Removed comment', route_proposal: 'Route proposal decision', moderation_case: 'Account or content decision', account_action: 'Account suspension' };
 const STATUS: Record<Appeal['status'], { label: string; tone: 'info' | 'success' | 'warning' | 'muted' }> = {
   submitted: { label: 'Submitted', tone: 'info' },
   in_review: { label: 'In review', tone: 'warning' },
@@ -33,6 +25,7 @@ const STATUS: Record<Appeal['status'], { label: string; tone: 'info' | 'success'
 /** S48 Appeal and request status — contested result or content decision, explanation, review state and final response. */
 export default function Appeals() {
   const params = useLocalSearchParams<{ type?: string; id?: string }>();
+  const { profile, refresh } = useSession();
   const qc = useQueryClient();
   const [reason, setReason] = useState('');
   const list = useQuery({
@@ -51,14 +44,20 @@ export default function Appeals() {
       void qc.invalidateQueries({ queryKey: ['appeals'] });
     }
   });
-  const existing = list.data?.find((a) => a.object_id === params.id && a.object_type === params.type);
+  const account = params.type === 'account_action';
+  // A decision can arrive while the screen is open: an accepted suspension review reinstates the account.
+  const suspended = isSuspended(profile?.status);
+  const existing = existingRequest(list.data ?? [], params.type, params.id, profile?.status_changed_at);
+  const canAsk = Boolean(params.type && params.id && !existing && list.data && (!account || suspended));
   return (
-    <Screen onRefresh={() => void list.refetch()} refreshing={list.isRefetching}>
+    <Screen onRefresh={() => { void list.refetch(); void refresh(); }} refreshing={list.isRefetching}>
       <Stack.Screen options={{ title: 'Reviews and appeals' }} />
-      {params.type && params.id && !existing ? (
+      {canAsk && params.type ? (
         <Card accessibilityLabel="New request">
-          <Txt variant="headline">{`Request a review: ${TYPE_LABEL[params.type] ?? params.type}`}</Txt>
-          <Txt color="textMuted">Explain what you think is wrong. Requests are possible within {RETENTION_RULES.appealWindowDays.value} days of the decision. A reviewer who did not make the original decision checks the evidence; results can change for everyone affected.</Txt>
+          <Txt variant="headline">{account ? 'Ask for a review of your suspension' : `Request a review: ${TYPE_LABEL[params.type] ?? params.type}`}</Txt>
+          <Txt color="textMuted">{account
+            ? 'Explain why you think the suspension is a mistake. You can ask once for each suspension. A moderator reads it and replies here; if they agree, your account is restored straight away.'
+            : `Explain what you think is wrong. Requests are possible within ${RETENTION_RULES.appealWindowDays.value} days of the decision. A reviewer who did not make the original decision checks the evidence; results can change for everyone affected.`}</Txt>
           <TextField label="Explanation" value={reason} onChangeText={setReason} multiline maxLength={1000} />
           {submit.error ? <Banner tone="danger" text={friendlyError(submit.error)} /> : null}
           {submit.isSuccess ? <Banner tone="success" text="Request submitted. You will be notified of the decision." /> : null}
@@ -78,7 +77,7 @@ export default function Appeals() {
               {a.response ? <Txt color="textMuted">Response: {a.response}</Txt> : null}
             </Card>
           ))
-        ) : <EmptyState icon="flag" title="No requests yet" body="You can ask for a review from a land or route result, a removed post, or a route proposal decision." />}
+        ) : <EmptyState icon="flag" title="No requests yet" body="You can ask for a review of a land or route result, a removed post, a route proposal decision or a suspension." />}
       </Section>
     </Screen>
   );

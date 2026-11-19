@@ -25,6 +25,8 @@ export const env = {
   defaultMapCenter: v(process.env.EXPO_PUBLIC_DEFAULT_MAP_CENTER),
   /** Where public activity pages live (share links and QR codes). */
   webUrl: v(process.env.EXPO_PUBLIC_WEB_URL) ?? 'https://loopfield.expo.app',
+  /** The App Store's numeric id for this app, once it is listed (update prompts open its page). */
+  iosAppStoreId: v(process.env.EXPO_PUBLIC_IOS_APP_STORE_ID),
   appEnv: ((Constants.expoConfig?.extra as { appEnv?: string } | undefined)?.appEnv ?? 'development') as 'development' | 'preview' | 'production'
 } as const;
 

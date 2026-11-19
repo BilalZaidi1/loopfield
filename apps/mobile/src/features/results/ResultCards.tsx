@@ -1,7 +1,10 @@
 import { View } from 'react-native';
 import { router } from 'expo-router';
-import { formatDuration, REASON_TEXT, type ReasonCode } from '@loopfield/core';
-import { fmtArea, fmtDate, splitValue } from '@/lib/format';
+import { formatDuration, REASON_TEXT, SPEED_RULES, TERRITORY_RULES, type ReasonCode } from '@loopfield/core';
+import { fmtArea, fmtDate, fmtRuleDistance, splitValue } from '@/lib/format';
+import { rulesForVersion, useSpeedRules, useTerritoryRules } from '@/lib/gameRules';
+import { ContactSupportLink } from '@/components/Notices';
+import { explainReason, NOT_COUNTED_STATUSES } from './reasons';
 import { Badge, BigNumber, Button, Card, Skeleton, Txt } from '@/components/ui';
 import type { ActivityJson } from './useActivity';
 import { Icon } from '@/components/icons';
@@ -64,15 +67,28 @@ export interface AttemptJson {
 
 export const reasonText = (code: string) => REASON_TEXT[code as ReasonCode] ?? code.replace(/_/g, ' ');
 
-function Reasons({ reasons }: { reasons: string[] }) {
+/**
+ * Why a result did not count. Numbers come from the rules the result was judged by: the running season's
+ * (set in the back office) when its version matches, the built-in ones when those were used.
+ */
+function Reasons(props: { reasons: string[]; ruleVersion?: string | null; family: 'territory' | 'speed' }) {
+  return props.reasons.length ? <ReasonList {...props} /> : null;
+}
+
+function ReasonList({ reasons, ruleVersion, family }: { reasons: string[]; ruleVersion?: string | null; family: 'territory' | 'speed' }) {
   const { palette: p } = useTheme();
-  if (!reasons.length) return null;
+  const units = useUnits();
+  const seasonTerritory = useTerritoryRules();
+  const seasonSpeed = useSpeedRules();
+  const rules = family === 'territory'
+    ? { territory: rulesForVersion(ruleVersion, seasonTerritory, TERRITORY_RULES) }
+    : { speed: rulesForVersion(ruleVersion, seasonSpeed, SPEED_RULES) };
   return (
     <View style={{ gap: spacing.xs }} accessibilityRole="summary">
       {reasons.map((r) => (
         <View key={r} style={{ flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' }}>
           <View style={{ marginTop: 6, width: 6, height: 6, borderRadius: 3, backgroundColor: p.textSubtle }} />
-          <Txt variant="caption" style={{ flex: 1 }}>{reasonText(r)}</Txt>
+          <Txt variant="caption" style={{ flex: 1 }}>{explainReason(r, rules, (m) => fmtRuleDistance(m, units))}</Txt>
         </View>
       ))}
     </View>
@@ -140,7 +156,7 @@ function LayerLines({ layers }: { layers: LayerResult[] }) {
   );
 }
 
-export function LandCard({ claim, territoryRequested, layers = [] }: { claim: ClaimJson | null; territoryRequested: boolean; layers?: LayerResult[] }) {
+export function LandCard({ claim, territoryRequested, layers = [], activityId }: { claim: ClaimJson | null; territoryRequested: boolean; layers?: LayerResult[]; activityId?: string }) {
   const { palette: p } = useTheme();
   const units = useUnits();
   const now = useNow();
@@ -180,18 +196,21 @@ export function LandCard({ claim, territoryRequested, layers = [] }: { claim: Cl
           <Button label="See it on the map" arrow onPress={() => router.push('/map')} />
         </>
       ) : null}
-      <Reasons reasons={claim.reasons} />
+      <Reasons reasons={claim.reasons} ruleVersion={claim.rule_version} family="territory" />
       {claim.invalidation_reason ? <Txt variant="caption">Correction: {claim.invalidation_reason}</Txt> : null}
       <Txt variant="caption">Rules {claim.rule_version} (proposed thresholds pending field validation)</Txt>
-      {claim.status === 'invalid' || claim.status === 'unranked' || claim.status === 'pending_review' ? (
-        <Button variant="secondary" icon="flag" label="Request a review" onPress={() => router.push({ pathname: '/appeals', params: { type: 'loop_claim', id: claim.id } })} />
+      {NOT_COUNTED_STATUSES.has(claim.status) ? (
+        <>
+          <Button variant="secondary" icon="flag" label="Request a review" onPress={() => router.push({ pathname: '/appeals', params: { type: 'loop_claim', id: claim.id } })} />
+          {activityId ? <ContactSupportLink category="competition" subject="My loop was not counted" context={`run:${activityId}`} /> : null}
+        </>
       ) : null}
     </Card>
   );
 }
 
 /** Route title result: same versioned route only; speed never moves land (PRD §6). */
-export function TitleCards({ attempts, context }: { attempts: AttemptJson[]; context: { attempt_id: string; benchmark_ms: number; champion_is_me: boolean }[] }) {
+export function TitleCards({ attempts, context, activityId }: { attempts: AttemptJson[]; context: { attempt_id: string; benchmark_ms: number; champion_is_me: boolean }[]; activityId?: string }) {
   const { palette: p } = useTheme();
   const now = useNow();
   if (!attempts.length) return null;
@@ -215,10 +234,13 @@ export function TitleCards({ attempts, context }: { attempts: AttemptJson[]; con
               <Txt color="textMuted">Current record {formatDuration(ctx.benchmark_ms)}. A new title needs a clear margin over the record, not a near tie.</Txt>
             ) : null}
             {a.is_founding ? <Badge icon="sparkle" label="Founding run on a newly approved route" /> : null}
-            <Reasons reasons={a.reasons} />
+            <Reasons reasons={a.reasons} ruleVersion={a.rule_version} family="speed" />
             <Txt variant="caption">Rules {a.rule_version} (proposed)</Txt>
-            {a.status === 'invalid' || a.status === 'unranked' || a.status === 'pending_review' ? (
-              <Button variant="secondary" icon="flag" label="Request a review" onPress={() => router.push({ pathname: '/appeals', params: { type: 'speed_attempt', id: a.id } })} />
+            {NOT_COUNTED_STATUSES.has(a.status) ? (
+              <>
+                <Button variant="secondary" icon="flag" label="Request a review" onPress={() => router.push({ pathname: '/appeals', params: { type: 'speed_attempt', id: a.id } })} />
+                {activityId ? <ContactSupportLink category="competition" subject="My route time was not counted" context={`run:${activityId}`} /> : null}
+              </>
             ) : null}
           </Card>
         );

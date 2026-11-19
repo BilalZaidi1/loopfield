@@ -124,7 +124,12 @@ export async function finalizeActivity(sql: Sql, blobs: BlobStore, env: ServerEn
     throw new HttpError(409, 'duplicate_activity');
   }
   if (dup) shared.push('duplicate_evidence');
-  if (now - req.endedAt > SEASON_RULES.lateUploadWindowHours.value * 3_600_000) shared.push('late_upload');
+  // Late-upload window: the season's own value (set when the season was created), else the built-in one.
+  const [lateRow] = req.ticket?.claims?.seasonId
+    ? await sql`select late_upload_hours from public.seasons where id = ${req.ticket.claims.seasonId}`
+    : [];
+  const lateHours = Number(lateRow?.late_upload_hours ?? SEASON_RULES.lateUploadWindowHours.value);
+  if (now - req.endedAt > lateHours * 3_600_000) shared.push('late_upload');
 
   // Ticket: server-signed modes are the only source of competitive intent.
   let ticket: SessionTicketClaims | null = null;

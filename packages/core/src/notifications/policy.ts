@@ -187,6 +187,8 @@ export function safePushPreview(kind: string, actorName: string | null): { title
       return { title: 'Your land is contested', body: 'Several runners have taken cells from your land this week.' };
     case 'season_finished':
       return { title: 'Season results', body: 'A season race you took part in has ended. See where you placed.' };
+    case 'support_reply':
+      return { title: 'Support replied', body: 'Loopfield support answered your message.' };
     case 'route_decided':
       return { title: 'Route review', body: 'A decision on your route proposal is ready.' };
     case 'moderation_decision':
