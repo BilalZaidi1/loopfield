@@ -6,12 +6,16 @@ import { WaitlistForm } from '@/components/WaitlistForm';
 import { requirementsLine } from '@/config/site';
 import { copy } from '@/content/en';
 import { waitlistOnly } from '@/lib/stores';
+import { finalCall } from '@/story/world';
 
 /** The camera pulls back over a city-wide patchwork at first light; one violet patch pulses: that's you. */
 export function FinalCall() {
   const waitlist = waitlistOnly();
   return (
-    <section id="download" data-section="final" className="relative h-[260vh]">
+    <section data-section="final" className="relative" style={{ height: `${finalCall.heightVh}vh` }}>
+      {/* Links to #download land here, with the form showing. Lenis lands 64px above an anchor and a plain jump lands on
+          it, so the extra 32px puts both inside the open, pinned stretch. Placed before the stage, so Tab goes to the form. */}
+      <span id="download" aria-hidden="true" className="pointer-events-none absolute left-0 h-px w-px" style={{ top: `calc(${finalCall.landVh}vh + 32px)` }} />
       <div className="sticky top-0 h-[100svh] overflow-hidden pb-6 pt-20 sm:pb-8">
         <FinalStage
           headline={

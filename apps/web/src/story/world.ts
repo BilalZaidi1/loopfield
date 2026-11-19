@@ -33,6 +33,13 @@ export const beats = {
   final: { patch: 9.04, patchSpread: 0.34, pulse: 9.42, iris: [9.44, 9.6] }
 } as const;
 
+/**
+ * The final call's height, and where links to #download land in it (vh from its top). The story reads progress at
+ * the middle of the screen, so landing 133vh in reads about 0.70: after the block has opened (0.6) and before its
+ * 100vh stage unpins (about 0.81). Without this, the links landed at the top, where only the headline shows.
+ */
+export const finalCall = { heightVh: 260, landVh: 133 } as const;
+
 const sample = (f: (t: number) => Vec2, n = 140): Vec2[] => Array.from({ length: n + 1 }, (_, i) => f(i / n));
 
 /** Streets are gaps in the grid. The route in the titles section runs along the south avenue. */
