@@ -81,11 +81,21 @@ function channelTypeDiff(current: Record<string, unknown> | null, config: Channe
   return out;
 }
 
+/**
+ * Stream's answer that a channel, channel type or user does not exist: error code 16, HTTP 404. stream-chat
+ * puts both on its errors (`code`, `status`); the wording varies ("Can't find channel with id …"), so the
+ * text is only a fallback. Deleting something already gone counts as done.
+ */
+export function isStreamNotFound(err: unknown): boolean {
+  const e = (err ?? {}) as { code?: unknown; status?: unknown; message?: unknown };
+  return e.code === 16 || e.status === 404 || /not.?found|does not exist|can'?t find|\b404\b/i.test(String(e.message ?? ''));
+}
+
 async function readChannelType(client: StreamChat, name: string): Promise<Record<string, unknown> | null> {
   try {
     return (await client.getChannelType(name)) as unknown as Record<string, unknown>;
   } catch (err) {
-    if (!/not.?found|does not exist|404/i.test(String((err as Error).message))) throw err;
+    if (!isStreamNotFound(err)) throw err;
     return null;
   }
 }
