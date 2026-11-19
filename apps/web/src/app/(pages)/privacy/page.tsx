@@ -51,7 +51,7 @@ export default function PrivacyPage() {
 
         <h2>The waitlist</h2>
         <p>
-          If you join the waitlist, we keep your email address and, if you give them, your city and country, so we can tell you when Loopfield opens where you run. Nothing is
+          If you join the waitlist, we keep only your email address, so we can tell you when Loopfield launches. Nothing is
           kept until you tap the link in the confirmation email. The list is held with our email provider, Resend, and every email has an unsubscribe link.
         </p>
 

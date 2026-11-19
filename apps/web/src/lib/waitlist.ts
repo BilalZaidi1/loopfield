@@ -1,21 +1,18 @@
 import { z } from 'zod';
 
-/** What the waitlist form sends. `website` is a honeypot: people never see it, bots fill it in. */
+/**
+ * What the waitlist form sends: an email and consent, nothing else; any other field is dropped. `website` is a
+ * honeypot: people never see it, bots fill it in.
+ */
 export const waitlistInput = z.object({
   email: z.email().max(254),
-  city: z.string().trim().max(80).default(''),
-  country: z.string().trim().max(56).default(''),
   consent: z.literal(true),
-  website: z.string().max(0).optional(),
-  source: z.string().trim().max(30).default('site')
+  website: z.string().max(0).optional()
 });
 export type WaitlistInput = z.infer<typeof waitlistInput>;
 
 export interface ConfirmPayload {
   email: string;
-  city: string;
-  country: string;
-  source: string;
   /** Issued at, ms since epoch. */
   iat: number;
 }

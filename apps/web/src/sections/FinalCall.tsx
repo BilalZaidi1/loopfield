@@ -24,7 +24,7 @@ export function FinalCall() {
           <p className="t-body mt-4 max-w-[34ch] text-white/90 sm:mt-5 sm:text-[20px] sm:leading-[30px] [@media(max-height:640px)]:mt-3">{waitlist ? copy.final.waitlistBody : copy.final.body}</p>
           {waitlist ? (
             <div className="mt-6 flex w-full justify-center text-left md:mt-8 [@media(max-height:640px)]:mt-4">
-              <WaitlistForm source="final" />
+              <WaitlistForm placement="final" />
             </div>
           ) : (
             <div className="mt-7 flex flex-wrap items-center justify-center gap-x-7 gap-y-4 md:mt-9 [@media(max-height:640px)]:mt-5">

@@ -10,7 +10,7 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
   const value = typeof token === 'string' ? token : '';
   return (
     <div>
-      <PageTitle kicker="Waitlist" title="Confirm your spot" lead="One tap and you’re on the list. We’ll email you when Loopfield opens where you run." />
+      <PageTitle kicker="Waitlist" title="Confirm your spot" lead="One tap and you’re on the list. We’ll email you when Loopfield launches." />
       {value ? (
         <form method="post" action="/api/waitlist/confirm" className="mt-10">
           <input type="hidden" name="token" value={value} />

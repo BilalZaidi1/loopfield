@@ -176,15 +176,14 @@ export const copy = {
   waitlist: {
     title: 'Get the first invite',
     email: 'Email',
-    city: 'Your city',
-    country: 'Country',
-    consent: 'Email me when Loopfield opens where I run. Unsubscribe any time.',
+    consent: 'Email me when Loopfield launches. Unsubscribe any time.',
     submit: 'Join the waitlist',
     sending: 'Sending…',
     sent: 'Check your inbox: one tap confirms your spot.',
-    confirmed: 'You’re on the list. We’ll tell you when your streets go live.',
+    confirmed: 'You’re on the list. We’ll email you when Loopfield launches.',
     failed: 'That didn’t go through. Try again in a minute.',
     invalid: 'Check the email address.',
+    consentNeeded: 'Tick the box so we can email you.',
     closed: 'Sign-ups open soon. Check back in a few days.'
   },
 
@@ -200,7 +199,7 @@ export const copy = {
       {
         id: 'where',
         q: 'Where can I play?',
-        a: 'Loopfield is opening city by city. Tell us your city on the waitlist and we’ll let you know when your streets go live.'
+        a: 'Loopfield is opening city by city. Join the waitlist and we’ll email you when it launches.'
       },
       {
         id: 'loop',

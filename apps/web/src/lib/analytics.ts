@@ -11,7 +11,7 @@ export type SiteEvent =
   | { name: 'section_view'; props: { section: string } }
   | { name: 'store_click'; props: { platform: string; placement: string; state: string } }
   | { name: 'draw_loop_complete'; props: { cells: string; mode: 'drawn' | 'auto' } }
-  | { name: 'waitlist_submit'; props: { country: string } }
+  | { name: 'waitlist_submit'; props: { placement: string } }
   | { name: 'faq_open'; props: { question: string } };
 
 let client: PostHog | null = null;

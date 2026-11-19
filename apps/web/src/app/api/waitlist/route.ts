@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
   const parsed = waitlistInput.safeParse(raw);
   if (!parsed.success) return NextResponse.json({ error: 'invalid' }, { status: 400 });
 
-  const { email, city, country, source } = parsed.data;
-  const token = await signConfirmToken({ email, city, country, source, iat: Date.now() }, config.secret);
+  const { email } = parsed.data;
+  const token = await signConfirmToken({ email, iat: Date.now() }, config.secret);
   const link = `${site.url}/waitlist/confirm?token=${encodeURIComponent(token)}`;
   const sent = await sendConfirmEmail(config, email, link).catch(() => false);
   if (!sent) return NextResponse.json({ error: 'failed' }, { status: 502 });

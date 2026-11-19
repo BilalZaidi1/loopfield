@@ -21,6 +21,6 @@ export async function POST(request: NextRequest) {
   const payload = await verifyConfirmToken(token, config.secret);
   if (!payload) return back('expired');
 
-  const ok = await addWaitlistContact(config, payload).catch(() => false);
+  const ok = await addWaitlistContact(config, payload.email).catch(() => false);
   return back(ok ? 'confirmed' : 'expired');
 }

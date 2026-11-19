@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRateLimiter, signConfirmToken, verifyConfirmToken, waitlistInput } from './waitlist';
 
 const secret = 'a-test-secret-that-is-long-enough-123';
-const payload = { email: 'runner@example.com', city: 'Lisbon', country: 'PT', source: 'final', iat: 1_000_000 };
+const payload = { email: 'runner@example.com', iat: 1_000_000 };
 
 describe('confirmation tokens', () => {
   it('round-trip', async () => {
@@ -29,6 +29,12 @@ describe('waitlist input', () => {
     expect(waitlistInput.safeParse({ email: 'nope', consent: true }).success).toBe(false);
     expect(waitlistInput.safeParse({ email: 'runner@example.com', consent: false }).success).toBe(false);
     expect(waitlistInput.safeParse({ email: 'runner@example.com', consent: true, website: 'spam' }).success).toBe(false);
+  });
+  it('keeps only the email and consent', () => {
+    expect(waitlistInput.parse({ email: 'runner@example.com', consent: true, city: 'Lisbon', country: 'PT' })).toEqual({
+      email: 'runner@example.com',
+      consent: true
+    });
   });
 });
 
