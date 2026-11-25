@@ -9,6 +9,7 @@ import { log } from '@/lib/log';
 import { disconnectChat } from '@/chat/client';
 import { purchasesLogIn, purchasesLogOut } from '@/billing/purchases';
 import { clearHealthCache } from '@/health/cache';
+import { clearRunningToolsOnPhone } from '@/lib/runningCleanup';
 import { unregisterPushToken } from '@/notifications/push';
 import { NO_STAFF, parseWhoAmI, type StaffAccess, type WhoAmI } from './staff';
 
@@ -159,6 +160,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     await disconnectChat().catch(() => {});
     await purchasesLogOut().catch(() => {});
     await clearHealthCache().catch((e) => log.error('health cache clear failed', e));
+    await clearRunningToolsOnPhone().catch(() => {});
     resetAnalytics();
     setMonitoringUser(null);
     queryClient.clear();

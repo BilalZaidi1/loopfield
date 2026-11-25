@@ -75,8 +75,10 @@ export async function processUploads(userId: string): Promise<number> {
         });
         recordingDb().withTransactionSync(() => {
           recordingDb().runSync("update uploads set state = 'received', receipt = ?, last_error = null, updated_at = ? where session_id = ?", [JSON.stringify(receipt), Date.now(), up.session_id]);
-          // Evidence is now stored server-side; remove the raw local copy.
+          // Evidence is now stored server-side; remove the raw local copy, and the run's followed line and live link.
           recordingDb().runSync('delete from samples where session_id = ?', [up.session_id]);
+          recordingDb().runSync('delete from follows where session_id = ?', [up.session_id]);
+          recordingDb().runSync('delete from live_shares where session_id = ?', [up.session_id]);
         });
         completed++;
         const secs = (Date.now() - startedAt) / 1000;

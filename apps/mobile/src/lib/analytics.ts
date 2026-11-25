@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import PostHog from 'posthog-react-native';
 import { sanitizeEvent, type AnalyticsEventName, type AnalyticsProps } from '@loopfield/core';
 import { env } from '@/config/env';
@@ -11,8 +12,13 @@ import { log } from './log';
 let client: PostHog | null = null;
 let enabled = false;
 
+/** Pages for people who don't use Loopfield (a live link, a shared run) load no analytics at all. */
+export function onPublicPage(pathname: string | null | undefined = Platform.OS === 'web' && typeof window !== 'undefined' ? window.location?.pathname : null): boolean {
+  return /^\/(l|a)\/[^/]+\/?$/.test(pathname ?? '');
+}
+
 export function initAnalytics(): void {
-  if (client || !env.posthogKey) return;
+  if (client || !env.posthogKey || onPublicPage()) return;
   client = new PostHog(env.posthogKey, {
     host: env.posthogHost,
     captureAppLifecycleEvents: false,

@@ -67,6 +67,15 @@ export function recordingDb(): SQLite.SQLiteDatabase {
       attempts integer not null default 0, last_error text, receipt text, next_attempt_at integer not null default 0,
       summary text, updated_at integer not null
     );
+    create table if not exists follows (
+      session_id text primary key, kind text not null, ref_id text, name text not null, path text not null,
+      off_route_m integer not null, off_route_s integer not null, snapshot text, updated_at integer not null
+    );
+    create table if not exists live_shares (
+      session_id text primary key, token text not null, kind text not null, every_s integer not null,
+      last_push_at integer not null default 0, last_sent_t integer not null default 0, state text not null default 'running',
+      views integer not null default 0, ended integer not null default 0
+    );
   `);
   return db;
 }

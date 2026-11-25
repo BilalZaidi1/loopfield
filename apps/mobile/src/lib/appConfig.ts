@@ -27,7 +27,11 @@ export const SWITCH_KEYS = [
   'comments_enabled',
   'avatar_uploads_enabled',
   'club_creation_enabled',
-  'route_proposals_enabled'
+  'route_proposals_enabled',
+  'route_builder_enabled',
+  'route_snapping_enabled',
+  'live_links_enabled',
+  'avatar_marker_enabled'
 ] as const;
 export type SwitchKey = (typeof SWITCH_KEYS)[number];
 
@@ -63,6 +67,13 @@ export interface AppSettings {
   integrityOverrides: unknown;
   /** 'proposed' while thresholds await field validation. */
   rulesStatus: string | null;
+  /** Running tools (R1): planned routes, following them, and live links. */
+  plannedRoutesMax: number;
+  offRouteDistanceM: number;
+  offRouteSeconds: number;
+  liveLinkPushSeconds: number;
+  liveLinkGraceMinutes: number;
+  liveLinkMaxHours: number;
 }
 
 const VERSION = /^\d+(\.\d+){0,2}$/;
@@ -136,7 +147,13 @@ export function parseAppConfig(raw: AppConfigRaw | null | undefined): AppSetting
     movementPointsPerKm: num(r.movement_points_per_km),
     movementPointsDailyCap: num(r.movement_points_daily_cap),
     integrityOverrides: r.integrity_overrides ?? null,
-    rulesStatus: text(r.rules_status)
+    rulesStatus: text(r.rules_status),
+    plannedRoutesMax: count(r.planned_routes_max, 100),
+    offRouteDistanceM: Math.min(Math.max(count(r.off_route_distance_m, 40), 20), 150),
+    offRouteSeconds: Math.min(Math.max(count(r.off_route_seconds, 15), 5), 60),
+    liveLinkPushSeconds: Math.min(Math.max(count(r.live_link_push_seconds, 30), 15), 120),
+    liveLinkGraceMinutes: Math.min(Math.max(num(r.live_link_grace_minutes) ?? 15, 0), 60),
+    liveLinkMaxHours: Math.min(count(r.live_link_max_hours, 6), 12)
   };
 }
 
@@ -207,5 +224,9 @@ export const PAUSED_TEXT: Record<SwitchKey, string> = {
   comments_enabled: 'Comments are paused for now.',
   avatar_uploads_enabled: 'New profile photos are paused for now. You can still make a drawn avatar, and your current picture stays.',
   club_creation_enabled: 'Creating clubs is paused for now.',
-  route_proposals_enabled: 'Proposing routes is paused for now.'
+  route_proposals_enabled: 'Proposing routes is paused for now.',
+  route_builder_enabled: 'Planning new routes is paused for now. You can still follow the routes you saved.',
+  route_snapping_enabled: 'Following paths is paused for now, so new legs are drawn as straight lines.',
+  live_links_enabled: 'Live location links are paused for now.',
+  avatar_marker_enabled: 'Your picture as the position dot is paused for now.'
 };
