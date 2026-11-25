@@ -10,7 +10,7 @@ import { Linking, Share } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { ReactNode } from 'react';
 import { latLngToCell } from 'h3-js';
-import { destination, encodePolyline, haversineMeters, type LatLng, type LocationSample } from '@loopfield/core';
+import { destination, encodePolyline, haversineMeters, type LatLng } from '@loopfield/core';
 import { parseAppConfig, PAUSED_TEXT } from '@/lib/appConfig';
 import { emitCue } from '@/lib/cues';
 import { callFunction, rpc } from '@/lib/api';
@@ -25,9 +25,11 @@ import { loopCells, previewLand, previewText } from '@/features/plan/landPreview
 import { loadMarkerPreference, markerFileName, saveMarkerPreference } from '@/features/map/AvatarMarker';
 import type { PublicLiveLink } from '@/features/live/api';
 import LiveLinkPage from '../app/l/[token]';
+import { fix, resetDb, samples } from './helpers/recordingDbStub';
 
 /* eslint-disable @typescript-eslint/no-require-imports -- jest.mock factories are hoisted above imports */
 jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default);
+jest.mock('@/recording/db', () => require('./helpers/recordingDbStub').dbModule);
 /* eslint-enable @typescript-eslint/no-require-imports */
 jest.mock('react-native-view-shot', () => ({ captureRef: jest.fn() }));
 jest.mock('expo-notifications', () => ({ getPermissionsAsync: jest.fn(async () => ({ granted: false })), scheduleNotificationAsync: jest.fn() }));
@@ -54,21 +56,8 @@ jest.mock('@/features/live/api', () => ({
   usePublicLiveLink: () => mockPage.query,
   countLiveView: jest.fn(async () => {})
 }));
-jest.mock('@/recording/db', () => ({
-  recordingDb: () => ({
-    runSync: (sql: string, params: unknown[] = []) => mockSql(sql, params),
-    getFirstSync: (sql: string, params: unknown[] = []) => {
-      const m = /^select \* from (\w+) where session_id = \?$/.exec(sql);
-      if (!m) throw new Error(`unexpected query: ${sql}`);
-      return mockTables[m[1]!]!.get(String(params[0])) ?? null;
-    }
-  }),
-  samplesSince: (sessionId: string, sinceT: number) => (mockSamples[sessionId] ?? []).filter((s) => s.t >= sinceT)
-}));
 
 const mockConfig: { raw: Record<string, unknown> } = { raw: {} };
-const mockTables: Record<string, Map<string, Record<string, unknown>>> = { follows: new Map(), live_shares: new Map() };
-const mockSamples: Record<string, LocationSample[]> = {};
 const mockServer = {
   rpcResults: {} as Record<string, unknown>,
   fnResults: [] as unknown[],
@@ -84,46 +73,16 @@ const mockPage: { token: string; query: { data: PublicLiveLink | null | undefine
   query: { data: undefined, isLoading: true, error: null, refetch: () => {} }
 };
 
-/** Just enough SQL for the follow and live-share tables: insert or replace, update by session, delete by session. */
-function mockSql(sql: string, params: unknown[]) {
-  const ins = /^insert or replace into (\w+) \(([^)]+)\) values \(([^)]+)\)$/.exec(sql);
-  if (ins) {
-    const cols = ins[2]!.split(',').map((c) => c.trim());
-    let i = 0;
-    const vals = ins[3]!.split(',').map((v) => v.trim()).map((v) => (v === '?' ? params[i++] : Number(v)));
-    const row = Object.fromEntries(cols.map((c, k) => [c, vals[k]]));
-    mockTables[ins[1]!]!.set(String(row.session_id), row);
-    return;
-  }
-  const upd = /^update (\w+) set (.+) where session_id = \?$/.exec(sql);
-  if (upd) {
-    const cols = upd[2]!.split(',').map((c) => c.trim().split(' = ')[0]!);
-    const row = mockTables[upd[1]!]!.get(String(params[cols.length]));
-    if (row) cols.forEach((c, k) => (row[c] = params[k]));
-    return;
-  }
-  const del = /^delete from (\w+) where session_id = \?$/.exec(sql);
-  if (del) {
-    mockTables[del[1]!]?.delete(String(params[0]));
-    return;
-  }
-  throw new Error(`unexpected statement: ${sql}`);
-}
-
 const start: LatLng = { lat: 51.5, lng: -0.12 };
 const along = (m: number, offsetNorthM = 0) => destination(destination(start, m, 90), offsetNorthM, 0);
 const route = Array.from({ length: 11 }, (_, i) => along(i * 100)); // 1 km due east
 const T0 = 1_800_000_000_000;
-let seq = 0;
-const fix = (p: LatLng, t: number, acc = 5): LocationSample => ({ seq: seq++, t, mono: null, lat: p.lat, lng: p.lng, acc, alt: null, altAcc: null, spd: null, hdg: null, mocked: false });
 const wrap = (ui: ReactNode) => <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } })}>{ui}</QueryClientProvider>;
 const settle = () => act(() => new Promise<void>((resolve) => setTimeout(resolve, 20)));
 
 beforeEach(() => {
   mockConfig.raw = {};
-  mockTables.follows!.clear();
-  mockTables.live_shares!.clear();
-  for (const k of Object.keys(mockSamples)) delete mockSamples[k];
+  resetDb();
   mockServer.rpcResults = {};
   mockServer.fnResults = [];
   (emitCue as jest.Mock).mockClear();
@@ -157,18 +116,18 @@ describe('following a route during a run', () => {
 
   it('alerts once after the runner has been off the line for long enough, and again when back on it', async () => {
     attachFollow('s1', choice, { offRouteM: 40, offRouteSeconds: 15 });
-    mockSamples.s1 = Array.from({ length: 11 }, (_, k) => fix(along(k * 20), T0 + k * 2000));
+    samples.s1 = Array.from({ length: 11 }, (_, k) => fix(along(k * 20), T0 + k * 2000));
     await checkFollow('s1', 10_000);
     expect(emitCue).not.toHaveBeenCalled();
     expect(followStatus('s1')!.snap.state).toBe('on');
 
     // 80 m north of the line for 30 seconds.
-    mockSamples.s1.push(...Array.from({ length: 16 }, (_, k) => fix(along(220 + k * 5, 80), T0 + 22_000 + k * 2000)));
+    samples.s1.push(...Array.from({ length: 16 }, (_, k) => fix(along(220 + k * 5, 80), T0 + 22_000 + k * 2000)));
     await checkFollow('s1', 20_000);
     expect(emitCue).toHaveBeenCalledTimes(1);
     expect(emitCue).toHaveBeenLastCalledWith('off_route', OFF_ROUTE_TEXT);
 
-    mockSamples.s1.push(fix(along(320), T0 + 56_000), fix(along(340), T0 + 58_000));
+    samples.s1.push(fix(along(320), T0 + 56_000), fix(along(340), T0 + 58_000));
     await checkFollow('s1', 30_000);
     expect(emitCue).toHaveBeenLastCalledWith('back_on_route', BACK_ON_ROUTE_TEXT);
     expect(followSummary('s1')).toEqual({ followed: 'planned', alerts: 1 });
@@ -178,7 +137,7 @@ describe('following a route during a run', () => {
 
   it('never alerts for a short wander or for fixes too inaccurate to judge', async () => {
     attachFollow('s1', choice, { offRouteM: 40, offRouteSeconds: 15 });
-    mockSamples.s1 = [
+    samples.s1 = [
       ...Array.from({ length: 5 }, (_, k) => fix(along(k * 20), T0 + k * 2000)),
       // ten seconds off the line: under the limit
       ...Array.from({ length: 5 }, (_, k) => fix(along(100 + k * 5, 60), T0 + 10_000 + k * 2000)),
@@ -193,9 +152,9 @@ describe('following a route during a run', () => {
 
   it('checks at most every few seconds and reports no route when none was chosen', async () => {
     attachFollow('s1', choice, { offRouteM: 40, offRouteSeconds: 15 });
-    mockSamples.s1 = [fix(along(0), T0)];
+    samples.s1 = [fix(along(0), T0)];
     await checkFollow('s1', 10_000);
-    mockSamples.s1.push(fix(along(10), T0 + 1000));
+    samples.s1.push(fix(along(10), T0 + 1000));
     await checkFollow('s1', 11_000);
     expect(followStatus('s1')!.snap.lastT).toBe(T0);
     expect(followSummary('nothing')).toEqual({ followed: 'none', alerts: 0 });
@@ -205,7 +164,7 @@ describe('following a route during a run', () => {
 describe('sending positions to a live link', () => {
   it('sends a thinned set of the newest fixes, no more often than the interval', async () => {
     attachLiveShare('s2', 'tok_s2_abcdefghijklmnop', 'run', 30);
-    mockSamples.s2 = Array.from({ length: 31 }, (_, k) => fix({ lat: 51.5 + k * 1.23456789e-5, lng: -0.12 }, T0 + k * 2000));
+    samples.s2 = Array.from({ length: 31 }, (_, k) => fix({ lat: 51.5 + k * 1.23456789e-5, lng: -0.12 }, T0 + k * 2000));
     mockServer.rpcResults.live_link_push = { ok: true, added: 7, every_seconds: 30 };
     await pushLive('s2', { force: true }, 100_000);
     expect(rpc).toHaveBeenCalledTimes(1);
@@ -219,7 +178,7 @@ describe('sending positions to a live link', () => {
     await pushLive('s2', {}, 110_000); // too soon
     expect(rpc).toHaveBeenCalledTimes(1);
 
-    mockSamples.s2.push(fix({ lat: 51.501, lng: -0.12 }, T0 + 70_000));
+    samples.s2.push(fix({ lat: 51.501, lng: -0.12 }, T0 + 70_000));
     await pushLive('s2', {}, 131_000);
     expect(rpc).toHaveBeenCalledTimes(2);
     expect(((rpc as jest.Mock).mock.calls[1]![1].p_points as { t: number }[]).map((p) => p.t)).toEqual([T0 + 70_000]);
@@ -227,7 +186,7 @@ describe('sending positions to a live link', () => {
 
   it('stops for good once the server says the link has ended', async () => {
     attachLiveShare('s3', 'tok_s3_abcdefghijklmnop', 'standing', 30);
-    mockSamples.s3 = [fix(start, T0)];
+    samples.s3 = [fix(start, T0)];
     mockServer.rpcResults.live_link_push = { ok: false, reason: 'ended' };
     await pushLive('s3', { force: true }, 100_000);
     expect(liveShareFor('s3')!.ended).toBe(1);
