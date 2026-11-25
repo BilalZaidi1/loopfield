@@ -1,0 +1,139 @@
+import { haversineMeters, pathLengthMeters, type LatLng } from '../geo/geo.ts';
+
+/**
+ * Planned routes (the route builder). A plan is the points the runner tapped and the legs between them:
+ * each leg is either a straight line or a line that follows streets and paths (from the path-following
+ * service). Everything here is pure so the planner screen, the saved route and the follower agree.
+ */
+
+export interface PlanLeg {
+  /** The leg's line from the previous point to this one, both ends included. */
+  path: LatLng[];
+  /** True when the line follows streets and paths; false for a straight line. */
+  snapped: boolean;
+}
+
+export interface PlanState {
+  /** The points the runner tapped, in order. */
+  points: LatLng[];
+  /** One leg per point after the first. */
+  legs: PlanLeg[];
+}
+
+export const EMPTY_PLAN: PlanState = { points: [], legs: [] };
+
+/** Limits shared by the planner, the database checks and the tests. */
+export const PLAN_LIMITS = {
+  /** Tapped points in one plan. */
+  maxPoints: 200,
+  /** Points in the saved line (after joining legs). */
+  maxPathPoints: 5000,
+  minDistanceM: 50,
+  maxDistanceM: 200_000,
+  nameMaxChars: 60,
+  /** Ends closer than this make the route a loop. */
+  loopCloseM: 60
+} as const;
+
+export function straightLeg(a: LatLng, b: LatLng): PlanLeg {
+  return { path: [a, b], snapped: false };
+}
+
+/** The whole line: the legs joined end to end, without repeating the points they share. */
+export function planPath(plan: Pick<PlanState, 'points' | 'legs'>): LatLng[] {
+  if (!plan.points.length) return [];
+  if (!plan.legs.length) return [plan.points[0]!];
+  const out: LatLng[] = [];
+  for (const leg of plan.legs) {
+    for (let i = 0; i < leg.path.length; i++) {
+      const p = leg.path[i]!;
+      const prev = out[out.length - 1];
+      if (prev && i === 0 && haversineMeters(prev, p) < 0.5) continue;
+      out.push(p);
+    }
+  }
+  return out;
+}
+
+export function planDistance(plan: Pick<PlanState, 'points' | 'legs'>): number {
+  return pathLengthMeters(planPath(plan));
+}
+
+/** Whether a line ends where it starts. */
+export function isLoopPath(path: readonly LatLng[], closeM: number = PLAN_LIMITS.loopCloseM): boolean {
+  if (path.length < 3) return false;
+  return haversineMeters(path[0]!, path[path.length - 1]!) <= closeM && pathLengthMeters(path) > 3 * closeM;
+}
+
+/** True when at least one leg follows streets and paths. */
+export function planSnapped(plan: Pick<PlanState, 'legs'>): boolean {
+  return plan.legs.some((l) => l.snapped);
+}
+
+export function appendPoint(plan: PlanState, point: LatLng, leg: PlanLeg | null): PlanState {
+  if (!plan.points.length) return { points: [point], legs: [] };
+  const last = plan.points[plan.points.length - 1]!;
+  return { points: [...plan.points, point], legs: [...plan.legs, leg ?? straightLeg(last, point)] };
+}
+
+export function removeLastPoint(plan: PlanState): PlanState {
+  if (plan.points.length <= 1) return EMPTY_PLAN;
+  return { points: plan.points.slice(0, -1), legs: plan.legs.slice(0, -1) };
+}
+
+/** The same route run the other way. */
+export function reversePlan(plan: PlanState): PlanState {
+  return {
+    points: [...plan.points].reverse(),
+    legs: [...plan.legs].reverse().map((l) => ({ path: [...l.path].reverse(), snapped: l.snapped }))
+  };
+}
+
+/** The route, then the same route back to the start. */
+export function outAndBackPlan(plan: PlanState): PlanState {
+  if (plan.points.length < 2) return plan;
+  const back = reversePlan(plan);
+  return { points: [...plan.points, ...back.points.slice(1)], legs: [...plan.legs, ...back.legs] };
+}
+
+/** The leg that would close the loop (from the last point back to the first), as a straight line. */
+export function closingPoint(plan: PlanState): LatLng | null {
+  if (plan.points.length < 2) return null;
+  const first = plan.points[0]!;
+  const last = plan.points[plan.points.length - 1]!;
+  return haversineMeters(first, last) <= 1 ? null : first;
+}
+
+/** Seconds a distance takes at a pace given in seconds per kilometre. */
+export function estimateSeconds(distanceM: number, paceSPerKm: number): number {
+  if (!(distanceM > 0) || !(paceSPerKm > 0)) return 0;
+  return Math.round((distanceM / 1000) * paceSPerKm);
+}
+
+/** Paces outside this range (seconds per km) are treated as recording faults and ignored. */
+export const PLAUSIBLE_PACE = { min: 150, max: 900 } as const;
+
+/**
+ * The runner's usual pace: the median of their recent runs' average pace, ignoring implausible values.
+ * `fallback` (6:30 per km) is used until there is at least one plausible run.
+ */
+export function usualPace(paces: readonly (number | null | undefined)[], fallback = 390): number {
+  const ok = paces.filter((p): p is number => typeof p === 'number' && p >= PLAUSIBLE_PACE.min && p <= PLAUSIBLE_PACE.max).sort((a, b) => a - b);
+  if (!ok.length) return fallback;
+  const mid = Math.floor(ok.length / 2);
+  return ok.length % 2 ? ok[mid]! : Math.round((ok[mid - 1]! + ok[mid]!) / 2);
+}
+
+export type PlanProblem = 'name_missing' | 'name_too_long' | 'too_short' | 'too_long' | 'too_many_points';
+
+/** Why a plan can't be saved yet, or null when it can. */
+export function planProblem(name: string, path: readonly LatLng[]): PlanProblem | null {
+  const n = name.trim();
+  if (!n) return 'name_missing';
+  if (n.length > PLAN_LIMITS.nameMaxChars) return 'name_too_long';
+  if (path.length > PLAN_LIMITS.maxPathPoints) return 'too_many_points';
+  const d = pathLengthMeters(path);
+  if (path.length < 2 || d < PLAN_LIMITS.minDistanceM) return 'too_short';
+  if (d > PLAN_LIMITS.maxDistanceM) return 'too_long';
+  return null;
+}

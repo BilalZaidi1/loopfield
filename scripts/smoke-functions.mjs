@@ -47,7 +47,7 @@ const hookBody = JSON.stringify({ user: { id: '00000000-0000-4000-8000-000000000
 const svixId = `msg_${rnd(8)}`;
 const hookId = `msg_${rnd(8)}`;
 
-const userFunctions = ['session-ticket', 'activity-upload/finalize', 'chat/token', 'account', 'billing-sync'];
+const userFunctions = ['session-ticket', 'activity-upload/finalize', 'chat/token', 'account', 'billing-sync', 'route-snap'];
 const cases = {
   'revenuecat-webhook': [
     { name: 'wrong method', method: 'GET', status: 405 },

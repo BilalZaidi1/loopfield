@@ -12,6 +12,8 @@ export * from './integrity/speed.ts';
 export * from './speed/course.ts';
 export * from './speed/match.ts';
 export * from './speed/titles.ts';
+export * from './routes/plan.ts';
+export * from './routes/follow.ts';
 export * from './health/types.ts';
 export * from './health/units.ts';
 export * from './health/reconcile.ts';

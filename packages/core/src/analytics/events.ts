@@ -18,6 +18,11 @@ export const AREA_BUCKETS = ['0', '<0.05km2', '0.05-0.25km2', '0.25-1km2', '1-5k
 export const DISTANCE_BUCKETS = ['<1km', '1-5km', '5-10km', '10-21km', '>21km'] as const;
 export const BYTES_BUCKETS = ['<100KB', '100KB-1MB', '1-5MB', '>5MB'] as const;
 
+export const ALERT_BUCKETS = ['0', '1', '2-5', '6+'] as const;
+
+export function alertBucket(n: number): (typeof ALERT_BUCKETS)[number] {
+  return n <= 0 ? '0' : n === 1 ? '1' : n <= 5 ? '2-5' : '6+';
+}
 export function durationBucket(ms: number): (typeof DURATION_BUCKETS)[number] {
   const m = ms / 60_000;
   return m < 10 ? '<10m' : m < 30 ? '10-30m' : m < 60 ? '30-60m' : m < 120 ? '60-120m' : '>120m';
@@ -48,7 +53,16 @@ export const EVENT_SCHEMA = {
     os_family: platform
   },
   run_started: { activity_id: idLike, mode, competition_kind: competitionKind, device_class: oneOf('ios', 'android_high', 'android_mid', 'android_low', 'unknown') },
-  run_saved: { activity_id: idLike, mode, duration_bucket: oneOf(...DURATION_BUCKETS), distance_bucket: oneOf(...DISTANCE_BUCKETS), had_gap: bool },
+  run_saved: {
+    activity_id: idLike,
+    mode,
+    duration_bucket: oneOf(...DURATION_BUCKETS),
+    distance_bucket: oneOf(...DISTANCE_BUCKETS),
+    had_gap: bool,
+    followed: oneOf('none', 'planned', 'speed_route'),
+    off_route_alerts: oneOf(...ALERT_BUCKETS),
+    marker: oneOf('picture', 'dot')
+  },
   run_recovered: { activity_id: idLike, outcome: oneOf('resumed', 'finished', 'discarded') },
   upload_completed: { activity_id: idLike, size_bucket: oneOf(...BYTES_BUCKETS), retry_count: smallInt, elapsed_bucket: oneOf('<5s', '5-30s', '30-300s', '>300s') },
   loop_evaluated: { claim_id: idLike, rule_version: version, area_bucket: oneOf(...AREA_BUCKETS), decision, reason: version },
@@ -58,6 +72,9 @@ export const EVENT_SCHEMA = {
   claim_explained: { result_type: oneOf('land', 'title', 'both', 'none'), viewed: bool },
   next_run_completed: { cohort_week: version, elapsed_days: smallInt },
   route_proposed: { outcome: oneOf('submitted', 'duplicate_linked', 'withdrawn') },
+  route_planned: { action: oneOf('created', 'edited', 'deleted'), distance_bucket: oneOf(...DISTANCE_BUCKETS), loop: bool, snapped: bool },
+  route_offline: { action: oneOf('downloaded', 'removed', 'failed'), size_bucket: oneOf(...BYTES_BUCKETS) },
+  live_link: { action: oneOf('started', 'shared', 'ended', 'revoked', 'rotated'), kind: oneOf('run', 'standing'), duration_bucket: oneOf(...DURATION_BUCKETS) },
   appeal_submitted: { object_type: oneOf('loop_claim', 'speed_attempt', 'post', 'comment', 'account_action', 'route_proposal', 'activity') },
   appeal_resolved: { reason_category: version, resolution: oneOf('upheld', 'overturned', 'withdrawn'), handling_bucket: oneOf('<1d', '1-2d', '2-7d', '>7d') },
   social_action: {
