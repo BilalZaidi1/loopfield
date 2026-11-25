@@ -76,6 +76,11 @@ export const EVENT_SCHEMA = {
   route_planned: { action: oneOf('created', 'edited', 'deleted'), distance_bucket: oneOf(...DISTANCE_BUCKETS), loop: bool, snapped: bool },
   route_offline: { action: oneOf('downloaded', 'removed', 'failed'), size_bucket: oneOf(...BYTES_BUCKETS) },
   live_link: { action: oneOf('started', 'shared', 'ended', 'revoked', 'rotated'), kind: oneOf('run', 'standing'), duration_bucket: oneOf(...DURATION_BUCKETS) },
+  // Running features, stage 2. No scores, loads, predicted times, counts, cities, names or positions.
+  training_viewed: { part: oneOf('load', 'predictions') },
+  run_summary: { action: oneOf('shown', 'shared', 'hidden'), lines: oneOf('0', '1', '2', '3'), top: oneOf('longest', 'fastest', 'faster_second_half', 'land', 'goal', 'streak', 'shoes', 'other', 'none') },
+  running_now: { action: oneOf('shown', 'opened') },
+  friends_live: { action: oneOf('turned_on', 'turned_off', 'run_shared', 'friend_opened'), audience: oneOf('all', 'chosen') },
   appeal_submitted: { object_type: oneOf('loop_claim', 'speed_attempt', 'post', 'comment', 'account_action', 'route_proposal', 'activity') },
   appeal_resolved: { reason_category: version, resolution: oneOf('upheld', 'overturned', 'withdrawn'), handling_bucket: oneOf('<1d', '1-2d', '2-7d', '>7d') },
   social_action: {

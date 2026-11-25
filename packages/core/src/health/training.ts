@@ -1,0 +1,202 @@
+import { localDayKey } from './reconcile.ts';
+
+/**
+ * Training load, effort and race predictions (running features, stage 2). Worked out on the phone only, from
+ * the runner's own runs and imported runs; nothing here is uploaded, shared or competitive. The names are our
+ * own: effort score, 6-week load, 7-day load and balance. For training, not medical advice.
+ */
+export interface TrainingRun {
+  id: string;
+  /** Start time (epoch ms). */
+  start: number;
+  /** Moving time when known, otherwise elapsed time (ms). */
+  durationMs: number;
+  distanceM: number | null;
+  /** Time in heart-rate zones 1 to 5 (ms), when the run's heart rate covers enough of it; otherwise null. */
+  zoneMs: readonly number[] | null;
+  /** The runner's own 1–10 rating of how it felt. */
+  feel: number | null;
+  imported: boolean;
+}
+
+export const TRAINING_RULES = {
+  /** A run with neither heart rate nor a rating counts as moderate (owner's decision pending; the plan's recommendation). */
+  assumedFeel: 5,
+  longDays: 42,
+  shortDays: 7,
+  /** Balance shows once the first counted run is this many days old. */
+  balanceAfterDays: 21,
+  /** "Lighter / about / harder than usual" compares with runs in this many days before. */
+  compareDays: 56,
+  compareMinRuns: 3,
+  lighterBelow: 0.8,
+  harderAbove: 1.25,
+  /** Heart rate must cover this share of a run for the zones to be used. */
+  minHrCoverage: 0.6,
+  predictionDays: 56,
+  predictionMinM: 3000,
+  riegelExponent: 1.06,
+  rangeFraction: 0.03
+} as const;
+
+export type EffortBasis = 'heart_rate' | 'feel' | 'assumed';
+
+export interface Effort {
+  score: number;
+  basis: EffortBasis;
+}
+
+/** Minutes in each zone times the zone number (zone 1 × 1 … zone 5 × 5). */
+export function effortFromZones(zoneMs: readonly number[]): number {
+  return Math.round(zoneMs.slice(0, 5).reduce((sum, ms, i) => sum + (Math.max(0, ms) / 60_000) * (i + 1), 0));
+}
+
+/** Minutes times the runner's 1–10 rating, halved. */
+export function effortFromFeel(durationMs: number, feel: number): number {
+  const rating = Math.min(10, Math.max(1, Math.round(feel)));
+  return Math.round(((Math.max(0, durationMs) / 60_000) * rating) / 2);
+}
+
+export function runEffort(run: Pick<TrainingRun, 'durationMs' | 'zoneMs' | 'feel'>): Effort {
+  if (run.zoneMs && run.zoneMs.some((ms) => ms > 0)) return { score: effortFromZones(run.zoneMs), basis: 'heart_rate' };
+  if (run.feel != null && run.feel >= 1) return { score: effortFromFeel(run.durationMs, run.feel), basis: 'feel' };
+  return { score: effortFromFeel(run.durationMs, TRAINING_RULES.assumedFeel), basis: 'assumed' };
+}
+
+/** How a run's effort compares with the runner's runs in the eight weeks before it. Null until there are enough runs. */
+export function compareEffort(score: number, earlierScores: readonly number[]): 'lighter' | 'usual' | 'harder' | null {
+  const prior = earlierScores.filter((s) => s > 0);
+  if (prior.length < TRAINING_RULES.compareMinRuns || score <= 0) return null;
+  const sorted = [...prior].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+  if (score < median * TRAINING_RULES.lighterBelow) return 'lighter';
+  if (score > median * TRAINING_RULES.harderAbove) return 'harder';
+  return 'usual';
+}
+
+/** Efforts of runs in the comparison window before `run` (used with `compareEffort`). */
+export function earlierEfforts(run: Pick<TrainingRun, 'id' | 'start'>, runs: readonly TrainingRun[]): number[] {
+  const from = run.start - TRAINING_RULES.compareDays * 86_400_000;
+  return runs.filter((r) => r.id !== run.id && r.start < run.start && r.start >= from).map((r) => runEffort(r).score);
+}
+
+export interface TrainingDay {
+  day: string;
+  effort: number;
+  /** 6-week load (exponentially weighted over 42 days). */
+  long: number;
+  /** 7-day load (exponentially weighted over 7 days). */
+  short: number;
+  /** 6-week load minus 7-day load: above zero is fresher than usual. */
+  balance: number;
+}
+
+export interface TrainingSummary {
+  /** One row per day for the last `weeks` weeks, today last. */
+  days: TrainingDay[];
+  long: number;
+  short: number;
+  balance: number;
+  /** Balance needs about three weeks of runs. */
+  balanceReady: boolean;
+  runsCounted: number;
+  /** Runs whose effort is estimated (from how it felt, or assumed). */
+  estimatedRuns: number;
+}
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+/**
+ * Daily efforts and the two weighted loads, updated day by day: load += (day's effort − load) / days. Every
+ * counted run feeds the averages from its own day; the result is the last `weeks` weeks.
+ */
+export function trainingLoad(runs: readonly TrainingRun[], now: number, offsetMin: number, weeks = 12): TrainingSummary {
+  const daily = new Map<string, number>();
+  let estimated = 0;
+  let first: number | null = null;
+  for (const r of runs) {
+    if (r.start > now) continue;
+    const e = runEffort(r);
+    if (e.basis !== 'heart_rate') estimated++;
+    const key = localDayKey(r.start, offsetMin);
+    daily.set(key, (daily.get(key) ?? 0) + e.score);
+    if (first == null || r.start < first) first = r.start;
+  }
+  const shown = weeks * 7;
+  const startMs = Math.min(now - (shown - 1) * 86_400_000, first ?? now);
+  const totalDays = Math.max(shown, Math.floor((now - startMs) / 86_400_000) + 1);
+  let long = 0;
+  let short = 0;
+  const days: TrainingDay[] = [];
+  for (let i = totalDays - 1; i >= 0; i--) {
+    const day = localDayKey(now - i * 86_400_000, offsetMin);
+    const effort = daily.get(day) ?? 0;
+    long += (effort - long) / TRAINING_RULES.longDays;
+    short += (effort - short) / TRAINING_RULES.shortDays;
+    if (i < shown) days.push({ day, effort, long: round1(long), short: round1(short), balance: round1(long - short) });
+  }
+  return {
+    days,
+    long: round1(long),
+    short: round1(short),
+    balance: round1(long - short),
+    balanceReady: first != null && now - first >= TRAINING_RULES.balanceAfterDays * 86_400_000,
+    runsCounted: runs.filter((r) => r.start <= now).length,
+    estimatedRuns: estimated
+  };
+}
+
+export interface RacePrediction {
+  /** Target distance (m). */
+  distanceM: number;
+  label: '5K' | '10K' | 'Half marathon' | 'Marathon';
+  /** Predicted time (s) and its ±3% range. */
+  seconds: number;
+  low: number;
+  high: number;
+  /** The run it is based on. */
+  basedOn: { id: string; start: number; distanceM: number; seconds: number };
+}
+
+export const RACE_TARGETS: readonly { distanceM: number; label: RacePrediction['label']; minSourceM: number }[] = [
+  { distanceM: 5000, label: '5K', minSourceM: 3000 },
+  { distanceM: 10000, label: '10K', minSourceM: 3000 },
+  { distanceM: 21097.5, label: 'Half marathon', minSourceM: 8000 },
+  { distanceM: 42195, label: 'Marathon', minSourceM: 15000 }
+];
+
+/** Riegel's formula: time × (target ÷ distance) ^ 1.06. */
+export function riegel(seconds: number, fromM: number, toM: number): number {
+  return seconds * (toM / fromM) ** TRAINING_RULES.riegelExponent;
+}
+
+/**
+ * Predictions for 5K, 10K, half and full marathon from runs of 3 km or more in the last eight weeks, the best
+ * result for each distance. Longer races need a longer source run (8 km for the half, 15 km for the marathon),
+ * so short runs don't predict long races.
+ */
+export function racePredictions(runs: readonly TrainingRun[], now: number): RacePrediction[] {
+  const from = now - TRAINING_RULES.predictionDays * 86_400_000;
+  const usable = runs.filter((r) => r.start >= from && r.start <= now && (r.distanceM ?? 0) >= TRAINING_RULES.predictionMinM && r.durationMs > 0);
+  const out: RacePrediction[] = [];
+  for (const target of RACE_TARGETS) {
+    let best: RacePrediction | null = null;
+    for (const r of usable) {
+      if ((r.distanceM ?? 0) < target.minSourceM) continue;
+      const seconds = riegel(r.durationMs / 1000, r.distanceM!, target.distanceM);
+      if (!best || seconds < best.seconds) {
+        best = {
+          distanceM: target.distanceM,
+          label: target.label,
+          seconds: Math.round(seconds),
+          low: Math.round(seconds * (1 - TRAINING_RULES.rangeFraction)),
+          high: Math.round(seconds * (1 + TRAINING_RULES.rangeFraction)),
+          basedOn: { id: r.id, start: r.start, distanceM: r.distanceM!, seconds: Math.round(r.durationMs / 1000) }
+        };
+      }
+    }
+    if (best) out.push(best);
+  }
+  return out;
+}

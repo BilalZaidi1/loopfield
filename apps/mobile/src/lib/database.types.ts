@@ -1412,6 +1412,40 @@ export type Database = {
           },
         ]
       }
+      live_share_people: {
+        Row: {
+          created_at: string
+          friend_id: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          friend_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          friend_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_share_people_friend_id_fkey"
+            columns: ["friend_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_share_people_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loop_claims: {
         Row: {
           activity_id: string | null
@@ -2783,8 +2817,10 @@ export type Database = {
           analytics_enabled: boolean
           area_label: string | null
           default_post_audience: string
+          friends_live_mode: string
           full_private_mode: boolean
           messages_from: string
+          running_now_counted: boolean
           selected_competition_id: string | null
           show_area: boolean
           speed_competition_enabled: boolean
@@ -2798,8 +2834,10 @@ export type Database = {
           analytics_enabled?: boolean
           area_label?: string | null
           default_post_audience?: string
+          friends_live_mode?: string
           full_private_mode?: boolean
           messages_from?: string
+          running_now_counted?: boolean
           selected_competition_id?: string | null
           show_area?: boolean
           speed_competition_enabled?: boolean
@@ -2812,8 +2850,10 @@ export type Database = {
           analytics_enabled?: boolean
           area_label?: string | null
           default_post_audience?: string
+          friends_live_mode?: string
           full_private_mode?: boolean
           messages_from?: string
+          running_now_counted?: boolean
           selected_competition_id?: string | null
           show_area?: boolean
           speed_competition_enabled?: boolean
@@ -3070,6 +3110,8 @@ export type Database = {
         Returns: undefined
       }
       follow: { Args: { p_target: string }; Returns: string }
+      friends_live_now: { Args: Record<PropertyKey, never>; Returns: Json }
+      friends_live_start: { Args: { p_session: string }; Returns: Json }
       game_rules: { Args: Record<PropertyKey, never>; Returns: Json }
       invite_to_club: {
         Args: { p_club: string; p_user: string }
@@ -3132,6 +3174,16 @@ export type Database = {
         Args: { p_token: string; p_value: boolean }
         Returns: undefined
       }
+      live_push: {
+        Args: {
+          p_points: Json
+          p_session: string
+          p_state: string
+          p_tokens: string[]
+        }
+        Returns: Json
+      }
+      live_share_candidates: { Args: Record<PropertyKey, never>; Returns: Json }
       mark_notifications_read: {
         Args: { p_ids?: string[] }
         Returns: undefined
@@ -3703,6 +3755,9 @@ export type Database = {
         Returns: undefined
       }
       revoke_activity_link: { Args: { p_token: string }; Returns: undefined }
+      running_now_counts: { Args: Record<PropertyKey, never>; Returns: Json }
+      running_now_end: { Args: { p_session: string }; Returns: undefined }
+      running_now_ping: { Args: { p_session: string }; Returns: Json }
       search_profiles: {
         Args: {
           p_city?: string
@@ -3762,6 +3817,7 @@ export type Database = {
         Args: { p_enabled: boolean }
         Returns: undefined
       }
+      set_live_share_people: { Args: { p_people: string[] }; Returns: Json }
       share_preview: {
         Args: { p_activity: string; p_share_fields: string[] }
         Returns: Json
