@@ -10,6 +10,7 @@ import type { TablesUpdate } from '@/lib/database.types';
 import { supabase } from '@/lib/supabase';
 import { Banner, Button, Card, ChipGroup, ListGroup, Row, Screen, Section, Segmented, TextField, Toggle, Txt } from '@/components/ui';
 import { LiveLinksSettings } from '@/features/live/LiveLinksSettings';
+import { FriendsLiveSettings } from '@/features/friends/FriendsLiveSettings';
 import { useSession } from '@/state/session';
 
 interface ProtectedArea {
@@ -112,6 +113,7 @@ export default function Privacy() {
         </Card>
       </Section>
       <LiveLinksSettings />
+      <FriendsLiveSettings onCountChange={(v) => updateSettings({ running_now_counted: v })} />
       <Section title="Analytics" icon="progress">
         <ListGroup>
         <Toggle label="Share anonymous usage analytics" description="Never includes GPS, health readings, messages or anything you write." value={settings.analytics_enabled} onChange={(v) => run.mutate(async () => { await rpc('set_consent', { p_kind: 'analytics', p_granted: v, p_version: 'v1' }); await setAnalyticsConsent(v); })} />

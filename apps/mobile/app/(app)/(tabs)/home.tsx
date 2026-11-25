@@ -10,6 +10,7 @@ import { ArrowLink, Avatar, Badge, BigNumber, Button, Card, CardRail, EmptyState
 import { BarChart } from '@/components/charts';
 import { Icon } from '@/components/icons';
 import { TopBar } from '@/components/TopBar';
+import { RunningNowLine } from '@/features/runningNow/RunningNow';
 import { PostCard, useFeed, type PostJson } from '@/features/social/PostCard';
 import { BadgeMedal } from '@/features/achievements/Badges';
 import { progressText, TIER_LABEL, useMyChallenges } from '@/features/achievements/api';
@@ -69,6 +70,7 @@ export default function Home() {
       <View style={isTablet ? { flexDirection: 'row', gap: spacing.lg, alignItems: 'stretch' } : { gap: spacing.lg }}>
         <View style={{ flex: isTablet ? 1 : undefined, gap: spacing.lg }}>
           <WeekCard acts={acts} />
+          <RunningNowLine />
           <Button label="Start a run" variant="ink" size="lg" arrow icon="record" onPress={() => router.push('/run/active')} />
         </View>
         <View style={{ flex: isTablet ? 1 : undefined, gap: spacing.lg }}>

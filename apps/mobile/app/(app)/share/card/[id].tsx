@@ -3,6 +3,7 @@ import { Platform, Share, View, useWindowDimensions, type HostInstance } from 'r
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { activeEnergyDuring, heartRateSummary } from '@loopfield/core';
 import { ActionBar, Banner, ChipGroup, ListGroup, LoadingState, Screen, Section, Toggle, Txt, type ActionItem } from '@/components/ui';
+import { useRunHighlights } from '@/features/results/highlights';
 import { env } from '@/config/env';
 import { quantities, useHealthStore } from '@/health/useHealth';
 import { useActivityDetail } from '@/features/results/useActivity';
@@ -56,12 +57,15 @@ export default function ShareCardScreen() {
   const [pace, setPace] = useState(true);
   const [heart, setHeart] = useState(false);
   const [energy, setEnergy] = useState(false);
+  const [withHighlights, setWithHighlights] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const card = useRef<HostInstance>(null);
 
   const a = detail.data?.activity;
+  const hl = useRunHighlights(id, { layers: detail.data?.layers, landSettled: true, compute: false });
+  const shareLines = withHighlights ? hl?.shareable ?? [] : [];
   const fields: ShareField[] = ['distance', 'duration', 'date', ...(pace ? (['pace'] as const) : []), ...(route ? (['route'] as const) : []), ...(land ? (['land'] as const) : []), 'title'];
   const preview = useSharePreview(id, fields);
   const health = useMemo(() => {
@@ -113,6 +117,10 @@ export default function ShareCardScreen() {
     await untilReady(cardReady);
     const result = await shareImage(await renderCard(card, format));
     track('share_card', { action: result, ...props });
+    if (shareLines.length && result === 'shared') {
+      const topKind = hl?.lines.find((l) => l.text === shareLines[0])?.kind;
+      track('run_summary', { action: 'shared', lines: String(Math.min(3, shareLines.length)) as '1' | '2' | '3', top: topKind && topKind !== 'effort' ? topKind : 'other' });
+    }
   });
   const doSave = () => run('save', async () => {
     await untilReady(cardReady);
@@ -169,6 +177,7 @@ export default function ShareCardScreen() {
                 route: route ? preview.data?.route ?? null : null,
                 land: land ? preview.data?.land ?? null : null,
                 achievements: titles,
+                highlights: shareLines,
                 avgHr: heart ? health.hr : null,
                 calories: energy ? health.kcal : null,
                 link: url
@@ -192,6 +201,7 @@ export default function ShareCardScreen() {
           {route && preview.data?.route?.length && mapAvailable ? <Toggle label="Street map under the route" value={streetMap} onChange={setStreetMap} /> : null}
           {detail.data?.claim?.status === 'eligible' ? <Toggle label="Land and what changed hands" value={land} onChange={setLand} /> : null}
           <Toggle label="Pace" value={pace} onChange={setPace} />
+          {hl && !hl.hidden && hl.shareable.length && format !== '1:1' ? <Toggle label="Add highlights" description="Never the effort line. Land shows once it is on the public map." value={withHighlights} onChange={setWithHighlights} /> : null}
           {health.hr ? <Toggle label={`Average heart rate (${health.hr} bpm, from your phone)`} value={heart} onChange={setHeart} /> : null}
           {health.kcal ? <Toggle label={`Energy (${health.kcal} kcal, from your phone)`} value={energy} onChange={setEnergy} /> : null}
         </ListGroup>

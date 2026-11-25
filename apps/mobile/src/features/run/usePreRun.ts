@@ -135,6 +135,12 @@ export function usePreRun(initialCourse?: string | null, initialPlan?: string | 
   const liveLinks = useMyLiveLinks(!BROWSER && liveOn);
   const standing = liveOn ? (liveLinks.data ?? []).find((l) => l.kind === 'standing') ?? null : null;
   const [skipStanding, setSkipStanding] = useState(false);
+  // Live runs with friends (R2): on when the runner shares with friends, unless skipped for this run.
+  const friendsMode = cfg.enabled.friends_live_enabled ? settings?.friends_live_mode ?? 'off' : 'off';
+  const [skipFriends, setSkipFriends] = useState(false);
+  const friends = friendsMode !== 'off' && !skipFriends ? friendsMode : null;
+  // Runners out right now (R2): counted unless the runner opted out.
+  const countMe = cfg.enabled.running_now_enabled && settings?.running_now_counted !== false;
   const [pendingLive, setPendingLiveState] = useState(pendingLiveShare());
   const setPendingLive = useCallback((v: { token: string; kind: LiveKind } | null) => {
     setPendingLiveShare(v);
@@ -206,7 +212,9 @@ export function usePreRun(initialCourse?: string | null, initialPlan?: string | 
         startCaptureNow: captureNow,
         startSpeedNow: true,
         follow: follow ? { choice: follow, offRouteM: cfg.offRouteDistanceM, offRouteSeconds: cfg.offRouteSeconds } : null,
-        live: live ? { ...live, everyS: cfg.liveLinkPushSeconds } : null
+        live: live ? { ...live, everyS: cfg.liveLinkPushSeconds } : null,
+        friends,
+        countMe
       });
       setPendingLive(null);
       return true;
@@ -226,7 +234,8 @@ export function usePreRun(initialCourse?: string | null, initialPlan?: string | 
 
   return {
     mode, setMode, captureNow, setCaptureNow, courseId, course, wantsTerritory, wantsSpeed, distanceEvents, blockers, counts, paused, busy, error, start,
-    planned, planId, setPlanId, follow, followCourse, setFollowCourse, standing, skipStanding, setSkipStanding, pendingLive, setPendingLive, live
+    planned, planId, setPlanId, follow, followCourse, setFollowCourse, standing, skipStanding, setSkipStanding, pendingLive, setPendingLive, live,
+    friendsMode, skipFriends, setSkipFriends
   };
 }
 

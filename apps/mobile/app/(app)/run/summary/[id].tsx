@@ -6,6 +6,8 @@ import { track } from '@/lib/analytics';
 import { fmtDistance, fmtDuration, fmtPace, splitValue } from '@/lib/format';
 import { ActionBar, Badge, Banner, BigNumber, Button, Card, EmptyState, ListGroup, Row, Screen, Sheet, StatLine, Txt } from '@/components/ui';
 import { RunPointsCard } from '@/features/movement/Reclaim';
+import { EffortLine } from '@/features/training/EffortLine';
+import { HighlightsCard } from '@/features/results/HighlightsCard';
 import { Icon } from '@/components/icons';
 import { Celebration } from '@/features/run/Celebration';
 import { IntegrityCard, LandCard, TitleCards } from '@/features/results/ResultCards';
@@ -56,6 +58,7 @@ export default function RunSummary() {
   return (
     <Screen>
       <Stack.Screen options={{ title: 'Run summary', headerBackVisible: false, headerRight: () => <Button variant="secondary" size="sm" label="Done" onPress={() => router.replace('/home')} /> }} />
+      <HighlightsCard activityId={id} local={local} />
       <Card tone="blue">
         <Celebration />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
@@ -71,6 +74,7 @@ export default function RunSummary() {
         <StatLine icon="stopwatch" label="Time" value={fmtDuration(a?.elapsed_ms ?? s?.elapsedMs ?? 0)} />
         <StatLine icon="speed" label="Avg pace" value={fmtPace(a?.avg_pace_s_per_km ?? s?.avgPaceSecPerKm ?? null, units)} />
         <StatLine icon="clock" label="Recording gaps" value={s?.gaps.length ? `${s.gaps.length} · ${gapSeconds} s` : 'None'} />
+        <EffortLine runId={id} fallback={local.startedAt && s ? { start: local.startedAt, durationMs: s.movingMs || s.elapsedMs, distanceM: s.distanceM } : null} />
       </Card>
       {s?.gaps.length ? <Banner tone="warning" text={`${s.gaps.length} recording gap${s.gaps.length > 1 ? 's' : ''} (${gapSeconds} s). Gaps are shown as missing, never filled in.`} /> : null}
       <Card accessibilityLabel="Upload status">

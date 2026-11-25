@@ -50,6 +50,9 @@ export interface Settings {
   /** The runner's neighbourhood: only they can read it; shown on the profile when show_area is on. */
   area_label?: string | null;
   show_area?: boolean;
+  /** Running features (R2): counted in runners out right now (on), and live runs with friends (off). */
+  running_now_counted?: boolean;
+  friends_live_mode?: 'off' | 'chosen' | 'all';
 }
 
 export { NO_STAFF, parseWhoAmI, type StaffAccess } from './staff';

@@ -90,6 +90,9 @@ export default function Help() {
         <Bullet>Planned routes are yours alone. A copy stays on this phone so you can follow one with no signal, and following never changes how a run counts.</Bullet>
         <Bullet>A live link shows where you are to anyone who has it, until it ends. Inside your protected areas your position is hidden unless you choose to show it, and positions are deleted within a day after sharing ends.</Bullet>
         <Bullet>Your picture as your position dot shows only on your own screen.</Bullet>
+        <Bullet>Live runs with friends are off until you turn them on, and only friends you choose (or all your friends, if you pick that) see you. They see your position while you run, including runs that take land, before the usual delay; inside your protected areas they see only that you are running.</Bullet>
+        <Bullet>Runners out right now is a count by city and country, from the city on your profile. It never sends where you are, shows no names, and never shows fewer than 5. You can leave the count in Privacy.</Bullet>
+        <Bullet>Highlights are written on this phone. They go on a share card only if you add them, and the effort line never does.</Bullet>
         </Card>
       </Section>
       <Section title="Health data" icon="heart">
@@ -97,6 +100,7 @@ export default function Help() {
         <Bullet>Health data from Apple Health or Health Connect is optional, stays on this phone, and is labelled with its source. Missing data is shown as missing, not zero.</Bullet>
         <Bullet>Imported workouts are for your history only — they never claim land or titles.</Bullet>
         <Bullet>Health summaries are descriptive and are not medical advice.</Bullet>
+        <Bullet>Training load, effort scores and race predictions are worked out on this phone from your runs and heart rate. They are never uploaded, and they are for training, not medical advice.</Bullet>
         </Card>
       </Section>
       <Section title="Recording tips" icon="record">
