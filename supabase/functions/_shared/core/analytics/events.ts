@@ -62,7 +62,8 @@ export const EVENT_SCHEMA = {
     had_gap: bool,
     followed: oneOf('none', 'planned', 'speed_route'),
     off_route_alerts: oneOf(...ALERT_BUCKETS),
-    marker: oneOf('picture', 'dot')
+    marker: oneOf('picture', 'dot'),
+    hr_source: oneOf('none', 'health_app', 'strap', 'airpods')
   },
   run_recovered: { activity_id: idLike, outcome: oneOf('resumed', 'finished', 'discarded') },
   upload_completed: { activity_id: idLike, size_bucket: oneOf(...BYTES_BUCKETS), retry_count: smallInt, elapsed_bucket: oneOf('<5s', '5-30s', '30-300s', '>300s') },
@@ -81,6 +82,9 @@ export const EVENT_SCHEMA = {
   run_summary: { action: oneOf('shown', 'shared', 'hidden'), lines: oneOf('0', '1', '2', '3'), top: oneOf('longest', 'fastest', 'faster_second_half', 'land', 'goal', 'streak', 'shoes', 'other', 'none') },
   running_now: { action: oneOf('shown', 'opened') },
   friends_live: { action: oneOf('turned_on', 'turned_off', 'run_shared', 'friend_opened'), audience: oneOf('all', 'chosen') },
+  // Running features, stage 3. No strap names (they can hold serial numbers), heart rates, points or places.
+  sensor: { action: oneOf('paired', 'forgotten', 'connection_failed', 'dropped', 'reconnected') },
+  imported_map: { action: oneOf('turned_on', 'turned_off', 'shown', 'permission_declined', 'no_route') },
   appeal_submitted: { object_type: oneOf('loop_claim', 'speed_attempt', 'post', 'comment', 'account_action', 'route_proposal', 'activity') },
   appeal_resolved: { reason_category: version, resolution: oneOf('upheld', 'overturned', 'withdrawn'), handling_bucket: oneOf('<1d', '1-2d', '2-7d', '>7d') },
   social_action: {
