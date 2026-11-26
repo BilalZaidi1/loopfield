@@ -2,6 +2,16 @@
 
 Working file kept current so work survives context limits. Newest first.
 
+## 26 Nov 2026: running features, stage 3 (R3)
+
+* Features 4 and 6 of the plan, traced as RF4 and RF6 in `TRACEABILITY.md`; decisions in `DECISIONS.md` ("Running features, stage 3"). Branch `feat/running-r3`, started from `feat/running-r2` before that stage was merged; one pull request for the stage, to be merged after stage 2's.
+* Heart-rate straps: `react-native-ble-manager` 13.0.2 rather than `react-native-ble-plx`, because React Native 0.88 runs only the New Architecture and ble-plx is still an old-style module (the plan's named fallback). Core reads the standard heart-rate and battery packets (8 new tests). Settings → Sensors pairs a strap (only in builds that have Bluetooth); during a run the strap connects by itself, the recorder shows heart rate and zone, a drop says so and reconnects; readings go into the phone's health cache as the app's own source, which outranks a watch for the same minutes everywhere heart rate is read; a discarded run's readings are deleted. `run_saved` says where heart rate came from. Switch `ble_sensors_enabled` (migration `20261125210000_running_r3`, pgTAP `18_running_r3`).
+* Maps of imported runs: imported runs get their own page; *Show maps for imported runs* in Health connections; a route is read from Health Connect only when the runner taps *Show map* (Android asks once per route), kept in the health cache and deleted when maps are turned off, the health app is disconnected or the cache's retention ends. `READ_EXERCISE_ROUTES` declared. Health card `imported_routes` hides it.
+* Help: two lines on where strap readings and imported maps are kept.
+* Test runs no longer wait five minutes before Jest exits: the recorder's first read of the app settings now keeps them like the app's hooks do, instead of leaving a five-minute clean-up timer behind.
+* Checks: `npm run verify`, all 15 steps (core 150, worker 55, pgTAP 606 in 18 suites, edge smoke 55, jest 234 in 25 suites, lint 0 errors), including the payload check extended to stage 3: no heart rate, strap name or id, or route point in anything sent. `npx expo prebuild` for Android and iOS to check the manifest and the iPhone settings (folders deleted). The Sensors screen and the imported run page were not checked visually: on the web there is no Bluetooth or Health Connect, so both show their "not available" states.
+* Not deployed and nothing published; the new Android build comes at the end.
+
 ## 25 Nov 2026: running features, stage 2 (R2)
 
 * Features 3, 5, 12 and 13 of the plan, traced as RF3, RF5, RF12 and RF13 in `TRACEABILITY.md`; decisions in `DECISIONS.md` ("Running features, stage 2"), where the stage's four open decisions were taken at the plan's recommendation. Branch `feat/running-r2`, started from `feat/running-r1` before that stage was merged; one pull request for the stage, to be merged after stage 1's.
