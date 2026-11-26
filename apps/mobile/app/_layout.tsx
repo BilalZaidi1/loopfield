@@ -63,6 +63,8 @@ function Gate({ fontsReady }: { fontsReady: boolean }) {
             <Stack.Screen name="auth/callback" />
             {/* Public activity pages open from share links and QR codes, signed in or not. */}
             <Stack.Screen name="a/[token]" />
+            {/* Live location pages open from live links the runner sends, signed in or not. */}
+            <Stack.Screen name="l/[token]" />
             {/* Email "stop these emails" links, signed in or not. */}
             <Stack.Screen name="unsubscribe" />
             <Stack.Screen name="auth/reset-password" />

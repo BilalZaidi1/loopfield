@@ -67,6 +67,9 @@ file_size_limit = "10MiB"
 [functions.session-ticket]
 verify_jwt = false
 import_map = "./functions/deno.json"
+[functions.route-snap]
+verify_jwt = false
+import_map = "./functions/deno.json"
 [functions.activity-upload]
 verify_jwt = false
 import_map = "./functions/deno.json"

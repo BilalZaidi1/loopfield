@@ -67,6 +67,9 @@ export const exportData: JobHandler = async (payload, ctx) => {
     speed_attempts: await ctx.sql`select id, activity_id, course_version_id, status, reasons, elapsed_ms, completed_at from public.speed_attempts where user_id = ${userId}`,
     exploration_cells: await ctx.sql`select cell::text, first_visited_at, last_visited_at, visits from public.exploration_cells where user_id = ${userId}`,
     route_proposals: await ctx.sql`select id, name, status, decision_reason, created_at from public.route_proposals where creator_id = ${userId}`,
+    planned_routes: await ctx.sql`select id, name, path as encoded_polyline, distance_m, is_loop, snapped, created_at, updated_at from public.planned_routes where user_id = ${userId} order by created_at`,
+    // Live positions are deleted within a day of each run, so only the links themselves are listed.
+    live_links: await ctx.sql`select kind, show_everywhere, views, created_at, ended_at, revoked_at from public.live_links where user_id = ${userId} order by created_at`,
     posts: await ctx.sql`select id, audience, body, shared_summary, status, created_at from public.posts where author_id = ${userId} and status <> 'deleted'`,
     comments: await ctx.sql`select id, post_id, body, created_at from public.comments where author_id = ${userId} and status = 'visible'`,
     follows: await ctx.sql`select follower_id, followee_id, state, created_at from public.follows where follower_id = ${userId} or followee_id = ${userId}`,

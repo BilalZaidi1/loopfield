@@ -42,7 +42,9 @@ export function RunMap({
   onFollowingChange,
   accessibilityLabel,
   handle,
-  fallbackCenter
+  fallbackCenter,
+  plannedPath,
+  markerImage
 }: {
   path: [number, number][];
   /** Where the loop capture started: drawn as a flag, with a dashed hint back to it while the loop is open. */
@@ -57,6 +59,10 @@ export function RunMap({
   handle?: Ref<RunMapHandle>;
   /** Where to look before the phone has a position (location not allowed yet). */
   fallbackCenter?: [number, number] | null;
+  /** The route being followed ([lng, lat]), drawn as a dashed line under the run. */
+  plannedPath?: [number, number][] | null;
+  /** The runner's picture as the position dot (a file URI), or null for the plain dot. */
+  markerImage?: string | null;
 }) {
   const Mapbox = mapboxModule()!;
   const t = useTheme();
@@ -100,7 +106,10 @@ export function RunMap({
     [captureStart]
   );
 
-  const { MapView, Camera, Viewport, ShapeSource, LineLayer, CircleLayer, FillExtrusionLayer, LocationPuck, SkyLayer } = Mapbox;
+  const plannedFc = useMemo(() => (plannedPath && plannedPath.length > 1 ? { type: 'FeatureCollection' as const, features: [lineFeature(plannedPath)] } : null), [plannedPath]);
+  const images = useMemo(() => (markerImage ? { 'runner-picture': { uri: markerImage } } : null), [markerImage]);
+
+  const { MapView, Camera, Viewport, ShapeSource, LineLayer, CircleLayer, FillExtrusionLayer, LocationPuck, SkyLayer, Images } = Mapbox;
   return (
     <View style={{ flex: 1 }} accessible accessibilityLabel={accessibilityLabel}>
       <MapView
@@ -151,6 +160,11 @@ export function RunMap({
             />
           </>
         ) : null}
+        {plannedFc ? (
+          <ShapeSource id="run-planned" shape={plannedFc}>
+            <LineLayer id="run-planned-line" style={{ lineColor: tc.path, lineOpacity: 0.7, lineWidth: 4, lineDasharray: [2, 1.5], lineCap: 'round', lineJoin: 'round' }} />
+          </ShapeSource>
+        ) : null}
         {pathFc ? (
           <ShapeSource id="run-path" shape={pathFc} lineMetrics>
             <LineLayer id="run-path-casing" style={{ lineColor: tc.pathCasing, lineWidth: 10, lineCap: 'round', lineJoin: 'round' }} />
@@ -170,7 +184,9 @@ export function RunMap({
             <CircleLayer id="run-capture-start-dot" style={{ circleRadius: 8, circleColor: tc.start, circleStrokeColor: tc.pathCasing, circleStrokeWidth: 3, circlePitchAlignment: 'map' }} />
           </ShapeSource>
         ) : null}
-        <LocationPuck puckBearingEnabled={threeD} puckBearing="course" pulsing={{ isEnabled: !reduced, color: tc.path, radius: 'accuracy' }} />
+        {images ? <Images images={images} /> : null}
+        <LocationPuck puckBearingEnabled={threeD} puckBearing="course" pulsing={{ isEnabled: !reduced, color: tc.path, radius: 'accuracy' }}
+          {...(images ? { topImage: 'runner-picture', scale: ['interpolate', ['linear'], ['zoom'], 10, 0.55, 16, 0.9] as never } : null)} />
       </MapView>
     </View>
   );

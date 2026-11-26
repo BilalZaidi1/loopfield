@@ -12,6 +12,8 @@ import { mapboxModule } from '@/features/map/MapCanvas';
 import { RunMap, type RunMapHandle } from '@/features/map/RunMap';
 import { LiveParts, PreParts, PreRunScreen, recorderStyles as styles, StatsRun } from '@/features/run/RecorderParts';
 import { useRecording, type LiveState } from '@/recording/useRecording';
+import { followStatus } from '@/recording/follow';
+import { useAvatarMarker } from '@/features/map/AvatarMarker';
 import { spacing, useTheme } from '@/theme/tokens';
 
 /**
@@ -22,7 +24,7 @@ import { spacing, useTheme } from '@/theme/tokens';
  */
 export default function Recorder() {
   const live = useRecording();
-  const params = useLocalSearchParams<{ course?: string }>();
+  const params = useLocalSearchParams<{ course?: string; plan?: string }>();
   const [now, setNow] = useState(() => Date.now());
   const [cue, setCue] = useState<Cue | null>(null);
   useEffect(() => onCue(setCue), []);
@@ -31,12 +33,13 @@ export default function Recorder() {
     return () => clearInterval(id);
   }, []);
   const course = params.course ?? null;
-  if (mapboxModule()) return <MapRecorder live={live} now={now} cue={cue} course={course} />;
-  return live.session ? <StatsRun live={live} now={now} cue={cue} /> : <PreRunScreen course={course} />;
+  const plan = params.plan ?? null;
+  if (mapboxModule()) return <MapRecorder live={live} now={now} cue={cue} course={course} plan={plan} />;
+  return live.session ? <StatsRun live={live} now={now} cue={cue} /> : <PreRunScreen course={course} plan={plan} />;
 }
 
 /** The full-screen map stays mounted from choosing the run type to finishing it; the panels change over it. */
-function MapRecorder({ live, now, cue, course }: { live: LiveState; now: number; cue: Cue | null; course: string | null }) {
+function MapRecorder({ live, now, cue, course, plan }: { live: LiveState; now: number; cue: Cue | null; course: string | null; plan: string | null }) {
   const t = useTheme();
   const p = t.palette;
   const insets = useSafeAreaInsets();
@@ -52,6 +55,17 @@ function MapRecorder({ live, now, cue, course }: { live: LiveState; now: number;
   const above = panelBottom + panelH + spacing.md;
   const territory = s?.mode === 'territory' || s?.mode === 'territory_speed';
   const fallback = useMemo(() => defaultMapCenter(), []);
+  const marker = useAvatarMarker();
+  const sessionId = s?.id ?? null;
+  // The followed route's line, read once per run from the phone.
+  const plannedPath = useMemo<[number, number][] | null>(() => {
+    if (!sessionId) return null;
+    try {
+      return followStatus(sessionId)?.path.map((pt) => [pt.lng, pt.lat] as [number, number]) ?? null;
+    } catch {
+      return null;
+    }
+  }, [sessionId]);
 
   return (
     <View style={{ flex: 1, backgroundColor: p.bg }}>
@@ -65,13 +79,15 @@ function MapRecorder({ live, now, cue, course }: { live: LiveState; now: number;
         following={following}
         onFollowingChange={setFollowing}
         fallbackCenter={fallback}
+        plannedPath={plannedPath}
+        markerImage={marker.uri}
         accessibilityLabel={`Map ${s ? 'of your run so far' : 'around you'}. ${following ? 'Following your position.' : 'Exploring the map; following resumes on its own.'} Only you can see this map.`}
       />
 
       {s ? (
         <LiveParts live={live} now={now} onTop={setTopH} onPanel={setPanelH} panelBottom={panelBottom} />
       ) : (
-        <PreParts course={course} onTop={setTopH} onPanel={setPanelH} panelBottom={panelBottom} />
+        <PreParts course={course} plan={plan} onTop={setTopH} onPanel={setPanelH} panelBottom={panelBottom} />
       )}
 
       <View pointerEvents="box-none" style={[styles.side, { bottom: above }]}>
@@ -85,6 +101,7 @@ function MapRecorder({ live, now, cue, course }: { live: LiveState; now: number;
         )}
       </View>
 
+      {marker.maker}
       {cue && s ? (
         <Animated.View entering={FadeIn} exiting={FadeOut} accessibilityLiveRegion="polite" accessibilityRole="alert" style={[styles.cue, { backgroundColor: p.ink, bottom: above, right: 76 }]}>
           <Icon name="volume" color={p.onInk} size={18} />

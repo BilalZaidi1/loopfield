@@ -1,7 +1,9 @@
 import * as TaskManager from 'expo-task-manager';
 import type { LocationObject } from 'expo-location';
 import { activeSession, appendSamples } from './db';
+import { checkFollow } from './follow';
 import { checkIntegrity } from './integrity';
+import { pushLive } from './livePush';
 
 /**
  * Background location task, defined at module scope (imported from index.ts before the app renders)
@@ -17,5 +19,7 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK)) {
     if (!session || session.state !== 'recording' || !data?.locations?.length) return;
     appendSamples(session.id, data.locations as never);
     await checkIntegrity(session.id);
+    await checkFollow(session.id);
+    void pushLive(session.id);
   });
 }

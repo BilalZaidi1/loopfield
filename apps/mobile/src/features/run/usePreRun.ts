@@ -12,6 +12,11 @@ import { useCompetition, type Competition, type Season } from '@/state/competiti
 import { useEvents, type EventRow } from '@/features/events/api';
 import { useSession } from '@/state/session';
 import { PAUSED_TEXT, useAppConfig } from '@/lib/appConfig';
+import type { LatLng } from '@loopfield/core';
+import { routeLine, usePlannedRoutes } from '@/features/plan/api';
+import { useMyLiveLinks } from '@/features/live/api';
+import type { FollowChoice } from '@/recording/follow';
+import { pendingLiveShare, setPendingLiveShare, type LiveKind } from '@/recording/livePush';
 
 /** Runs are recorded only in the phone app; the browser shows the recorder for reference. */
 export const BROWSER = Platform.OS === 'web';
@@ -81,14 +86,18 @@ interface CourseOption {
   name: string;
   status: string;
   length_m: number;
+  /** The course line (GeoJSON), followed during the run like a planned route. */
+  path?: GeoJSON.LineString | null;
 }
+
+const lineOf = (g: GeoJSON.LineString | null | undefined): LatLng[] => (g?.coordinates ?? []).map(([lng, lat]) => ({ lat: lat!, lng: lng! }));
 
 /**
  * Everything the recorder needs before a run: the run type, the loop-capture choice, the chosen speed
  * route, what would block a competitive run, and `start`, which creates and starts the recording session
  * (the recorder screen then switches to the live view on its own).
  */
-export function usePreRun(initialCourse?: string | null) {
+export function usePreRun(initialCourse?: string | null, initialPlan?: string | null) {
   const { userId, settings, profile } = useSession();
   // App control switches and the account's status decide which competitive run types are open right now.
   const { settings: cfg } = useAppConfig();
@@ -111,6 +120,26 @@ export function usePreRun(initialCourse?: string | null) {
       setMode((m) => (m === 'territory' || m === 'territory_speed' ? 'territory_speed' : 'speed'));
     }
   }
+
+  // A planned route to follow (R1), and the speed route's own line when racing one.
+  const planned = usePlannedRoutes(!BROWSER);
+  const [planId, setPlanId] = useState<string | null>(initialPlan ?? null);
+  const [seenPlan, setSeenPlan] = useState(initialPlan ?? null);
+  if ((initialPlan ?? null) !== seenPlan) {
+    setSeenPlan(initialPlan ?? null);
+    if (initialPlan) setPlanId(initialPlan);
+  }
+  const [followCourse, setFollowCourse] = useState(true);
+  // Live location (R1): a link chosen before GO, or the standing link unless skipped for this run.
+  const liveOn = cfg.enabled.live_links_enabled;
+  const liveLinks = useMyLiveLinks(!BROWSER && liveOn);
+  const standing = liveOn ? (liveLinks.data ?? []).find((l) => l.kind === 'standing') ?? null : null;
+  const [skipStanding, setSkipStanding] = useState(false);
+  const [pendingLive, setPendingLiveState] = useState(pendingLiveShare());
+  const setPendingLive = useCallback((v: { token: string; kind: LiveKind } | null) => {
+    setPendingLiveShare(v);
+    setPendingLiveState(v);
+  }, []);
 
   const course = useQuery({
     queryKey: ['course-option', courseId, competition?.id, season?.id],
@@ -137,6 +166,12 @@ export function usePreRun(initialCourse?: string | null) {
     if (wantsSpeed && course.data && course.data.status !== 'active') blockers.push({ text: 'This route is not accepting attempts right now.', route: true });
   }
   const counts = mode !== 'private' && competition ? countsFor(competition, season, wantsTerritory, landEvents) : null;
+  const plannedRoute = planId ? (planned.data ?? []).find((r) => r.id === planId) ?? null : null;
+  const coursePath = lineOf(course.data?.path);
+  const follow: FollowChoice | null = wantsSpeed && courseId && course.data && followCourse && coursePath.length > 1
+    ? { kind: 'speed_route', refId: courseId, name: course.data.name, path: coursePath }
+    : plannedRoute ? { kind: 'planned', refId: plannedRoute.id, name: plannedRoute.name, path: routeLine(plannedRoute) } : null;
+  const live = liveOn ? pendingLive ?? (standing && !skipStanding ? { token: standing.token, kind: 'standing' as const } : null) : null;
   // Run types that cannot start right now (shown as paused in the picker).
   const paused = new Set<RunMode>([...(captureOn ? [] : (['territory', 'territory_speed'] as const)), ...(titlesOn ? [] : (['speed', 'territory_speed'] as const))]);
 
@@ -167,7 +202,13 @@ export function usePreRun(initialCourse?: string | null) {
       }
       const s = await createSession({ userId: userId!, mode: m, competitionId: m === 'private' ? null : competition?.id ?? null, courseVersionId: m === 'speed' || m === 'territory_speed' ? course.data?.course_version_id ?? null : null });
       sessionId = s.sessionId;
-      await startRun(s.sessionId, { startCaptureNow: captureNow, startSpeedNow: true });
+      await startRun(s.sessionId, {
+        startCaptureNow: captureNow,
+        startSpeedNow: true,
+        follow: follow ? { choice: follow, offRouteM: cfg.offRouteDistanceM, offRouteSeconds: cfg.offRouteSeconds } : null,
+        live: live ? { ...live, everyS: cfg.liveLinkPushSeconds } : null
+      });
+      setPendingLive(null);
       return true;
     } catch (e) {
       if (sessionId) await discardRun(sessionId).catch(() => {});
@@ -183,7 +224,10 @@ export function usePreRun(initialCourse?: string | null) {
     }
   };
 
-  return { mode, setMode, captureNow, setCaptureNow, courseId, course, wantsTerritory, wantsSpeed, distanceEvents, blockers, counts, paused, busy, error, start };
+  return {
+    mode, setMode, captureNow, setCaptureNow, courseId, course, wantsTerritory, wantsSpeed, distanceEvents, blockers, counts, paused, busy, error, start,
+    planned, planId, setPlanId, follow, followCourse, setFollowCourse, standing, skipStanding, setSkipStanding, pendingLive, setPendingLive, live
+  };
 }
 
 export type PreRun = ReturnType<typeof usePreRun>;

@@ -87,6 +87,9 @@ export default function Help() {
         <Bullet>Your raw GPS trace is never shown to other runners. The public map shows only published cells and approved routes.</Bullet>
         <Bullet>Clubs and communities are joined only by your own choice.</Bullet>
         <Bullet>By default only mutual followers can message each other. Blocking stops messages and hides each other’s content.</Bullet>
+        <Bullet>Planned routes are yours alone. A copy stays on this phone so you can follow one with no signal, and following never changes how a run counts.</Bullet>
+        <Bullet>A live link shows where you are to anyone who has it, until it ends. Inside your protected areas your position is hidden unless you choose to show it, and positions are deleted within a day after sharing ends.</Bullet>
+        <Bullet>Your picture as your position dot shows only on your own screen.</Bullet>
         </Card>
       </Section>
       <Section title="Health data" icon="heart">

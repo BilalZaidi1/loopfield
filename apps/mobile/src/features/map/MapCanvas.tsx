@@ -105,7 +105,8 @@ export function MapCanvas({
   fallback,
   mapRef,
   threeD = false,
-  animate = false
+  animate = false,
+  userImage = null
 }: {
   layers: MapLayers;
   fit?: Bounds | null;
@@ -132,6 +133,8 @@ export function MapCanvas({
   threeD?: boolean;
   /** Let your own land breathe gently (skipped with Reduce Motion). */
   animate?: boolean;
+  /** The runner's picture as their position dot (a file URI), or null for the plain dot. */
+  userImage?: string | null;
 }) {
   const t = useTheme();
   const tc = t.territory;
@@ -181,7 +184,7 @@ export function MapCanvas({
       </View>
     );
   }
-  const { MapView, Camera, ShapeSource, FillLayer, LineLayer, CircleLayer, SymbolLayer, LocationPuck, FillExtrusionLayer, RasterDemSource, Terrain, SkyLayer, MarkerView } = Mapbox;
+  const { MapView, Camera, ShapeSource, FillLayer, LineLayer, CircleLayer, SymbolLayer, LocationPuck, FillExtrusionLayer, RasterDemSource, Terrain, SkyLayer, MarkerView, Images } = Mapbox;
   const onFeature = () => {
     featureTap.current = Date.now();
   };
@@ -331,7 +334,11 @@ export function MapCanvas({
             }} />
           </MarkerView>
         ))}
-        {showUser ? <LocationPuck puckBearingEnabled={false} pulsing={{ isEnabled: true, color: tc.path, radius: 'accuracy' }} /> : null}
+        {showUser && userImage ? <Images images={{ 'runner-picture': { uri: userImage } }} /> : null}
+        {showUser ? (
+          <LocationPuck puckBearingEnabled={false} pulsing={{ isEnabled: true, color: tc.path, radius: 'accuracy' }}
+            {...(userImage ? { topImage: 'runner-picture', scale: ['interpolate', ['linear'], ['zoom'], 10, 0.55, 16, 0.9] as never } : null)} />
+        ) : null}
       </MapView>
     </View>
   );

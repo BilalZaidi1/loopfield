@@ -18,6 +18,8 @@ import type { LiveState } from '@/recording/useRecording';
 import { useSession, useUnits } from '@/state/session';
 import { radius, spacing, usePalette, useTheme } from '@/theme/tokens';
 import { PreRunControls } from './PreRunPanel';
+import { followStatus } from '@/recording/follow';
+import { LiveShareSheet, LiveShareStatus } from '@/features/live/LiveShare';
 import { gpsColor, gpsLabel, useGpsReadiness, usePreRun, type Gps } from './usePreRun';
 
 /**
@@ -99,11 +101,11 @@ function alertsFor(live: LiveState, r: ReturnType<typeof useRun>): { tone: 'warn
 }
 
 /** Before the run: close and GPS at the top, run type and GO in the bottom panel. */
-export function PreParts({ course, onTop, onPanel, panelBottom }: { course: string | null; onTop: (h: number) => void; onPanel: (h: number) => void; panelBottom: number }) {
+export function PreParts({ course, plan, onTop, onPanel, panelBottom }: { course: string | null; plan?: string | null; onTop: (h: number) => void; onPanel: (h: number) => void; panelBottom: number }) {
   const t = useTheme();
   const p = t.palette;
   const insets = useSafeAreaInsets();
-  const pre = usePreRun(course);
+  const pre = usePreRun(course, plan);
   const gps = useGpsReadiness(true);
   return (
     <>
@@ -149,6 +151,7 @@ export function LiveParts({ live, now, onTop, onPanel, panelBottom }: { live: Li
   const insets = useSafeAreaInsets();
   const r = useRun(live, now);
   const [expanded, setExpanded] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const dist = splitValue(fmtDistance(live.summary?.distanceM ?? 0, units));
   const alerts = alertsFor(live, r);
   return (
@@ -184,6 +187,8 @@ export function LiveParts({ live, now, onTop, onPanel, panelBottom }: { live: Li
           <Stat label="Pace" {...paceParts(fmtPace(live.summary?.avgPaceSecPerKm ?? null, units))} size={26} dim={r.paused} />
         </View>
         {r.territory ? <CaptureStrip live={live} r={r} detailed={expanded} /> : null}
+        <FollowStrip sessionId={r.s.id} now={now} />
+        <LiveShareStatus sessionId={r.s.id} onShare={() => setSharing(true)} />
         {expanded && r.speed ? (
           <View style={[recorderStyles.strip, { backgroundColor: p.surfaceAlt }]}>
             <Icon name="stopwatch" color={p.orangeText} size={20} />
@@ -201,7 +206,32 @@ export function LiveParts({ live, now, onTop, onPanel, panelBottom }: { live: Li
           </View>
         ) : null}
       </Animated.View>
+      <LiveShareSheet visible={sharing} onClose={() => setSharing(false)} sessionId={r.s.id} />
     </>
+  );
+}
+
+/** Following a route (R1): its name and the distance left, or where the runner stands with it. */
+function FollowStrip({ sessionId, now }: { sessionId: string; now: number }) {
+  const p = usePalette();
+  const units = useUnits();
+  let f: ReturnType<typeof followStatus> = null;
+  try {
+    f = followStatus(sessionId);
+  } catch {
+    f = null;
+  }
+  void now; // read again every second with the rest of the panel
+  if (!f) return null;
+  const off = f.snap.state === 'off';
+  const label = f.snap.state === 'waiting'
+    ? `Head to ${f.name} to start following it`
+    : off ? 'Off the route: head back to the dashed line' : `${fmtDistance(f.snap.progressM, units)} done · ${fmtDistance(f.remainingM, units)} left on ${f.name}`;
+  return (
+    <View style={[recorderStyles.strip, { backgroundColor: off ? p.warningSoft : p.surfaceAlt }]} accessible accessibilityLabel={`Route: ${label}`} accessibilityLiveRegion="polite">
+      <Icon name={off ? 'alert' : 'route'} color={off ? p.warning : p.primary} size={20} />
+      <Txt variant="label" style={{ flex: 1 }} numberOfLines={2}>{label}</Txt>
+    </View>
   );
 }
 
@@ -292,9 +322,9 @@ function StatusPill({ paused, elapsed }: { paused: boolean; elapsed: number }) {
 }
 
 /** Where maps cannot be drawn, before the run: the run type and GO on an ordinary screen. */
-export function PreRunScreen({ course }: { course: string | null }) {
+export function PreRunScreen({ course, plan }: { course: string | null; plan?: string | null }) {
   const p = usePalette();
-  const pre = usePreRun(course);
+  const pre = usePreRun(course, plan);
   const gps = useGpsReadiness(true);
   return (
     <Screen edges={['top']}>

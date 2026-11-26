@@ -1,7 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import * as Location from 'expo-location';
-import { summarizeActivity , durationBucket, distanceBucket } from '@loopfield/core';
+import { summarizeActivity, alertBucket, durationBucket, distanceBucket } from '@loopfield/core';
 import { callFunction } from '@/lib/api';
 import { emitCue } from '@/lib/cues';
 import { track } from '@/lib/analytics';
@@ -10,6 +10,9 @@ import { isExpoGo } from '@/lib/runtime';
 import { activeSession, addEvent, appendSamples, eventsFor, getSession, recordingDb, samplesFor, setSessionState, type RunMode } from './db';
 import { LOCATION_TASK } from './task';
 import { checkIntegrity, setAutoPauseHandler, setIntegrityOverrides, startSteps, stopSteps } from './integrity';
+import { attachFollow, checkFollow, followSummary, type FollowChoice } from './follow';
+import { attachLiveShare, pushLive, stopLiveShare, type LiveKind } from './livePush';
+import { markerShown } from './marker';
 import { fetchAppConfig } from '@/lib/appConfig';
 
 // The live movement check pauses through the same path as the Pause button.
@@ -105,6 +108,8 @@ async function startForegroundUpdates(sessionId: string): Promise<void> {
   foregroundWatch = await Location.watchPositionAsync({ accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 }, (loc) => {
     appendSamples(sessionId, [loc]);
     void checkIntegrity(sessionId);
+    void checkFollow(sessionId);
+    void pushLive(sessionId);
   });
   await activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
 }
@@ -121,15 +126,27 @@ async function stopUpdates(): Promise<void> {
   await Location.stopLocationUpdatesAsync(LOCATION_TASK).catch(() => {});
 }
 
-export async function startRun(sessionId: string, opts: { startCaptureNow: boolean; startSpeedNow: boolean }): Promise<void> {
+export interface StartOptions {
+  startCaptureNow: boolean;
+  startSpeedNow: boolean;
+  /** A planned route or the raced speed route to follow, with the off-route settings of the moment. */
+  follow?: { choice: FollowChoice; offRouteM: number; offRouteSeconds: number } | null;
+  /** A live link to share this run through. */
+  live?: { token: string; kind: LiveKind; everyS: number } | null;
+}
+
+export async function startRun(sessionId: string, opts: StartOptions): Promise<void> {
   const s = getSession(sessionId);
   if (!s || s.state !== 'ready') throw new Error('Session is not ready');
   setSessionState(sessionId, { state: 'recording', started_at: Date.now() });
   addEvent(sessionId, 'start');
   void loadIntegrityOverrides();
   void startSteps();
+  if (opts.follow) attachFollow(sessionId, opts.follow.choice, { offRouteM: opts.follow.offRouteM, offRouteSeconds: opts.follow.offRouteSeconds });
+  if (opts.live) attachLiveShare(sessionId, opts.live.token, opts.live.kind, opts.live.everyS);
   await startUpdates(sessionId);
   emitCue('started', 'Run started');
+  if (opts.live) void pushLive(sessionId, { force: true });
   if (opts.startCaptureNow && (s.mode === 'territory' || s.mode === 'territory_speed')) startCapture(sessionId);
   if (opts.startSpeedNow && (s.mode === 'speed' || s.mode === 'territory_speed')) startSpeedAttempt(sessionId);
   track('run_started', { activity_id: sessionId.replace(/-/g, '').slice(0, 32), mode: s.mode, competition_kind: 'public', device_class: 'unknown' });
@@ -163,6 +180,7 @@ export function startSpeedAttempt(sessionId: string): void {
 export async function pauseRun(sessionId: string): Promise<void> {
   addEvent(sessionId, 'pause');
   setSessionState(sessionId, { state: 'paused' });
+  void pushLive(sessionId, { state: 'paused', force: true });
   await stopUpdates();
   stopSteps();
   emitCue('paused', 'Paused');
@@ -174,6 +192,7 @@ export async function resumeRun(sessionId: string): Promise<void> {
   void startSteps();
   await startUpdates(sessionId);
   emitCue('resumed', 'Resumed');
+  void pushLive(sessionId, { state: 'running', force: true });
 }
 
 /** Finish: commit locally first, then queue the upload. Returns the local summary. */
@@ -195,12 +214,17 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
     [sessionId, 'pending', JSON.stringify(summary), Date.now()]
   );
   emitCue('finished', 'Run saved on this phone');
+  void pushLive(sessionId, { state: 'finished', force: true });
+  const follow = followSummary(sessionId);
   track('run_saved', {
     activity_id: sessionId.replace(/-/g, '').slice(0, 32),
     mode: s.mode,
     duration_bucket: durationBucket(summary.elapsedMs),
     distance_bucket: distanceBucket(summary.distanceM),
-    had_gap: summary.gaps.length > 0
+    had_gap: summary.gaps.length > 0,
+    followed: follow.followed,
+    off_route_alerts: alertBucket(follow.alerts),
+    marker: markerShown()
   });
   return summary;
 }
@@ -208,10 +232,13 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
 export async function discardRun(sessionId: string): Promise<void> {
   await stopUpdates();
   stopSteps();
+  void stopLiveShare(sessionId).catch(() => {});
   const d = recordingDb();
   d.withTransactionSync(() => {
     d.runSync('delete from samples where session_id = ?', [sessionId]);
     d.runSync('delete from events where session_id = ?', [sessionId]);
+    d.runSync('delete from follows where session_id = ?', [sessionId]);
+    d.runSync('delete from live_shares where session_id = ?', [sessionId]);
     d.runSync("update sessions set state = 'discarded' where id = ?", [sessionId]);
   });
 }

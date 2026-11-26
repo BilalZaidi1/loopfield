@@ -30,6 +30,8 @@ export interface ServerEnv {
   /** The web version of the app; email buttons open it (custom-scheme links do not work in most mail apps). */
   APP_WEB_URL: string;
   RELEASE: string;
+  /** Mapbox token used only by the route-snap function for walking directions (never the app's map token). */
+  MAPBOX_DIRECTIONS_TOKEN?: string;
 }
 
 export class ConfigError extends Error {
@@ -85,7 +87,8 @@ export function readEnv(get: (key: string) => string | undefined): ServerEnv {
     APP_SCHEME: optional('APP_SCHEME') ?? 'loopfield',
     APP_LINK_BASE: optional('APP_LINK_BASE') ?? 'loopfield://',
     APP_WEB_URL: (optional('APP_WEB_URL') ?? 'https://loopfield.expo.app').replace(/\/+$/, ''),
-    RELEASE: optional('RELEASE') ?? 'dev'
+    RELEASE: optional('RELEASE') ?? 'dev',
+    MAPBOX_DIRECTIONS_TOKEN: optional('MAPBOX_DIRECTIONS_TOKEN')
   };
 }
 

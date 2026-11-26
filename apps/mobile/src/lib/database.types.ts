@@ -1367,6 +1367,51 @@ export type Database = {
           },
         ]
       }
+      live_links: {
+        Row: {
+          created_at: string
+          ended_at: string | null
+          expires_at: string | null
+          kind: string
+          revoked_at: string | null
+          show_everywhere: boolean
+          token: string
+          user_id: string
+          views: number
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          ended_at?: string | null
+          expires_at?: string | null
+          kind: string
+          revoked_at?: string | null
+          show_everywhere?: boolean
+          token: string
+          user_id: string
+          views?: number
+        }
+        Update: {
+          created_at?: string
+          ended_at?: string | null
+          expires_at?: string | null
+          kind?: string
+          revoked_at?: string | null
+          show_everywhere?: boolean
+          token?: string
+          user_id?: string
+          views?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_links_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loop_claims: {
         Row: {
           activity_id: string | null
@@ -1759,6 +1804,54 @@ export type Database = {
           },
           {
             foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planned_routes: {
+        Row: {
+          created_at: string
+          distance_m: number
+          id: string
+          is_loop: boolean
+          name: string
+          path: string
+          point_count: number
+          snapped: boolean
+          updated_at: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          distance_m?: number
+          id?: string
+          is_loop?: boolean
+          name: string
+          path: string
+          point_count?: number
+          snapped?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          distance_m?: number
+          id?: string
+          is_loop?: boolean
+          name?: string
+          path?: string
+          point_count?: number
+          snapped?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planned_routes_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -3019,6 +3112,26 @@ export type Database = {
           visibility: string
         }[]
       }
+      live_link_create: {
+        Args: { p_kind: string; p_show_everywhere?: boolean }
+        Returns: Json
+      }
+      live_link_end: { Args: { p_token: string }; Returns: undefined }
+      live_link_push: {
+        Args: {
+          p_points: Json
+          p_session: string
+          p_state: string
+          p_token: string
+        }
+        Returns: Json
+      }
+      live_link_revoke: { Args: { p_token: string }; Returns: undefined }
+      live_link_rotate: { Args: Record<PropertyKey, never>; Returns: Json }
+      live_link_set_show_everywhere: {
+        Args: { p_token: string; p_value: boolean }
+        Returns: undefined
+      }
       mark_notifications_read: {
         Args: { p_ids?: string[] }
         Returns: undefined
@@ -3065,6 +3178,7 @@ export type Database = {
           visibility: string
         }[]
       }
+      my_live_links: { Args: Record<PropertyKey, never>; Returns: Json }
       my_lost_cells: {
         Args: {
           p_competition: string
@@ -3545,6 +3659,10 @@ export type Database = {
         Returns: string
       }
       public_activity: { Args: { p_token: string }; Returns: Json }
+      public_live_link: {
+        Args: { p_first?: boolean; p_token: string }
+        Returns: Json
+      }
       reclaim_cells: {
         Args: {
           p_cells: string[]

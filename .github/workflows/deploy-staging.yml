@@ -68,7 +68,7 @@ jobs:
             if [[ " $2 " == *" $code "* ]]; then echo "ok   $1 -> $code"; else echo "FAIL $1 -> $code $(head -c 200 /tmp/body)"; fail=1; fi
           }
           # User endpoints must reject the missing session (a 503 here would mean the runtime is misconfigured).
-          for fn in session-ticket activity-upload/finalize chat/token account billing-sync jobs; do check "$fn" "401"; done
+          for fn in session-ticket activity-upload/finalize chat/token account billing-sync route-snap jobs; do check "$fn" "401"; done
           # Webhooks reject the unsigned request, or report not_configured until their provider secret is set.
           for fn in revenuecat-webhook stream-webhook resend-webhook auth-email-hook; do check "$fn" "401 503"; done
           # One-click unsubscribe answers without a session but refuses a request with no valid link token.

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Linking, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Linking, Platform, View } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { env } from '@/config/env';
 import { cuePreferences, saveCuePreferences } from '@/lib/cues';
@@ -8,6 +8,8 @@ import { Badge, Button, confirm, ListGroup, PressableScale, Row, Screen, Section
 import { Icon, type IconName } from '@/components/icons';
 import { radius, spacing, themes, useTheme, useThemeMode, type ThemeMode } from '@/theme/tokens';
 import { useBillingConfig } from '@/billing/purchases';
+import { loadMarkerPreference, saveMarkerPreference } from '@/features/map/AvatarMarker';
+import { useAppConfig } from '@/lib/appConfig';
 import { useSupportUnread } from '@/features/support/api';
 import { installedVersion, runningUpdate } from '@/lib/version';
 import { useSession } from '@/state/session';
@@ -40,6 +42,7 @@ export default function Settings() {
         <ListGroup>
           <Toggle label="Spoken cues" description="Splits, loop closure, GPS changes and gaps are read aloud." value={cues.audio} onChange={(v) => updateCues({ audio: v })} />
           <Toggle label="Haptic cues" description="A vibration accompanies each cue." value={cues.haptics} onChange={(v) => updateCues({ haptics: v })} />
+          <MarkerToggle />
         </ListGroup>
       </Section>
       <Section title="Account" icon="user">
@@ -132,5 +135,19 @@ function ThemePreview({ kind }: { kind: 'light' | 'dark' | 'split' }) {
         half(kind)
       )}
     </View>
+  );
+}
+
+/** Your picture as your position dot on the run map (per phone). Hidden on the web and while paused. */
+function MarkerToggle() {
+  const { settings } = useAppConfig();
+  const [on, setOn] = useState<boolean | null>(null);
+  useEffect(() => {
+    void loadMarkerPreference().then(setOn);
+  }, []);
+  if (Platform.OS === 'web' || !settings.enabled.avatar_marker_enabled || on === null) return null;
+  return (
+    <Toggle label="Show my picture as my position" description="On the run map, your profile picture replaces the blue dot. Only you see it."
+      value={on} onChange={(v) => { setOn(v); void saveMarkerPreference(v); }} />
   );
 }

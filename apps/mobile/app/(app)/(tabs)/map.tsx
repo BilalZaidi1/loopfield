@@ -13,6 +13,7 @@ import { Icon, type IconName } from '@/components/icons';
 import { MapCanvas, mapAvailability, type MapHandle } from '@/features/map/MapCanvas';
 import { useInitialCenter } from '@/features/map/useInitialCenter';
 import type { AvatarPinData } from '@/features/map/AvatarPin';
+import { useAvatarMarker } from '@/features/map/AvatarMarker';
 import { clusterPins, MIN_AVATAR_ZOOM, ownerAnchors, useOwnersInView, type OwnerInView } from '@/features/map/owners';
 import { useSignedUrls } from '@/features/social/media';
 import { routesToFeatures, useExclusions, useRoutesInView, useTerritoryViewport, type RouteInView } from '@/features/map/useMapData';
@@ -62,6 +63,7 @@ export default function TerritoryMap() {
   const [reclaiming, setReclaiming] = useState(false);
   // App control: reclaiming needs both its own switch and land capture; publication can be held back.
   const { settings: cfg } = useAppConfig();
+  const marker = useAvatarMarker();
   const reclaimPaused = !cfg.enabled.reclaim_enabled || !cfg.enabled.territory_capture_enabled;
   const publicationPaused = !cfg.enabled.public_publication_enabled;
   const [threeD, setThreeD] = useState(false);
@@ -154,6 +156,7 @@ export default function TerritoryMap() {
 
   return (
     <View style={{ flex: 1, backgroundColor: p.bg }}>
+      {marker.maker}
       {center === undefined ? (
         <Skeleton height={'100%' as unknown as number} round={0} />
       ) : (
@@ -164,6 +167,7 @@ export default function TerritoryMap() {
           center={center}
           zoom={center ? 14.5 : 2}
           showUser
+          userImage={marker.uri}
           ornamentBottom={isWide ? 8 : sheetH + 8}
           selectedCell={selected?.kind === 'cell' ? selected.id : null}
           layers={{ cells: fc, exclusions: exclusions.data, grid, routes: showRoutes && !reclaiming ? routeFc : undefined, lost: lostFc, avatars: pins }}
@@ -299,6 +303,7 @@ export default function TerritoryMap() {
               <Row icon="medal" title="Leaderboard" subtitle="Who holds the most land, all-time and this season" onPress={() => router.push('/leaderboard')} />
               <Row icon="flag" title="Events" subtitle="Challenges with their own standings" onPress={() => router.push('/events')} />
               <Row icon="route" title="Speed routes" subtitle="Approved routes and their title holders" onPress={() => router.push('/routes')} />
+              {cfg.enabled.route_builder_enabled ? <Row icon="pin" title="Planned routes" subtitle="Plan a route and follow it on a run" onPress={() => router.push('/plans')} /> : null}
               <Row icon="compass" title="My exploration" subtitle="Private record of where you have run" onPress={() => router.push('/exploration')} />
             </View>
             <Txt variant="caption">Unmarked ground is unclaimed. Grey areas are unavailable for competition (for example private or restricted land). Land shown is published at least 30 minutes after a run.</Txt>
