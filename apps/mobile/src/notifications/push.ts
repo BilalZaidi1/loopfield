@@ -82,6 +82,7 @@ export function routeForNotification(n: { kind: string; object_type: string | nu
   if (n.kind === 'points_refunded') return '/points';
   if (n.kind === 'support_reply') return id ? { pathname: '/support/[id]', params: { id } } : '/support';
   if (n.kind === 'gear_reminder') return id ? { pathname: '/shoes/[id]', params: { id, from: 'reminder' } } : '/shoes';
+  if (n.kind === 'live_links_ended') return '/settings/privacy';
   switch (n.object_type) {
     case 'post':
       return { pathname: '/post/[id]', params: { id } };

@@ -215,6 +215,9 @@ export function safePushPreview(kind: string, actorName: string | null): { title
     case 'gear_reminder':
       // Never the shoes' name: a lock screen shows it to anyone.
       return { title: 'Shoe reminder', body: 'A pair of your shoes is nearly at, or past, its reminder distance. Open to see how far.' };
+    case 'live_links_ended':
+      // Support ended the runner's live sharing (a safety action). Never who asked, or where the runner was.
+      return { title: 'Live sharing ended', body: 'Loopfield support ended your live links. Open to see your sharing settings.' };
     case 'club_challenge':
       return { title: 'New club challenge', body: `${who} set a challenge for your club` };
     default:

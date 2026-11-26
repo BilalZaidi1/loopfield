@@ -3550,6 +3550,14 @@ export type Database = {
         Args: { p_key: string; p_reason: string }
         Returns: undefined
       }
+      ops_end_live_links: {
+        Args: {
+          p_reason: string
+          p_stop_friend_sharing?: boolean
+          p_user: string
+        }
+        Returns: Json
+      }
       ops_grant_role: {
         Args: { p_grant: boolean; p_role: string; p_user: string }
         Returns: undefined
@@ -3612,15 +3620,21 @@ export type Database = {
       ops_route_queue: {
         Args: { p_limit?: number }
         Returns: {
+          checks: Json
           closed: boolean
           course_geometry: Json
           created_at: string
           creator_handle: string
+          from_m: number
           id: string
           length_m: number
           name: string
+          over_target: boolean
           path_geojson: Json
           score_founding_run: boolean
+          shape: string
+          to_m: number
+          waited_hours: number
         }[]
       }
       ops_rules: { Args: Record<PropertyKey, never>; Returns: Json }
