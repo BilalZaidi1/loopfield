@@ -6,9 +6,11 @@ import { viewerTimeZone } from '@/lib/tz';
 import { dateTime, humanize, platformLabel, relativeTime } from '@/lib/format';
 import type { SupportTicketDetail } from '@/lib/types';
 import { Avatar, Badge, Card, cx, KeyValue, ListGroup, PageHeader, Row } from '@/components/ui';
+import { LiveSharingDetails } from '@/components/live-sharing';
 import { STATUS_BADGE } from '../status';
 import { ReplyBox, TicketControls } from './reply-box';
 import { replyToTicket, updateTicket } from '../actions';
+import { endLiveLinks } from '../../runners/actions';
 
 export const metadata: Metadata = { title: 'Support conversation' };
 
@@ -61,6 +63,11 @@ export default async function SupportTicketPage({ params }: { params: Promise<{ 
                 { label: 'Conversations', value: t.runner.tickets }
               ]} />
               {can(ctx, 'users.view') ? <Link href={`/runners/${t.runner.id}`} className="type-label text-primary">Open runner profile</Link> : null}
+            </Card>
+          ) : null}
+          {t.runner ? (
+            <Card title="Live sharing">
+              <LiveSharingDetails handle={t.runner.handle} sharing={t.runner.sharing} end={endLiveLinks.bind(null, t.runner.id)} />
             </Card>
           ) : null}
           <Card title="Conversation">

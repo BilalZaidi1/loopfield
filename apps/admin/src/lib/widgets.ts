@@ -19,6 +19,10 @@ export const WIDGETS: WidgetDef[] = [
   { id: 'kpi_land', label: 'Land captured today', band: 'tile', needs: 'analytics', metric: 'land_km2' },
   { id: 'kpi_support', label: 'Open support conversations', band: 'tile', needs: 'support' },
   { id: 'kpi_runners', label: 'Runners in total', band: 'tile' },
+  { id: 'kpi_live_links', label: 'Live links active now', band: 'tile' },
+  { id: 'kpi_route_snap', label: 'Path-following requests this month', band: 'tile' },
+  { id: 'kpi_running_now', label: 'Runners out right now', band: 'tile' },
+  { id: 'kpi_routes_waiting', label: 'Speed-route proposals waiting', band: 'tile' },
   { id: 'chart_runs', label: 'Runs, last 14 days', band: 'chart', needs: 'analytics', metric: 'runs' },
   { id: 'chart_active', label: 'Active runners, last 14 days', band: 'chart', needs: 'analytics', metric: 'active_runners' },
   { id: 'chart_signups', label: 'Sign-ups, last 14 days', band: 'chart', needs: 'analytics', metric: 'signups' },
@@ -34,7 +38,10 @@ export const WIDGETS: WidgetDef[] = [
   { id: 'support_queue', label: 'Support inbox', band: 'panel', needs: 'support' }
 ];
 
-export const DEFAULT_WIDGETS = ['kpi_active', 'kpi_runs', 'kpi_distance', 'kpi_signups', 'chart_runs', 'chart_active', 'queues', 'switches', 'jobs', 'seasons', 'schedules', 'support_queue'];
+export const DEFAULT_WIDGETS = [
+  'kpi_active', 'kpi_runs', 'kpi_distance', 'kpi_signups', 'kpi_live_links', 'kpi_route_snap', 'kpi_running_now', 'kpi_routes_waiting',
+  'chart_runs', 'chart_active', 'queues', 'switches', 'jobs', 'seasons', 'schedules', 'support_queue'
+];
 
 export function availableWidgets(permissions: readonly string[]): WidgetDef[] {
   return WIDGETS.filter((w) => !w.needs || permissions.includes(w.needs));

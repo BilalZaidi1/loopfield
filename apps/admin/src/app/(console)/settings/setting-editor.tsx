@@ -5,6 +5,7 @@ import { INTEGRITY_RULES } from '@loopfield/core';
 import type { ConfigRow } from '@/lib/types';
 import { DANGEROUS_KEYS, formatValue, validateConfigValue } from '@/lib/config-validate';
 import { asMaintenance } from '@/lib/switches';
+import { HEALTH_CARD_LABELS } from '@/lib/running';
 import { ActionButton, ReasonSwitch } from '@/components/client';
 import { Icon } from '@/components/icons';
 import { cx } from '@/components/ui';
@@ -40,13 +41,13 @@ export function SettingEditor({ row, rateLimits }: { row: ConfigRow; rateLimits?
     case 'string':
       return row.allowed ? <SelectEditor row={row} /> : <ScalarEditor row={row} kind="text" />;
     case 'string_array':
-      return <ListEditor row={row} />;
+      return row.allowed ? <OptionsEditor row={row} /> : <ListEditor row={row} />;
     default:
       return <JsonEditor row={row} />;
   }
 }
 
-const NEEDS: Record<string, string> = { admin: 'Admin', territory_operator: 'Kill switches', config: 'App settings', monetization: 'Monetization' };
+const NEEDS: Record<string, string> = { admin: 'Admin', territory_operator: 'Kill switches', config: 'App settings', monetization: 'Monetization', 'rules.edit': 'Edit game rules' };
 
 function ReadOnly({ row }: { row: ConfigRow }) {
   return (
@@ -251,6 +252,46 @@ function ListEditor({ row }: { row: ConfigRow }) {
         <SaveButton row={row} value={items} error={error} changed={changed} />
       </div>
       <Hint error={changed ? error : null} />
+    </div>
+  );
+}
+
+/** A list with known options (the health cards): each option is a chip that is on or off, so nothing can be misspelt. */
+function OptionsEditor({ row }: { row: ConfigRow }) {
+  const options = row.allowed ?? [];
+  const initial = Array.isArray(row.value) ? (row.value as string[]) : [];
+  const [items, setItems] = useState<string[]>(initial);
+  // Keep the options' order, and anything already saved that is no longer an option, so it can be removed.
+  const unknown = items.filter((x) => !options.includes(x));
+  const value = [...options.filter((o) => items.includes(o)), ...unknown];
+  const changed = JSON.stringify([...value].sort()) !== JSON.stringify([...initial].sort());
+  const error = validateConfigValue(row, value);
+  const toggle = (o: string) => setItems((s) => (s.includes(o) ? s.filter((x) => x !== o) : [...s, o]));
+  return (
+    <div className="flex flex-col gap-2 w-full sm:max-w-md">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label={row.label}>
+        {options.map((o) => {
+          const on = items.includes(o);
+          return (
+            <button key={o} type="button" aria-pressed={on} onClick={() => toggle(o)} title={o}
+              className={cx('inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 type-label', on ? 'border-danger bg-danger-soft text-danger' : 'border-line bg-surface text-muted hover:text-ink')}>
+              {on ? <Icon name="x" size={12} /> : null}
+              {HEALTH_CARD_LABELS[o] ?? o}
+            </button>
+          );
+        })}
+        {unknown.map((o) => (
+          <button key={o} type="button" onClick={() => toggle(o)} aria-label={`Remove ${o}, which is not a known option`}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-dashed border-warning px-3 type-label text-warning">
+            <Icon name="x" size={12} /> {o} (unknown)
+          </button>
+        ))}
+      </div>
+      <p className="type-caption text-muted">{items.length ? `${items.length} hidden in the app. Tap a card to show it again.` : 'Nothing hidden. Tap a card to hide it in the app.'}</p>
+      <div className="flex items-center gap-3">
+        <SaveButton row={row} value={value} error={error} changed={changed} />
+        <Hint error={changed ? error : null} />
+      </div>
     </div>
   );
 }

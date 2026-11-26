@@ -86,10 +86,14 @@ export function ActionButton({
   confirmLabel = 'Confirm',
   successMessage = 'Done',
   disabled,
-  icon
+  icon,
+  presets,
+  checklist,
+  option
 }: {
   label: string;
-  action: (reason: string) => Promise<ActionResult>;
+  /** Called with the reason and, when `option` is given, whether its box was ticked. */
+  action: (reason: string, option: boolean) => Promise<ActionResult>;
   variant?: ButtonVariant;
   size?: 'md' | 'sm';
   title?: string;
@@ -101,25 +105,35 @@ export function ActionButton({
   successMessage?: string;
   disabled?: boolean;
   icon?: Parameters<typeof Icon>[0]['name'];
+  /** Common reasons that fill the reason field (it can still be edited). */
+  presets?: string[];
+  /** Every item must be ticked before the action can be confirmed. */
+  checklist?: string[];
+  /** One optional extra, shown as a checkbox. */
+  option?: { label: string; help?: string };
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [phrase, setPhrase] = useState('');
+  const [ticked, setTicked] = useState<number[]>([]);
+  const [optionOn, setOptionOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const fieldId = useId();
   const reasonOk = !requireReason || reason.trim().length >= 5;
   const phraseOk = !confirmPhrase || phrase.trim() === confirmPhrase;
+  const checklistOk = !checklist?.length || ticked.length === checklist.length;
+  const reset = () => { setReason(''); setPhrase(''); setTicked([]); setOptionOn(false); };
 
   const submit = () =>
     start(async () => {
       setError(null);
-      const r = await action(reason.trim());
+      // Bound server actions receive only the arguments they declare: the option only when there is one.
+      const r = option ? await action(reason.trim(), optionOn) : await (action as (reason: string) => Promise<ActionResult>)(reason.trim());
       if (!r.ok) { setError(r.error); return; }
       setOpen(false);
-      setReason('');
-      setPhrase('');
+      reset();
       toast(r.message ?? successMessage);
       router.refresh();
     });
@@ -132,9 +146,40 @@ export function ActionButton({
       </Button>
       <Modal open={open} onClose={() => !pending && setOpen(false)} title={title ?? label}>
         {description ? <div className="type-body text-muted">{description}</div> : null}
+        {checklist?.length ? (
+          <fieldset className="flex flex-col gap-2">
+            <legend className="type-label mb-1">Check before you confirm</legend>
+            {checklist.map((item, i) => (
+              <label key={item} className="flex items-start gap-3 type-body">
+                <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--lf-primary-fill)]" checked={ticked.includes(i)}
+                  onChange={(e) => setTicked((t) => (e.target.checked ? [...t, i] : t.filter((x) => x !== i)))} />
+                {item}
+              </label>
+            ))}
+          </fieldset>
+        ) : null}
+        {option ? (
+          <label className="flex items-start gap-3 rounded-md bg-surface-alt px-4 py-3">
+            <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--lf-primary-fill)]" checked={optionOn} onChange={(e) => setOptionOn(e.target.checked)} />
+            <span className="flex flex-col gap-0.5">
+              <span className="type-label">{option.label}</span>
+              {option.help ? <span className="type-caption text-muted">{option.help}</span> : null}
+            </span>
+          </label>
+        ) : null}
         {requireReason ? (
           <div className="flex flex-col gap-1">
             <label htmlFor={`${fieldId}-reason`} className="type-label">{reasonLabel}</label>
+            {presets?.length ? (
+              <div className="flex flex-wrap gap-1.5 pb-1" role="group" aria-label="Common reasons">
+                {presets.map((p) => (
+                  <button key={p} type="button" aria-pressed={reason === p} onClick={() => setReason(p)}
+                    className={cx('rounded-full border px-3 min-h-8 type-caption font-semibold', reason === p ? 'border-primary bg-primary-soft text-on-primary-soft' : 'border-line-strong text-muted hover:text-ink')}>
+                    {p}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <textarea
               id={`${fieldId}-reason`}
               value={reason}
@@ -163,10 +208,10 @@ export function ActionButton({
         ) : null}
         {error ? <Banner tone="danger" text={error} /> : null}
         <div className="flex flex-col gap-2 sm:flex-row-reverse">
-          <Button variant={variant === 'danger' ? 'danger' : 'primary'} arrow={variant !== 'danger'} disabled={!reasonOk || !phraseOk || pending} onClick={submit}>
+          <Button variant={variant === 'danger' ? 'danger' : 'primary'} arrow={variant !== 'danger'} disabled={!reasonOk || !phraseOk || !checklistOk || pending} onClick={submit}>
             {pending ? 'Working…' : confirmLabel}
           </Button>
-          <Button variant="ghost" disabled={pending} onClick={() => setOpen(false)}>Cancel</Button>
+          <Button variant="ghost" disabled={pending} onClick={() => { setOpen(false); reset(); }}>Cancel</Button>
         </div>
       </Modal>
     </>

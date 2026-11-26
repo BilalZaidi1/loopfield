@@ -19,7 +19,7 @@ const TABS: { value: ConfigCategory; label: string; blurb: string }[] = [
   { value: 'limits', label: 'Posts & limits', blurb: 'Post and comment limits, the daily digest time and anti-spam limits per runner.' },
   { value: 'release', label: 'Releases', blurb: 'Force or nudge app updates, or put the app behind a maintenance screen.' },
   { value: 'monetization', label: 'Monetization', blurb: 'The pilot is free. Core competition, social, health, privacy and deletion can never be gated.' },
-  { value: 'system', label: 'System', blurb: 'Rules status and how strictly operator sessions are checked.' },
+  { value: 'system', label: 'System', blurb: 'Rules status, how strictly operator sessions are checked, the reporting time zone and the levels the console warns at.' },
   { value: 'other', label: 'Other', blurb: 'Settings not yet in the registry. Admins can edit them as raw JSON of the same type.' }
 ];
 
@@ -55,7 +55,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
 function SettingRow({ row, tz, rateLimits }: { row: ConfigRow; tz: string; rateLimits?: RateLimitDef[] }) {
   return (
-    <li className="px-5 py-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <li id={row.key} className="px-5 py-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between scroll-mt-24 target:bg-primary-soft/40">
       <div className="flex flex-col gap-1 min-w-0 lg:max-w-[52%]">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="type-body-strong">{row.label}</h3>

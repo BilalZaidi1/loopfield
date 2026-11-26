@@ -44,6 +44,7 @@ export function validateConfigValue(meta: Meta, value: unknown): string | null {
       for (const v of value) {
         if (typeof v !== 'string' || !KEY.test(v)) return `${label} entries must be lowercase keys (a-z, 0-9, _)`;
         if (meta.key === 'premium_features' && CORE_FEATURES.includes(v)) return `"${v}" is a core feature and can never require premium`;
+        if (meta.allowed && !meta.allowed.includes(v)) return `"${v}" is not one of the options for ${label}`;
       }
       break;
     case 'object': {

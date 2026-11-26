@@ -27,6 +27,8 @@ const PERMS: [string, string, string, string][] = [
   ['staff', 'Platform', 'Staff', 'Grant and revoke roles, never beyond your own permissions.']
 ];
 const ALL = PERMS.map((p) => p[0]);
+const RUNNING_TOOLS = ['planned_routes_created', 'route_snap_requests', 'live_links_started', 'live_links_opened', 'running_now_peak', 'friends_live_runs',
+  'route_proposals_stretch', 'route_proposals_a_to_b', 'route_review_hours_median', 'gear_added', 'runs_with_gear', 'gear_reminders_sent'];
 
 const RULES: [string, string, string, string, string, number, number, number, number, string][] = [
   ['territory', 'minLoopLengthMeters', 'Minimum loop length', 'Shortest run that can claim land.', 'm', 1000, 200, 10000, 50, 'Loop'],
@@ -131,6 +133,7 @@ export function extraFixture(fn: string): unknown {
         lifecycle: { exports: [], deletion: null },
         roles: [],
         staff_actions: [{ id: 301, action: 'user_signed_out', object_type: 'profile', created_at: ago(60 * 24), reason: 'Reported a lost phone', actor: 'ayesha.k' }],
+        sharing: { live_links: 1, friends_sharing: true, live_links_enabled: true, friends_live_enabled: true },
         can_manage: true,
         is_self: false
       };
@@ -152,7 +155,8 @@ export function extraFixture(fn: string): unknown {
     case 'ops_support_ticket':
       return {
         ticket: { id: 't2', user_id: 'c2', category: 'competition', subject: 'Loop not counted near the flyover', status: 'open', priority: 'normal', assigned_to: null, app_version: '1.4.0', platform: 'ios', device: 'Apple iPhone 15 OS 19.1', context: {}, created_at: ago(60 * 5), last_message_at: ago(42), first_response_at: ago(60 * 4), solved_at: null },
-        runner: { id: 'c2', handle: 'trailhawk', display_name: 'Hamza Ali', status: 'active', joined_at: ago(60 * 24 * 35), avatar_kind: 'style', runs: 88, last_run_at: ago(2), tickets: 2 },
+        runner: { id: 'c2', handle: 'trailhawk', display_name: 'Hamza Ali', status: 'active', joined_at: ago(60 * 24 * 35), avatar_kind: 'style', runs: 88, last_run_at: ago(2), tickets: 2,
+          sharing: { live_links: 2, friends_sharing: true, live_links_enabled: true, friends_live_enabled: true } },
         assignee: null,
         messages: [
           { id: 'm1', from: 'runner', body: 'I ran the Sea View loop this morning but it says "not counted". The tunnel under the flyover has no GPS, is that why?', internal: false, at: ago(60 * 5), author: null },
@@ -174,10 +178,18 @@ export function extraFixture(fn: string): unknown {
         land_km2: runs.map((r) => Math.round(r * 0.024 * 10) / 10), signups: wave(n, 22, 9, 4), onboarded: wave(n, 18, 7, 4), posts: wave(n, 40, 12, 2), comments: wave(n, 120, 30, 3),
         follows: wave(n, 55, 14, 5), club_joins: wave(n, 12, 5, 6), reports: wave(n, 6, 3, 7), moderation_resolved: wave(n, 5, 3, 8), integrity_opened: wave(n, 2, 2, 9),
         route_proposals: wave(n, 2, 1, 1), support_opened: wave(n, 4, 2, 2), support_solved: wave(n, 4, 2, 3), support_first_response_min: wave(n, 38, 15, 4),
-        pushes_sent: wave(n, 900, 200, 5), emails_sent: wave(n, 140, 40, 6), jobs_dead: wave(n, 1, 1, 7)
+        pushes_sent: wave(n, 900, 200, 5), emails_sent: wave(n, 140, 40, 6), jobs_dead: wave(n, 1, 1, 7),
+        // Running tools: they started on 25 Nov, so earlier days are empty.
+        planned_routes_created: wave(n, 34, 10, 2), route_snap_requests: wave(n, 1300, 300, 3), live_links_started: wave(n, 46, 12, 4),
+        live_links_opened: wave(n, 31, 9, 4), running_now_peak: wave(n, 52, 14, 5), friends_live_runs: wave(n, 70, 18, 6),
+        route_proposals_stretch: wave(n, 2, 1, 7), route_proposals_a_to_b: wave(n, 1, 1, 8), route_review_hours_median: wave(n, 22, 9, 9),
+        gear_added: wave(n, 9, 4, 1), runs_with_gear: runs.map((r) => Math.round(r * 0.34)), gear_reminders_sent: wave(n, 3, 2, 2)
       };
+      for (const k of RUNNING_TOOLS) series[k] = series[k]!.map((v, i) => (i < n - 8 ? 0 : v));
       const sum = (a: number[]) => a.reduce((s, v) => s + v, 0);
-      const totals = Object.fromEntries(Object.entries(series).map(([k, v]) => [k, k === 'support_first_response_min' ? sum(v) / v.length : k === 'active_runners' ? 1840 : sum(v)]));
+      const average = (a: number[]) => { const d = a.filter((v) => v > 0); return d.length ? sum(d) / d.length : 0; };
+      const totals = Object.fromEntries(Object.entries(series).map(([k, v]) => [k,
+        k === 'support_first_response_min' || k === 'route_review_hours_median' ? average(v) : k === 'running_now_peak' ? Math.max(...v) : k === 'active_runners' ? 1840 : sum(v)]));
       const previous = Object.fromEntries(Object.entries(totals).map(([k, v]) => [k, Math.round(Number(v) * 0.88)]));
       const catalogRows = [
         ['active_runners', 'Active runners', 'runners', 'distinct', 'Running'], ['runs', 'Runs', 'runs', 'sum', 'Running'], ['distance_km', 'Distance', 'km', 'sum', 'Running'],
@@ -188,7 +200,13 @@ export function extraFixture(fn: string): unknown {
         ['moderation_resolved', 'Moderation cases resolved', 'cases', 'sum', 'Trust & safety'], ['integrity_opened', 'Integrity cases opened', 'cases', 'sum', 'Trust & safety'],
         ['route_proposals', 'Route proposals', 'proposals', 'sum', 'Trust & safety'], ['support_opened', 'Support conversations', 'conversations', 'sum', 'Support'],
         ['support_solved', 'Support solved', 'conversations', 'sum', 'Support'], ['support_first_response_min', 'First response (median)', 'min', 'median', 'Support'],
-        ['pushes_sent', 'Push notifications sent', 'pushes', 'sum', 'Platform'], ['emails_sent', 'Emails sent', 'emails', 'sum', 'Platform'], ['jobs_dead', 'Jobs that failed', 'jobs', 'sum', 'Platform']
+        ['pushes_sent', 'Push notifications sent', 'pushes', 'sum', 'Platform'], ['emails_sent', 'Emails sent', 'emails', 'sum', 'Platform'], ['jobs_dead', 'Jobs that failed', 'jobs', 'sum', 'Platform'],
+        ['planned_routes_created', 'Planned routes saved', 'routes', 'sum', 'Running tools'], ['route_snap_requests', 'Path-following requests', 'requests', 'sum', 'Running tools'],
+        ['live_links_started', 'Live links started', 'links', 'sum', 'Running tools'], ['live_links_opened', 'Live links opened', 'links', 'sum', 'Running tools'],
+        ['running_now_peak', 'Most runners out at once', 'runners', 'max', 'Running tools'], ['friends_live_runs', 'Runs shared live with friends', 'runs', 'sum', 'Running tools'],
+        ['route_proposals_stretch', 'Proposals from part of a run', 'proposals', 'sum', 'Running tools'], ['route_proposals_a_to_b', 'Start-to-finish proposals', 'proposals', 'sum', 'Running tools'],
+        ['route_review_hours_median', 'Route review time (median)', 'h', 'median', 'Running tools'], ['gear_added', 'Pairs of shoes added', 'pairs', 'sum', 'Running tools'],
+        ['runs_with_gear', 'Runs with shoes', 'runs', 'sum', 'Running tools'], ['gear_reminders_sent', 'Shoe reminders sent', 'reminders', 'sum', 'Running tools']
       ].map(([key, label, unit, agg, group]) => ({ key, label, unit, agg, group }));
       return { time_zone: 'Asia/Karachi', from: days[0], to: days[n - 1], previous_from: day(2 * n - 1), previous_to: day(n), refreshed_at: ago(3), catalog: catalogRows, days, series, totals, previous };
     }
