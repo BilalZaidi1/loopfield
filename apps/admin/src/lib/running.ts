@@ -5,8 +5,8 @@ import type { LiveSharing, RouteProposalRow } from '@/lib/types';
  * proposals, shoes) as the console shows them. Staff only ever see counts, and whether sharing is on.
  */
 
-/** The PostHog dashboard for the running tools (docs/analytics/running-tools-dashboard.md). Opening it needs a PostHog login. */
-export const RUNNING_TOOLS_DASHBOARD_URL: string | null = null;
+/** The PostHog dashboard for the running tools (docs/BACK_OFFICE.md, Running features). Opening it needs a PostHog login. */
+export const RUNNING_TOOLS_DASHBOARD_URL: string | null = 'https://eu.posthog.com/project/333912/dashboard/1155435';
 
 /** The health cards the app can hide (App control → disabled_health_cards), in the app's order. */
 export const HEALTH_CARD_LABELS: Record<string, string> = {
