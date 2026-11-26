@@ -43,6 +43,8 @@ export function healthDb(): SQLite.SQLiteDatabase {
     create index if not exists records_end on records (tbl, end_at);
     create table if not exists sync_cursor (key text primary key, value text not null, updated_at integer not null);
     create table if not exists kv (key text primary key, value text not null);
+    create table if not exists routes (id text primary key, json text, end_at integer not null);
+    create index if not exists routes_end on routes (end_at);
   `);
   return db;
 }
@@ -76,7 +78,14 @@ export function persistChanges(changes: HealthChange[]): void {
 }
 
 export function pruneOld(): void {
-  healthDb().runSync('delete from records where end_at < ?', [Date.now() - RETENTION_RULES.healthCacheDays.value * 86_400_000]);
+  const cutoff = Date.now() - RETENTION_RULES.healthCacheDays.value * 86_400_000;
+  healthDb().runSync('delete from records where end_at < ?', [cutoff]);
+  healthDb().runSync('delete from routes where end_at < ?', [cutoff]);
+}
+
+/** Removes the app's own heart-rate readings (from a paired strap) taken between two times: a discarded run's. */
+export function deleteOwnHeartRate(from: number, to: number): void {
+  healthDb().runSync("delete from records where tbl = 'quantity' and id like 'strap:%' and end_at >= ? and end_at <= ?", [from, to]);
 }
 
 export function getCursor(key: string): string | null {
@@ -116,8 +125,28 @@ export function saveGoals(g: { weeklyRuns: number | null; weeklyDistanceM: numbe
   kvSet('goals', g);
 }
 
-/** Disconnect / sign-out / account deletion: remove every imported reading and derived value (FR51). */
+/** Maps of imported runs (R3): whether the runner turned them on, on this phone. */
+export function getImportedMapsFlag(): boolean {
+  return kvGet<boolean>('imported_maps', false) === true;
+}
+export function setImportedMapsFlag(on: boolean): void {
+  kvSet('imported_maps', on);
+}
+
+/** A route kept for an imported workout: its points as [lng, lat], null when the run has none, undefined when not read yet. */
+export function getKeptRoute(workoutId: string): [number, number][] | null | undefined {
+  const r = healthDb().getFirstSync<{ json: string | null }>('select json from routes where id = ?', [workoutId]);
+  return r ? (r.json ? (JSON.parse(r.json) as [number, number][] | null) : null) : undefined;
+}
+export function keepRoute(workoutId: string, points: [number, number][] | null, endAt: number): void {
+  healthDb().runSync('insert or replace into routes (id, json, end_at) values (?, ?, ?)', [workoutId, points ? JSON.stringify(points) : null, endAt]);
+}
+export function deleteKeptRoutes(): void {
+  healthDb().runSync('delete from routes where true');
+}
+
+/** Disconnect / sign-out / account deletion: remove every imported reading, route and derived value (FR51). */
 export async function clearHealthCache(): Promise<void> {
   const d = healthDb();
-  d.execSync('delete from records; delete from sync_cursor; delete from kv;');
+  d.execSync('delete from records; delete from sync_cursor; delete from kv; delete from routes;');
 }

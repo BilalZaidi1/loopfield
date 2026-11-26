@@ -101,6 +101,8 @@ export default function Help() {
         <Bullet>Imported workouts are for your history only — they never claim land or titles.</Bullet>
         <Bullet>Health summaries are descriptive and are not medical advice.</Bullet>
         <Bullet>Training load, effort scores and race predictions are worked out on this phone from your runs and heart rate. They are never uploaded, and they are for training, not medical advice.</Bullet>
+        <Bullet>Heart rate from a paired Bluetooth strap is kept on this phone with your other health data and is never uploaded. The pairing is remembered on this phone only.</Bullet>
+        <Bullet>Maps of imported runs are read only when you open one, kept on this phone and never shared. Turning them off deletes them.</Bullet>
         </Card>
       </Section>
       <Section title="Recording tips" icon="record">

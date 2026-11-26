@@ -10,6 +10,8 @@ import type { HealthCardId } from '@/health/cache';
 import { openHealthConnectSettings } from '@/health/healthconnect';
 import { clearHealthData, connectHealth, disconnectHealth, platformAvailability, PLATFORM_LABEL, setEnabledCards, syncHealth, UNAVAILABLE_BADGE, UNAVAILABLE_TEXT, type Availability } from '@/health/sync';
 import { useHealthConnection } from '@/health/useHealth';
+import { useAppConfig } from '@/lib/appConfig';
+import { IMPORTED_ROUTES_CARD, importedMapsSupported, setImportedMapsOn, useImportedMapsOn } from '@/health/routes';
 
 const CARDS: { id: HealthCardId; label: string }[] = [
   { id: 'workouts', label: 'Workouts (always needed to avoid duplicate runs)' },
@@ -84,6 +86,7 @@ export default function HealthConnections() {
           <ListGroup>
             <Toggle label="Save runs recorded here to the health app" description="Optional and separate. Saves only start, end and distance — never your route or competition results." value={exportOn} onChange={setExportOn} />
           </ListGroup>
+          {conn.connected ? <ImportedMapsToggle /> : null}
         </Section>
       ) : null}
       {available ? (
@@ -105,5 +108,22 @@ export default function HealthConnections() {
         )
       ) : null}
     </Screen>
+  );
+}
+
+/**
+ * Maps of imported runs (R3, Health Connect only): turning it on lets an imported run show its route when the
+ * runner opens it; turning it off deletes every route kept on the phone. Hidden while the back office suspends
+ * the `imported_routes` card.
+ */
+function ImportedMapsToggle() {
+  const { settings } = useAppConfig();
+  const on = useImportedMapsOn();
+  if (!importedMapsSupported() || settings.disabledHealthCards.includes(IMPORTED_ROUTES_CARD)) return null;
+  return (
+    <ListGroup>
+      <Toggle label="Show maps for imported runs" value={on} onChange={setImportedMapsOn}
+        description="Runs another app saved to Health Connect can show their route here. Android asks you once for each route, when you open its map. Maps stay on this phone and can't be shared; turning this off deletes them." />
+    </ListGroup>
   );
 }

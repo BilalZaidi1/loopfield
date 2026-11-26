@@ -19,6 +19,7 @@ export * from './health/units.ts';
 export * from './health/reconcile.ts';
 export * from './health/metrics.ts';
 export * from './health/training.ts';
+export * from './sensors/heartRate.ts';
 export * from './analytics/events.ts';
 export * from './observability/scrub.ts';
 export * from './webhooks/verify.ts';

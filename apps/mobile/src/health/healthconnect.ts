@@ -161,6 +161,40 @@ export async function exportRunToHealthConnect(run: { activityId: string; start:
   ]);
 }
 
+/** Route types Health Connect reports for an exercise session. */
+const ROUTE_DATA = 0;
+const ROUTE_CONSENT_REQUIRED = 2;
+
+export type HcRoute = { kind: 'route'; points: [number, number][] } | { kind: 'none' } | { kind: 'declined' };
+type HcLocation = { latitude: number; longitude: number };
+
+const toPoints = (locs: readonly HcLocation[] | undefined): [number, number][] =>
+  (locs ?? []).filter((l) => Number.isFinite(l.latitude) && Number.isFinite(l.longitude)).map((l) => [l.longitude, l.latitude] as [number, number]);
+
+/**
+ * One exercise session's route (R3), only when the runner asks to see it. A route another app recorded needs the
+ * runner's consent for that route, which Android asks for in its own dialog (unless Health Connect's settings
+ * already allow every route). Never called from a background sync; Android refuses route reads there anyway.
+ */
+export async function readExerciseRoute(recordId: string): Promise<HcRoute> {
+  if (!HC) return { kind: 'none' };
+  await HC.initialize();
+  const r = (await HC.readRecord('ExerciseSession', recordId)) as { exerciseRoute?: { type?: number; route?: HcLocation[] } } | null;
+  const route = r?.exerciseRoute;
+  if (route?.type === ROUTE_CONSENT_REQUIRED) {
+    let locs: HcLocation[] | { route?: HcLocation[] };
+    try {
+      locs = (await HC.requestExerciseRoute(recordId)) as HcLocation[] | { route?: HcLocation[] };
+    } catch {
+      return { kind: 'declined' };
+    }
+    const points = toPoints(Array.isArray(locs) ? locs : locs?.route);
+    return points.length > 1 ? { kind: 'route', points } : { kind: 'none' };
+  }
+  const points = route && (route.type == null || route.type === ROUTE_DATA) ? toPoints(route.route) : [];
+  return points.length > 1 ? { kind: 'route', points } : { kind: 'none' };
+}
+
 export function openHealthConnectSettings(): void {
   HC?.openHealthConnectSettings();
 }

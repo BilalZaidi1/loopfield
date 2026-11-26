@@ -28,7 +28,9 @@ const HEALTH_CONNECT_READ = [
   'android.permission.health.READ_SLEEP',
   'android.permission.health.READ_VO2_MAX',
   'android.permission.health.READ_ELEVATION_GAINED',
-  'android.permission.health.READ_STEPS_CADENCE'
+  'android.permission.health.READ_STEPS_CADENCE',
+  // Maps of imported runs (R3): lets Health Connect's settings grant every route at once; otherwise Android asks per route.
+  'android.permission.health.READ_EXERCISE_ROUTES'
 ];
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
@@ -60,7 +62,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       NSMotionUsageDescription: 'During a run you start, the step count is checked on this phone to tell running from cycling. Steps are never uploaded; only a yes/no flag is sent with the run.',
       NSPhotoLibraryUsageDescription: 'Choose photos to add to a post. Location metadata is removed before upload.',
       NSCameraUsageDescription: 'Take a photo to add to a post. Location metadata is removed before upload.',
-      UIBackgroundModes: ['location', 'remote-notification'],
+      // bluetooth-central keeps a paired heart-rate strap connected during a run with the screen off (R3).
+      UIBackgroundModes: ['location', 'remote-notification', 'bluetooth-central'],
       ITSAppUsesNonExemptEncryption: false
     },
     entitlements: { 'com.apple.developer.healthkit': true, 'com.apple.developer.healthkit.access': [] }
@@ -105,6 +108,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ['@rnmapbox/maps', {}],
     ['@kingstinct/react-native-healthkit', { NSHealthShareUsageDescription: 'Optional: read health data for your private on-device dashboard. It is never uploaded or shared.', NSHealthUpdateUsageDescription: 'Optional: save runs you record to Apple Health.', background: false }],
     'react-native-health-connect',
+    // Heart-rate straps (R3). Scanning is declared as never used for location (Android 12+); before Android 12 the
+    // location access the app already asks for to record runs covers it.
+    ['react-native-ble-manager', { neverForLocation: true, bluetoothAlwaysPermission: 'Connect to a heart-rate strap you pair, to show your heart rate during runs. Readings stay on this phone.' }],
     // compileSdk 37 is required by Expo SDK 58 modules (React Native 0.88 default); minSdk 28 for Health Connect.
     ['expo-build-properties', { android: { minSdkVersion: 28, compileSdkVersion: 37, targetSdkVersion: 36 }, ios: { deploymentTarget: '16.4' } }],
     // Source maps upload only when the build has a Sentry auth token (an EAS secret); otherwise the build skips it.

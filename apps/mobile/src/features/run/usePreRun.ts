@@ -214,7 +214,8 @@ export function usePreRun(initialCourse?: string | null, initialPlan?: string | 
         follow: follow ? { choice: follow, offRouteM: cfg.offRouteDistanceM, offRouteSeconds: cfg.offRouteSeconds } : null,
         live: live ? { ...live, everyS: cfg.liveLinkPushSeconds } : null,
         friends,
-        countMe
+        countMe,
+        strap: cfg.enabled.ble_sensors_enabled
       });
       setPendingLive(null);
       return true;

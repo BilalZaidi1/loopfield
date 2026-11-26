@@ -14,6 +14,8 @@ import { attachFollow, checkFollow, followSummary, type FollowChoice } from './f
 import { attachLiveShare, pushLive, startFriendsShare, stopAllShares, type LiveKind } from './livePush';
 import { attachCheckins, endRunningNow, pingRunningNow } from './checkins';
 import { markerShown } from './marker';
+import { discardStrapForRun, ensureStrapForRun, startStrapForRun, stopStrapForRun } from '@/features/sensors/runStrap';
+import { heartRateFrom } from './heartRateSource';
 import { fetchAppConfig } from '@/lib/appConfig';
 
 // The live movement check pauses through the same path as the Pause button.
@@ -139,6 +141,8 @@ export interface StartOptions {
   friends?: 'all' | 'chosen' | null;
   /** Count this run in runners out right now (R2); false when the runner opted out or the feature is off. */
   countMe?: boolean;
+  /** Connect the paired heart-rate strap (R3); false while straps are switched off. */
+  strap?: boolean;
 }
 
 export async function startRun(sessionId: string, opts: StartOptions): Promise<void> {
@@ -156,6 +160,7 @@ export async function startRun(sessionId: string, opts: StartOptions): Promise<v
   if (opts.live) void pushLive(sessionId, { force: true });
   if (opts.friends) void startFriendsShare(sessionId, opts.friends).then((ok) => (ok ? pushLive(sessionId, { force: true }) : undefined));
   void pingRunningNow(sessionId, { force: true });
+  if (opts.strap) void startStrapForRun(sessionId, true).catch(() => {});
   if (opts.startCaptureNow && (s.mode === 'territory' || s.mode === 'territory_speed')) startCapture(sessionId);
   if (opts.startSpeedNow && (s.mode === 'speed' || s.mode === 'territory_speed')) startSpeedAttempt(sessionId);
   track('run_started', { activity_id: sessionId.replace(/-/g, '').slice(0, 32), mode: s.mode, competition_kind: 'public', device_class: 'unknown' });
@@ -203,6 +208,7 @@ export async function resumeRun(sessionId: string): Promise<void> {
   emitCue('resumed', 'Resumed');
   void pushLive(sessionId, { state: 'running', force: true });
   void pingRunningNow(sessionId, { force: true });
+  void ensureStrapForRun(sessionId);
 }
 
 /** Finish: commit locally first, then queue the upload. Returns the local summary. */
@@ -226,6 +232,7 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
   emitCue('finished', 'Run saved on this phone');
   void pushLive(sessionId, { state: 'finished', force: true });
   void endRunningNow(sessionId);
+  const strapReadings = await stopStrapForRun().catch(() => 0);
   const follow = followSummary(sessionId);
   track('run_saved', {
     activity_id: sessionId.replace(/-/g, '').slice(0, 32),
@@ -235,7 +242,8 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
     had_gap: summary.gaps.length > 0,
     followed: follow.followed,
     off_route_alerts: alertBucket(follow.alerts),
-    marker: markerShown()
+    marker: markerShown(),
+    hr_source: heartRateFrom(strapReadings)
   });
   return summary;
 }
@@ -245,6 +253,7 @@ export async function discardRun(sessionId: string): Promise<void> {
   stopSteps();
   void stopAllShares(sessionId).catch(() => {});
   void endRunningNow(sessionId).catch(() => {});
+  void discardStrapForRun().catch(() => {});
   const d = recordingDb();
   d.withTransactionSync(() => {
     d.runSync('delete from samples where session_id = ?', [sessionId]);
