@@ -19,7 +19,7 @@ import { useSession, useUnits } from '@/state/session';
 import { radius, spacing, usePalette, useTheme } from '@/theme/tokens';
 import { PreRunControls } from './PreRunPanel';
 import { followStatus } from '@/recording/follow';
-import { LiveShareSheet, LiveShareStatus } from '@/features/live/LiveShare';
+import { FriendsShareStatus, LiveShareSheet, LiveShareStatus } from '@/features/live/LiveShare';
 import { gpsColor, gpsLabel, useGpsReadiness, usePreRun, type Gps } from './usePreRun';
 
 /**
@@ -189,6 +189,7 @@ export function LiveParts({ live, now, onTop, onPanel, panelBottom }: { live: Li
         {r.territory ? <CaptureStrip live={live} r={r} detailed={expanded} /> : null}
         <FollowStrip sessionId={r.s.id} now={now} />
         <LiveShareStatus sessionId={r.s.id} onShare={() => setSharing(true)} />
+        <FriendsShareStatus sessionId={r.s.id} />
         {expanded && r.speed ? (
           <View style={[recorderStyles.strip, { backgroundColor: p.surfaceAlt }]}>
             <Icon name="stopwatch" color={p.orangeText} size={20} />

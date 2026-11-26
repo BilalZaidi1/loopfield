@@ -90,3 +90,27 @@ export function LivePicker({ pre }: { pre: PreRun }) {
     </>
   );
 }
+
+/** Before GO (R2): while the runner shares live runs with friends, a reminder with "Not this run". */
+export function FriendsLivePicker({ pre }: { pre: PreRun }) {
+  const p = usePalette();
+  if (pre.friendsMode === 'off') return null;
+  const who = pre.friendsMode === 'all' ? 'Your friends' : 'The friends you chose';
+  if (pre.skipFriends) {
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+        <Icon name="clubs" color={p.textMuted} size={20} />
+        <Txt variant="caption" style={{ flex: 1 }}>Not shared with friends this run.</Txt>
+        <Button size="sm" variant="ghost" label="Share it" onPress={() => pre.setSkipFriends(false)} />
+      </View>
+    );
+  }
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }} accessibilityLiveRegion="polite">
+      <Icon name="clubs" color={p.primary} size={20} />
+      <Txt variant="caption" color="text" style={{ flex: 1 }}>{`Friends can see this run live. ${who} see where you are until the run ends.`}</Txt>
+      <Button size="sm" variant="ghost" label="Not this run" onPress={() => pre.setSkipFriends(true)} />
+    </View>
+  );
+}
+

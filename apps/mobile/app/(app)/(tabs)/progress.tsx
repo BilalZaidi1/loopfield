@@ -8,6 +8,7 @@ import { TopBar } from '@/components/TopBar';
 import { fmtDate, fmtDay, fmtDistance, fmtDuration, fmtPace, splitValue } from '@/lib/format';
 import { personalBests, useActivities, weeklyTotals } from '@/features/results/useActivities';
 import { getGoals } from '@/health/cache';
+import { TrainingCard } from '@/features/training/TrainingCard';
 import { PLATFORM_LABEL, STALE_AFTER_MS, UNAVAILABLE_BADGE } from '@/health/sync';
 import { useHealthAvailability, useHealthConnection } from '@/health/useHealth';
 import { useNow } from '@/lib/useNow';
@@ -77,6 +78,7 @@ export default function Progress() {
                   <Icon name="chevron-right" color={p.textSubtle} size={22} />
                 </View>
               </Card>
+              <TrainingCard />
               <Section title="Personal bests" icon="medal">
                 {totals.runs === 0 ? (
                   <EmptyState icon="medal" title="No personal bests yet" body="Record a run and your bests appear here." action={{ label: 'Start a run', onPress: () => router.push('/run/active') }} />

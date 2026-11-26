@@ -4,6 +4,7 @@ import { activeSession, appendSamples } from './db';
 import { checkFollow } from './follow';
 import { checkIntegrity } from './integrity';
 import { pushLive } from './livePush';
+import { pingRunningNow } from './checkins';
 
 /**
  * Background location task, defined at module scope (imported from index.ts before the app renders)
@@ -21,5 +22,6 @@ if (!TaskManager.isTaskDefined(LOCATION_TASK)) {
     await checkIntegrity(session.id);
     await checkFollow(session.id);
     void pushLive(session.id);
+    void pingRunningNow(session.id);
   });
 }

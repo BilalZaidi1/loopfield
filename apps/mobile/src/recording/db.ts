@@ -44,6 +44,14 @@ let db: SQLite.SQLiteDatabase | null = null;
 export function recordingDb(): SQLite.SQLiteDatabase {
   if (db) return db;
   db = SQLite.openDatabaseSync('recording.db');
+  // Live shares are kept per run and link (R2: a run can have a live link and a friends share). A phone that
+  // kept them per run only holds nothing worth keeping between runs, so that older table is simply replaced.
+  try {
+    const cols = db.getAllSync<{ name: string; pk: number }>('pragma table_info(live_shares)');
+    if (cols.length && cols.filter((c) => c.pk > 0).length < 2) db.execSync('drop table live_shares');
+  } catch {
+    // a fresh database: nothing to replace
+  }
   db.execSync(`
     pragma journal_mode = wal;
     pragma synchronous = normal;
@@ -72,9 +80,13 @@ export function recordingDb(): SQLite.SQLiteDatabase {
       off_route_m integer not null, off_route_s integer not null, snapshot text, updated_at integer not null
     );
     create table if not exists live_shares (
-      session_id text primary key, token text not null, kind text not null, every_s integer not null,
+      session_id text not null, token text not null, kind text not null, every_s integer not null,
       last_push_at integer not null default 0, last_sent_t integer not null default 0, state text not null default 'running',
-      views integer not null default 0, ended integer not null default 0
+      views integer not null default 0, ended integer not null default 0,
+      primary key (session_id, token)
+    );
+    create table if not exists checkins (
+      session_id text primary key, counted integer not null, last_ping_at integer not null default 0, ended integer not null default 0
     );
   `);
   return db;

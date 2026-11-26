@@ -5,7 +5,7 @@ import { friendlyError } from '@/lib/api';
 import { PAUSED_TEXT, useAppConfig } from '@/lib/appConfig';
 import { Banner, Button, Segmented, Sheet, Toggle, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
-import { attachLiveShare, liveShareFor, pushLive, setPendingLiveShare, stopLiveShare, type LiveKind } from '@/recording/livePush';
+import { attachLiveShare, friendsShareFor, liveShareFor, pushLive, setPendingLiveShare, stopFriendsShare, stopLiveShare, type LiveKind } from '@/recording/livePush';
 import { spacing, usePalette } from '@/theme/tokens';
 import { createLiveLink, MY_LIVE_LINKS_KEY, shareLiveLink, useMyLiveLinks, type LiveLinkInfo } from './api';
 
@@ -119,3 +119,25 @@ export function LiveShareStatus({ sessionId, onShare }: { sessionId: string; onS
     </View>
   );
 }
+
+/** During a run shared with friends (R2): a quiet note, with Stop to end sharing with friends at once. */
+export function FriendsShareStatus({ sessionId }: { sessionId: string }) {
+  const p = usePalette();
+  const [, setTick] = useState(0);
+  let share: ReturnType<typeof friendsShareFor> = null;
+  try {
+    share = friendsShareFor(sessionId);
+  } catch {
+    share = null;
+  }
+  if (!share || share.ended) return null;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }} accessibilityLiveRegion="polite">
+      <Icon name="clubs" color={p.primary} size={18} />
+      <Txt variant="label" style={{ flex: 1 }}>Friends can see you live</Txt>
+      <Button variant="ghost" size="sm" icon="stop" label="Stop" accessibilityLabel="Stop sharing this run with friends"
+        onPress={() => void stopFriendsShare(sessionId).then(() => setTick((n) => n + 1))} />
+    </View>
+  );
+}
+

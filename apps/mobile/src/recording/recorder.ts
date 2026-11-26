@@ -11,7 +11,8 @@ import { activeSession, addEvent, appendSamples, eventsFor, getSession, recordin
 import { LOCATION_TASK } from './task';
 import { checkIntegrity, setAutoPauseHandler, setIntegrityOverrides, startSteps, stopSteps } from './integrity';
 import { attachFollow, checkFollow, followSummary, type FollowChoice } from './follow';
-import { attachLiveShare, pushLive, stopLiveShare, type LiveKind } from './livePush';
+import { attachLiveShare, pushLive, startFriendsShare, stopAllShares, type LiveKind } from './livePush';
+import { attachCheckins, endRunningNow, pingRunningNow } from './checkins';
 import { markerShown } from './marker';
 import { fetchAppConfig } from '@/lib/appConfig';
 
@@ -110,6 +111,7 @@ async function startForegroundUpdates(sessionId: string): Promise<void> {
     void checkIntegrity(sessionId);
     void checkFollow(sessionId);
     void pushLive(sessionId);
+    void pingRunningNow(sessionId);
   });
   await activateKeepAwakeAsync(KEEP_AWAKE_TAG).catch(() => {});
 }
@@ -133,6 +135,10 @@ export interface StartOptions {
   follow?: { choice: FollowChoice; offRouteM: number; offRouteSeconds: number } | null;
   /** A live link to share this run through. */
   live?: { token: string; kind: LiveKind; everyS: number } | null;
+  /** Share this run with friends (R2): who sees it, or null for nobody. */
+  friends?: 'all' | 'chosen' | null;
+  /** Count this run in runners out right now (R2); false when the runner opted out or the feature is off. */
+  countMe?: boolean;
 }
 
 export async function startRun(sessionId: string, opts: StartOptions): Promise<void> {
@@ -144,9 +150,12 @@ export async function startRun(sessionId: string, opts: StartOptions): Promise<v
   void startSteps();
   if (opts.follow) attachFollow(sessionId, opts.follow.choice, { offRouteM: opts.follow.offRouteM, offRouteSeconds: opts.follow.offRouteSeconds });
   if (opts.live) attachLiveShare(sessionId, opts.live.token, opts.live.kind, opts.live.everyS);
+  attachCheckins(sessionId, opts.countMe === true);
   await startUpdates(sessionId);
   emitCue('started', 'Run started');
   if (opts.live) void pushLive(sessionId, { force: true });
+  if (opts.friends) void startFriendsShare(sessionId, opts.friends).then((ok) => (ok ? pushLive(sessionId, { force: true }) : undefined));
+  void pingRunningNow(sessionId, { force: true });
   if (opts.startCaptureNow && (s.mode === 'territory' || s.mode === 'territory_speed')) startCapture(sessionId);
   if (opts.startSpeedNow && (s.mode === 'speed' || s.mode === 'territory_speed')) startSpeedAttempt(sessionId);
   track('run_started', { activity_id: sessionId.replace(/-/g, '').slice(0, 32), mode: s.mode, competition_kind: 'public', device_class: 'unknown' });
@@ -193,6 +202,7 @@ export async function resumeRun(sessionId: string): Promise<void> {
   await startUpdates(sessionId);
   emitCue('resumed', 'Resumed');
   void pushLive(sessionId, { state: 'running', force: true });
+  void pingRunningNow(sessionId, { force: true });
 }
 
 /** Finish: commit locally first, then queue the upload. Returns the local summary. */
@@ -215,6 +225,7 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
   );
   emitCue('finished', 'Run saved on this phone');
   void pushLive(sessionId, { state: 'finished', force: true });
+  void endRunningNow(sessionId);
   const follow = followSummary(sessionId);
   track('run_saved', {
     activity_id: sessionId.replace(/-/g, '').slice(0, 32),
@@ -232,13 +243,15 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
 export async function discardRun(sessionId: string): Promise<void> {
   await stopUpdates();
   stopSteps();
-  void stopLiveShare(sessionId).catch(() => {});
+  void stopAllShares(sessionId).catch(() => {});
+  void endRunningNow(sessionId).catch(() => {});
   const d = recordingDb();
   d.withTransactionSync(() => {
     d.runSync('delete from samples where session_id = ?', [sessionId]);
     d.runSync('delete from events where session_id = ?', [sessionId]);
     d.runSync('delete from follows where session_id = ?', [sessionId]);
     d.runSync('delete from live_shares where session_id = ?', [sessionId]);
+    d.runSync('delete from checkins where session_id = ?', [sessionId]);
     d.runSync("update sessions set state = 'discarded' where id = ?", [sessionId]);
   });
 }

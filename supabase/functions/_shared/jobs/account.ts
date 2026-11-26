@@ -70,6 +70,8 @@ export const exportData: JobHandler = async (payload, ctx) => {
     planned_routes: await ctx.sql`select id, name, path as encoded_polyline, distance_m, is_loop, snapped, created_at, updated_at from public.planned_routes where user_id = ${userId} order by created_at`,
     // Live positions are deleted within a day of each run, so only the links themselves are listed.
     live_links: await ctx.sql`select kind, show_everywhere, views, created_at, ended_at, revoked_at from public.live_links where user_id = ${userId} order by created_at`,
+    // The friends chosen to see live runs (the choice itself is in settings: friends_live_mode).
+    live_share_people: await ctx.sql`select friend_id, created_at from public.live_share_people where user_id = ${userId} order by created_at`,
     posts: await ctx.sql`select id, audience, body, shared_summary, status, created_at from public.posts where author_id = ${userId} and status <> 'deleted'`,
     comments: await ctx.sql`select id, post_id, body, created_at from public.comments where author_id = ${userId} and status = 'visible'`,
     follows: await ctx.sql`select follower_id, followee_id, state, created_at from public.follows where follower_id = ${userId} or followee_id = ${userId}`,

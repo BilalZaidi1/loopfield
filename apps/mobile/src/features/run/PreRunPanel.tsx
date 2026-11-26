@@ -10,7 +10,7 @@ import { useUnits } from '@/state/session';
 import { radius, spacing, usePalette } from '@/theme/tokens';
 import { GoButton } from './GoButton';
 import { BROWSER, RUN_MODES, type PreRun } from './usePreRun';
-import { FollowPicker, LivePicker } from './PreRunExtras';
+import { FollowPicker, FriendsLivePicker, LivePicker } from './PreRunExtras';
 
 /** The four run types as one row of buttons: icon over a short name, the chosen one filled. */
 export function ModePicker({ value, onChange, paused }: { value: RunMode; onChange: (m: RunMode) => void; paused?: ReadonlySet<RunMode> }) {
@@ -81,6 +81,7 @@ export function PreRunControls({ pre, compact }: { pre: PreRun; compact?: boolea
       ) : null}
       {!BROWSER ? <FollowPicker pre={pre} /> : null}
       {!BROWSER ? <LivePicker pre={pre} /> : null}
+      {!BROWSER ? <FriendsLivePicker pre={pre} /> : null}
       {blocker ? (
         <Banner tone="warning" text={blocker.text}
           action={blocker.settings ? { label: 'Privacy settings', onPress: () => router.push('/settings/privacy') } : blocker.route ? { label: 'Choose a route', onPress: () => router.push('/routes') } : blocker.support ? { label: 'Get help', onPress: () => contactSupport('account', 'My account is suspended', 'account:suspended') } : undefined} />

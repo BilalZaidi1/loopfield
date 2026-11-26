@@ -33,6 +33,8 @@ export interface CardContent {
   route: string[] | null;
   land: SharedLand | null;
   achievements: string[];
+  /** Highlight lines the runner chose to add (never the effort line; land only once published). */
+  highlights?: string[];
   /** Public Mapbox token: draws a street map under the route. Without one the route is drawn on its own. */
   mapToken?: string | null;
   /** On-device only (from the phone's health store); drawn into the image, never uploaded. */
@@ -234,6 +236,16 @@ export const ShareCard = forwardRef<HostInstance, { format: CardFormat; content:
             <View key={a} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,122,26,0.16)' }}>
               <Icon name="trophy" color={ORANGE} size={13} />
               <Txt variant="micro" style={{ color: ORANGE, fontSize: 12 }} numberOfLines={1}>{a}</Txt>
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {c.highlights?.length && !square ? (
+        <View style={{ gap: 4 }}>
+          {c.highlights.slice(0, tall ? 3 : 2).map((line) => (
+            <View key={line} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 6 }}>
+              <Icon name="sparkle" color={VIOLET} size={14} />
+              <Txt variant="label" style={{ color: WHITE, flex: 1 }} numberOfLines={2}>{line}</Txt>
             </View>
           ))}
         </View>

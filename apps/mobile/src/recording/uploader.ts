@@ -79,6 +79,7 @@ export async function processUploads(userId: string): Promise<number> {
           recordingDb().runSync('delete from samples where session_id = ?', [up.session_id]);
           recordingDb().runSync('delete from follows where session_id = ?', [up.session_id]);
           recordingDb().runSync('delete from live_shares where session_id = ?', [up.session_id]);
+          recordingDb().runSync('delete from checkins where session_id = ?', [up.session_id]);
         });
         completed++;
         const secs = (Date.now() - startedAt) / 1000;

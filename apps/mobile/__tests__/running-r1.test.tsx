@@ -165,12 +165,12 @@ describe('sending positions to a live link', () => {
   it('sends a thinned set of the newest fixes, no more often than the interval', async () => {
     attachLiveShare('s2', 'tok_s2_abcdefghijklmnop', 'run', 30);
     samples.s2 = Array.from({ length: 31 }, (_, k) => fix({ lat: 51.5 + k * 1.23456789e-5, lng: -0.12 }, T0 + k * 2000));
-    mockServer.rpcResults.live_link_push = { ok: true, added: 7, every_seconds: 30 };
+    mockServer.rpcResults.live_push = { ok: true, every_seconds: 30, links: { tok_s2_abcdefghijklmnop: 'ok' } };
     await pushLive('s2', { force: true }, 100_000);
     expect(rpc).toHaveBeenCalledTimes(1);
     const [fn, args] = (rpc as jest.Mock).mock.calls[0]!;
-    expect(fn).toBe('live_link_push');
-    expect(args).toMatchObject({ p_token: 'tok_s2_abcdefghijklmnop', p_session: 's2', p_state: 'running' });
+    expect(fn).toBe('live_push');
+    expect(args).toMatchObject({ p_tokens: ['tok_s2_abcdefghijklmnop'], p_session: 's2', p_state: 'running' });
     const pts = args.p_points as { t: number; lat: number }[];
     expect(pts.map((p) => (p.t - T0) / 1000)).toEqual([0, 10, 20, 30, 40, 50, 60]);
     expect(pts.every((p) => Math.round(p.lat * 1e6) === p.lat * 1e6)).toBe(true);
@@ -187,11 +187,24 @@ describe('sending positions to a live link', () => {
   it('stops for good once the server says the link has ended', async () => {
     attachLiveShare('s3', 'tok_s3_abcdefghijklmnop', 'standing', 30);
     samples.s3 = [fix(start, T0)];
-    mockServer.rpcResults.live_link_push = { ok: false, reason: 'ended' };
+    mockServer.rpcResults.live_push = { ok: false, every_seconds: 30, links: { tok_s3_abcdefghijklmnop: 'ended' } };
     await pushLive('s3', { force: true }, 100_000);
     expect(liveShareFor('s3')!.ended).toBe(1);
     await pushLive('s3', { force: true }, 200_000);
     expect(rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends one push for a live link and a friends share together, and carries on when one ends', async () => {
+    attachLiveShare('s4', 'tok_link_abcdefghijklmn', 'run', 30);
+    attachLiveShare('s4', 'tok_friends_abcdefghijk', 'friends', 30);
+    samples.s4 = [fix(start, T0), fix(destination(start, 50, 90), T0 + 15_000)];
+    mockServer.rpcResults.live_push = { ok: true, every_seconds: 30, links: { tok_link_abcdefghijklmn: 'ended', tok_friends_abcdefghijk: 'ok' } };
+    await pushLive('s4', { force: true }, 100_000);
+    expect((rpc as jest.Mock).mock.calls[0]![1].p_tokens).toEqual(['tok_friends_abcdefghijk', 'tok_link_abcdefghijklmn']);
+    expect(liveShareFor('s4')!.ended).toBe(1);
+    samples.s4.push(fix(destination(start, 100, 90), T0 + 30_000));
+    await pushLive('s4', {}, 131_000);
+    expect((rpc as jest.Mock).mock.calls[1]![1].p_tokens).toEqual(['tok_friends_abcdefghijk']);
   });
 
   it('thins fixes to one every ten seconds, always keeping the newest, at most ten', () => {

@@ -31,7 +31,10 @@ export const SWITCH_KEYS = [
   'route_builder_enabled',
   'route_snapping_enabled',
   'live_links_enabled',
-  'avatar_marker_enabled'
+  'avatar_marker_enabled',
+  'run_summaries_enabled',
+  'running_now_enabled',
+  'friends_live_enabled'
 ] as const;
 export type SwitchKey = (typeof SWITCH_KEYS)[number];
 
@@ -74,6 +77,9 @@ export interface AppSettings {
   liveLinkPushSeconds: number;
   liveLinkGraceMinutes: number;
   liveLinkMaxHours: number;
+  /** Running tools (R2): runners out right now and live runs with friends. */
+  runningNowMinCount: number;
+  friendsLiveMaxPeople: number;
 }
 
 const VERSION = /^\d+(\.\d+){0,2}$/;
@@ -153,7 +159,10 @@ export function parseAppConfig(raw: AppConfigRaw | null | undefined): AppSetting
     offRouteSeconds: Math.min(Math.max(count(r.off_route_seconds, 15), 5), 60),
     liveLinkPushSeconds: Math.min(Math.max(count(r.live_link_push_seconds, 30), 15), 120),
     liveLinkGraceMinutes: Math.min(Math.max(num(r.live_link_grace_minutes) ?? 15, 0), 60),
-    liveLinkMaxHours: Math.min(count(r.live_link_max_hours, 6), 12)
+    liveLinkMaxHours: Math.min(count(r.live_link_max_hours, 6), 12),
+    // Counts under five are never shown, whatever the setting says.
+    runningNowMinCount: Math.max(count(r.running_now_min_count, 5), 5),
+    friendsLiveMaxPeople: Math.min(Math.max(count(r.friends_live_max_people, 50), 1), 200)
   };
 }
 
@@ -228,5 +237,8 @@ export const PAUSED_TEXT: Record<SwitchKey, string> = {
   route_builder_enabled: 'Planning new routes is paused for now. You can still follow the routes you saved.',
   route_snapping_enabled: 'Following paths is paused for now, so new legs are drawn as straight lines.',
   live_links_enabled: 'Live location links are paused for now.',
-  avatar_marker_enabled: 'Your picture as the position dot is paused for now.'
+  avatar_marker_enabled: 'Your picture as the position dot is paused for now.',
+  run_summaries_enabled: 'Run highlights are paused for now.',
+  running_now_enabled: 'Runners out right now is paused for now.',
+  friends_live_enabled: 'Live runs with friends are paused for now. Nothing is shared while it is off.'
 };

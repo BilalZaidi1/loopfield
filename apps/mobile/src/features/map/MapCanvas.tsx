@@ -8,6 +8,7 @@ import { Icon } from '@/components/icons';
 import { boundsOf, lineFeature, type Bounds } from '@/territory/h3';
 import { useReducedMotion } from '@/theme/motion';
 import { AvatarPin, MIN_AVATAR_ZOOM, type AvatarPinData } from './AvatarPin';
+import { FriendMarker, type FriendMarkerData } from './FriendMarker';
 import { radius, spacing, useTheme } from '@/theme/tokens';
 
 /**
@@ -61,6 +62,9 @@ export interface MapLayers {
   markers?: MapMarker[];
   /** Pictures of the runners holding land in view (already grouped so they do not crowd the map). */
   avatars?: AvatarPinData[];
+  /** Friends running now who share with me (R2), and the last few minutes of their paths ([lng, lat]). */
+  friends?: FriendMarkerData[];
+  friendTrails?: [number, number][][];
 }
 
 export interface MapHandle {
@@ -97,6 +101,7 @@ export function MapCanvas({
   onPressRoute,
   onPressMap,
   onPressAvatar,
+  onPressFriend,
   selectedCell,
   height = 320,
   fill = false,
@@ -120,6 +125,7 @@ export function MapCanvas({
   /** Tap on the map outside any feature (used to clear a selection). */
   onPressMap?: () => void;
   onPressAvatar?: (pin: AvatarPinData) => void;
+  onPressFriend?: (friend: FriendMarkerData) => void;
   selectedCell?: string | null;
   height?: number | `${number}%`;
   /** Fill the parent edge to edge (the Map tab) instead of a rounded card. */
@@ -161,6 +167,10 @@ export function MapCanvas({
     return parts.length ? { type: 'FeatureCollection' as const, features: parts.map((x) => lineFeature(x)) } : null;
   }, [layers.path, layers.pathParts]);
   const closingFc = useMemo(() => (layers.closing && layers.closing.length > 1 ? { type: 'FeatureCollection' as const, features: [lineFeature(layers.closing)] } : null), [layers.closing]);
+  const friendTrailsFc = useMemo(() => {
+    const parts = (layers.friendTrails ?? []).filter((x) => x.length > 1);
+    return parts.length ? { type: 'FeatureCollection' as const, features: parts.map((x) => lineFeature(x)) } : null;
+  }, [layers.friendTrails]);
   const markerFc = useMemo<GeoJSON.FeatureCollection | null>(
     () =>
       layers.markers?.length
@@ -324,6 +334,19 @@ export function MapCanvas({
             <SymbolLayer id="markers-label" style={{ textField: ['get', 'label'], textSize: 12, textOffset: [0, 1.5], textColor: tc.label, textHaloColor: tc.labelHalo, textHaloWidth: 1.5 }} />
           </ShapeSource>
         ) : null}
+        {friendTrailsFc ? (
+          <ShapeSource id="friend-trails" shape={friendTrailsFc}>
+            <LineLayer id="friend-trails-line" style={{ lineColor: t.palette.primary, lineOpacity: 0.55, lineWidth: 3, lineCap: 'round', lineJoin: 'round' }} />
+          </ShapeSource>
+        ) : null}
+        {layers.friends?.map((f) => (
+          <MarkerView key={`friend-${f.id}`} coordinate={f.coord} anchor={{ x: 0.5, y: 0.6 }} allowOverlap allowOverlapWithPuck priority={2_000_000} allowZElevate={threeD}>
+            <FriendMarker friend={f} onPress={() => {
+              onFeature();
+              onPressFriend?.(f);
+            }} />
+          </MarkerView>
+        ))}
         {layers.avatars?.map((pin) => (
           // Hidden below the avatar zoom and wherever pins would collide (the heavier pin wins).
           <MarkerView key={pin.id} coordinate={pin.coord} anchor={{ x: 0.5, y: 0.5 }} allowOverlap={false} allowOverlapWithPuck

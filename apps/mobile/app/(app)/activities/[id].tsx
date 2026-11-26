@@ -8,6 +8,8 @@ import { fmtDate, fmtDistance, fmtDuration, fmtPace, splitValue } from '@/lib/fo
 import { supabase } from '@/lib/supabase';
 import { ActionBar, Banner, BigNumber, Button, Card, Chip, EmptyState, ErrorState, ListGroup, LoadingState, Row, Screen, Section, StatLine, TextField, Txt } from '@/components/ui';
 import { RunPointsCard } from '@/features/movement/Reclaim';
+import { EffortLine } from '@/features/training/EffortLine';
+import { HighlightsCard } from '@/features/results/HighlightsCard';
 import { Icon } from '@/components/icons';
 import { DataTable } from '@/components/charts';
 import { MapCanvas } from '@/features/map/MapCanvas';
@@ -70,12 +72,14 @@ export default function ActivityDetailScreen() {
       {path.length > 1 ? (
         <MapCanvas height={260} layers={{ path, closing: claimRing }} accessibilityLabel="Private map of this run. Only you can see it." />
       ) : <Banner text={a.raw_evidence_purged_at ? 'The detailed route was removed under the retention policy; totals remain.' : 'The route map appears after the server processes this run.'} />}
+      <HighlightsCard activityId={a.id} />
       <BigNumber value={dist.value} unit={dist.unit} label="Distance" />
       <Card padded={false} style={{ paddingHorizontal: spacing.xl, paddingVertical: spacing.xs }}>
         <StatLine icon="stopwatch" label="Moving time" value={fmtDuration(a.moving_ms)} />
         <StatLine icon="clock" label="Elapsed" value={fmtDuration(a.elapsed_ms)} />
         <StatLine icon="speed" label="Avg pace" value={fmtPace(a.avg_pace_s_per_km, units)} />
         <StatLine icon="mountain" label="Elevation gain" value={a.elevation_gain_m != null ? `${a.elevation_gain_m} m` : 'Not enough data'} />
+        <EffortLine runId={a.id} />
         <IntegrityCard activity={a} />
         <RunPointsCard activityId={id} />
       </Card>

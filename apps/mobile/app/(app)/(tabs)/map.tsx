@@ -14,6 +14,8 @@ import { MapCanvas, mapAvailability, type MapHandle } from '@/features/map/MapCa
 import { useInitialCenter } from '@/features/map/useInitialCenter';
 import type { AvatarPinData } from '@/features/map/AvatarPin';
 import { useAvatarMarker } from '@/features/map/AvatarMarker';
+import { FriendsRunningChip, FriendCard, useFriendsOnMap } from '@/features/friends/FriendsOnMap';
+import { RunningNowLine } from '@/features/runningNow/RunningNow';
 import { clusterPins, MIN_AVATAR_ZOOM, ownerAnchors, useOwnersInView, type OwnerInView } from '@/features/map/owners';
 import { useSignedUrls } from '@/features/social/media';
 import { routesToFeatures, useExclusions, useRoutesInView, useTerritoryViewport, type RouteInView } from '@/features/map/useMapData';
@@ -64,6 +66,7 @@ export default function TerritoryMap() {
   // App control: reclaiming needs both its own switch and land capture; publication can be held back.
   const { settings: cfg } = useAppConfig();
   const marker = useAvatarMarker();
+  const friendsOnMap = useFriendsOnMap(available);
   const reclaimPaused = !cfg.enabled.reclaim_enabled || !cfg.enabled.territory_capture_enabled;
   const publicationPaused = !cfg.enabled.public_publication_enabled;
   const [threeD, setThreeD] = useState(false);
@@ -170,8 +173,9 @@ export default function TerritoryMap() {
           userImage={marker.uri}
           ornamentBottom={isWide ? 8 : sheetH + 8}
           selectedCell={selected?.kind === 'cell' ? selected.id : null}
-          layers={{ cells: fc, exclusions: exclusions.data, grid, routes: showRoutes && !reclaiming ? routeFc : undefined, lost: lostFc, avatars: pins }}
+          layers={{ cells: fc, exclusions: exclusions.data, grid, routes: showRoutes && !reclaiming ? routeFc : undefined, lost: lostFc, avatars: pins, friends: friendsOnMap.markers, friendTrails: friendsOnMap.trails }}
           onPressAvatar={(pin) => (pin.count > 1 ? mapRef.current?.flyTo(pin.coord, Math.min(zoom + 2, 18)) : setOwnerKey(pin.id))}
+          onPressFriend={(f) => friendsOnMap.open(f.id)}
           onIdle={(b, z) => {
             setBounds(b);
             setZoom(z);
@@ -210,6 +214,10 @@ export default function TerritoryMap() {
             <PointsChip balance={movement.data?.balance} loading={movement.isLoading} onPress={() => router.push('/points')} />
           </View>
         )}
+        <View pointerEvents="box-none" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
+          <FriendsRunningChip friends={friendsOnMap} />
+          <RunningNowLine style="map" />
+        </View>
       </View>
 
       <View pointerEvents="box-none" style={[styles.controls, { top: insets.top + 88 }]}>
@@ -317,6 +325,7 @@ export default function TerritoryMap() {
       <Sheet visible={Boolean(ownerCard)} title={ownerCard?.is_me ? 'Your land' : 'Runner'} onClose={() => setOwnerKey(null)}>
         {ownerCard ? <OwnerCard owner={ownerCard} picture={ownerCard.avatar_path ? pictures.data?.[ownerCard.avatar_path] ?? null : null} layerName={layer ? layerTitle(layer, layerSeason) : 'this map'} onClose={() => setOwnerKey(null)} /> : null}
       </Sheet>
+      <FriendCard friends={friendsOnMap} onShowOnMap={(coord) => mapRef.current?.flyTo(coord, Math.max(zoom, 15))} />
       <Sheet visible={sheet === 'legend'} title="Map key" onClose={() => setSheet(null)}>
         <Legend />
       </Sheet>
