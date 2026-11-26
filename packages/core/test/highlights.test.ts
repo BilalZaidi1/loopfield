@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { best5kFromSplits, halvesFromSplits, runHighlights, type HighlightContext, type HighlightRun } from '../src/index.ts';
+import { best5kFromSplits, halvesFromSplits, runHighlights, shoesPhrase, type HighlightContext, type HighlightRun } from '../src/index.ts';
 
 const DAY = 86_400_000;
 // Wednesday 25 November 2026, 18:00 UTC.
@@ -64,11 +64,15 @@ describe('run highlights', () => {
     expect(effort).toEqual([{ kind: 'effort', priority: 40, text: 'Harder than usual for you.', shareable: false }]);
   });
 
-  it('marks shoe milestones once each', () => {
+  it('marks shoe milestones once each, and keeps them out of anything shared', () => {
     const c = ctx(r('t', 0, 5), [], { shoes: { name: 'Pegasus', distanceM: 512_000 } });
     const first = runHighlights(c);
     expect(first.lines.map((l) => l.text)).toEqual(['Your Pegasus shoes are now at 512 km.']);
+    expect(first.lines[0]!.shareable).toBe(false);
     expect(texts({ ...c, memory: first.memory })).toEqual([]);
+    expect(texts(ctx(r('t', 0, 5), [], { shoes: { name: 'Blue trainers', distanceM: 300_000 } }))).toEqual(['Your Blue trainers are now at 300 km.']);
+    expect(shoesPhrase('Racing flats')).toBe('Racing flats are');
+    expect(shoesPhrase('Ghost 16')).toBe('Ghost 16 shoes are');
   });
 });
 

@@ -197,6 +197,12 @@ const effort: Rule = (ctx) => {
   return { kind: 'effort', priority: 40, shareable: false, fact: 'harder', text: 'Harder than usual for you.' };
 };
 
+/** "Pegasus 41 shoes are" but "Blue trainers are": no second word for shoes when the name already has one. */
+export function shoesPhrase(name: string): string {
+  const n = name.trim();
+  return /\b(shoes|trainers|sneakers|runners|flats|spikes|racers|kicks)$/i.test(n) ? `${n} are` : `${n} shoes are`;
+}
+
 const shoes: Rule = (ctx) => {
   const s = ctx.shoes;
   if (!s || !s.name.trim()) return null;
@@ -204,7 +210,8 @@ const shoes: Rule = (ctx) => {
   if (hundreds < 1) return null;
   const fact = `${s.name}:${hundreds}`;
   if (ctx.memory.shoes?.fact === fact) return null;
-  return { kind: 'shoes', priority: 30, shareable: true, fact, text: `Your ${s.name.trim()} shoes are now at ${distanceText(s.distanceM, ctx.units).replace('.0 ', ' ')}.` };
+  // Shoes are private, so this line never goes into a shared summary.
+  return { kind: 'shoes', priority: 30, shareable: false, fact, text: `Your ${shoesPhrase(s.name)} now at ${distanceText(s.distanceM, ctx.units).replace('.0 ', ' ')}.` };
 };
 
 export const HIGHLIGHT_RULE_LIST: readonly Rule[] = [longest, fastest, land, streak, goal, fasterSecondHalf, effort, shoes];

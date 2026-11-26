@@ -63,7 +63,8 @@ export const EVENT_SCHEMA = {
     followed: oneOf('none', 'planned', 'speed_route'),
     off_route_alerts: oneOf(...ALERT_BUCKETS),
     marker: oneOf('picture', 'dot'),
-    hr_source: oneOf('none', 'health_app', 'strap', 'airpods')
+    hr_source: oneOf('none', 'health_app', 'strap', 'airpods'),
+    gear: bool
   },
   run_recovered: { activity_id: idLike, outcome: oneOf('resumed', 'finished', 'discarded') },
   upload_completed: { activity_id: idLike, size_bucket: oneOf(...BYTES_BUCKETS), retry_count: smallInt, elapsed_bucket: oneOf('<5s', '5-30s', '30-300s', '>300s') },
@@ -73,7 +74,7 @@ export const EVENT_SCHEMA = {
   route_title_changed: { route_id: idLike, competition_kind: competitionKind, result: oneOf('won', 'lost', 'improved', 'corrected'), provisional: bool },
   claim_explained: { result_type: oneOf('land', 'title', 'both', 'none'), viewed: bool },
   next_run_completed: { cohort_week: version, elapsed_days: smallInt },
-  route_proposed: { outcome: oneOf('submitted', 'duplicate_linked', 'withdrawn') },
+  route_proposed: { outcome: oneOf('submitted', 'duplicate_linked', 'withdrawn'), from_stretch: bool, shape: oneOf('loop', 'start_to_finish') },
   route_planned: { action: oneOf('created', 'edited', 'deleted'), distance_bucket: oneOf(...DISTANCE_BUCKETS), loop: bool, snapped: bool },
   route_offline: { action: oneOf('downloaded', 'removed', 'failed'), size_bucket: oneOf(...BYTES_BUCKETS) },
   live_link: { action: oneOf('started', 'shared', 'ended', 'revoked', 'rotated'), kind: oneOf('run', 'standing'), duration_bucket: oneOf(...DURATION_BUCKETS) },
@@ -85,6 +86,9 @@ export const EVENT_SCHEMA = {
   // Running features, stage 3. No strap names (they can hold serial numbers), heart rates, points or places.
   sensor: { action: oneOf('paired', 'forgotten', 'connection_failed', 'dropped', 'reconnected') },
   imported_map: { action: oneOf('turned_on', 'turned_off', 'shown', 'permission_declined', 'no_route') },
+  // Running features, stage 4. No shoe names, photos or distances, no route lengths or places.
+  gear: { action: oneOf('added', 'edited', 'retired', 'back_in_use', 'deleted', 'photo_added', 'changed_on_run', 'reminder_opened') },
+  replay: { action: oneOf('played', 'finished', 'dragged', 'switched_to_flat'), length: oneOf(...DISTANCE_BUCKETS), cause: oneOf('reduce_motion', 'slow_phone', 'chosen') },
   appeal_submitted: { object_type: oneOf('loop_claim', 'speed_attempt', 'post', 'comment', 'account_action', 'route_proposal', 'activity') },
   appeal_resolved: { reason_category: version, resolution: oneOf('upheld', 'overturned', 'withdrawn'), handling_bucket: oneOf('<1d', '1-2d', '2-7d', '>7d') },
   social_action: {
