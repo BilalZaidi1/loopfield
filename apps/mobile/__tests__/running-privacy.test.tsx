@@ -16,6 +16,11 @@ import { attachCheckins, endRunningNow, pingRunningNow, _resetCheckinsForTests }
 import { attachFollow, checkFollow, _resetFollowForTests } from '@/recording/follow';
 import { attachLiveShare, pushLive, startFriendsShare, stopFriendsShare, stopLiveShare, _resetLivePushForTests } from '@/recording/livePush';
 import TrainingScreen from '../app/(app)/health/training';
+import { Platform } from 'react-native';
+import { savePairedStrap } from '@/features/sensors/strap';
+import { startStrapForRun, stopStrapForRun } from '@/features/sensors/runStrap';
+import { setImportedMapsOn, showImportedRoute } from '@/health/routes';
+import { heartRateFrom } from '@/recording/heartRateSource';
 import { captureAnalytics, captureConsole, payloads, problems, resetPayloads, type Payload } from './helpers/payloadCapture';
 import { fix, resetDb, samples } from './helpers/recordingDbStub';
 
@@ -67,12 +72,44 @@ jest.mock('@/health/useHealth', () => ({
   quantities: (store: HealthStore, type: string) => [...store.quantity.values()].filter((q) => q.type === type),
   deviceOffsetMin: () => 0
 }));
-jest.mock('@/health/cache', () => ({ getZoneConfig: () => mockHealth.zones, getGoals: () => ({ weeklyRuns: null, weeklyDistanceM: null }) }));
+jest.mock('@/health/cache', () => ({
+  getZoneConfig: () => mockHealth.zones,
+  getGoals: () => ({ weeklyRuns: null, weeklyDistanceM: null }),
+  // Stage 3: strap readings and imported routes stay in the phone's health cache.
+  persistChanges: (changes: { record: QuantitySample }[]) => changes.forEach((c) => mockHealth.kept.push(c.record)),
+  deleteOwnHeartRate: () => {},
+  getConnection: () => ({ connected: true, enabledCards: ['workouts', 'heart_rate'] }),
+  getImportedMapsFlag: () => mockHealth.mapsOn,
+  setImportedMapsFlag: (on: boolean) => {
+    mockHealth.mapsOn = on;
+  },
+  getKeptRoute: () => undefined,
+  keepRoute: (_id: string, points: unknown) => mockHealth.kept.push(points as never),
+  deleteKeptRoutes: () => {}
+}));
+jest.mock('@/health/changes', () => ({ notifyHealthChanged: () => {}, onHealthChange: () => () => {}, healthVersion: () => 0 }));
+jest.mock('@/health/healthconnect', () => ({ readExerciseRoute: async () => ({ kind: 'route', points: mockHealth.route }) }));
+jest.mock('@/features/sensors/ble', () => ({
+  bluetoothInBuild: () => true,
+  connectStrap: async () => {},
+  disconnectStrap: async () => {},
+  listenToStrap: (_id: string, onPacket: (b: number[], at: number) => void) => {
+    mockHealth.packet = onPacket;
+    return () => {};
+  }
+}));
 jest.mock('@/features/results/useActivity', () => ({ useActivityDetail: () => ({ data: null }) }));
 
 const mockResults: Record<string, unknown> = {};
 const mockActivities: Record<string, unknown>[] = [];
-const mockHealth: { store: HealthStore; zones: ReturnType<typeof zonesFromMaxHr> | null } = { store: emptyStore(), zones: null };
+const mockHealth: {
+  store: HealthStore;
+  zones: ReturnType<typeof zonesFromMaxHr> | null;
+  kept: unknown[];
+  mapsOn: boolean;
+  route: [number, number][];
+  packet: ((b: number[], at: number) => void) | null;
+} = { store: emptyStore(), zones: null, kept: [], mapsOn: false, route: [], packet: null };
 const start: LatLng = { lat: 24.8607, lng: 67.0011 };
 const along = (m: number, north = 0) => destination(destination(start, m, 90), north, 0);
 const route = Array.from({ length: 11 }, (_, i) => along(i * 100));
@@ -92,6 +129,9 @@ beforeEach(() => {
   mockActivities.length = 0;
   mockHealth.store = emptyStore();
   mockHealth.zones = null;
+  mockHealth.kept = [];
+  mockHealth.mapsOn = false;
+  mockHealth.packet = null;
   restoreConsole = captureConsole();
 });
 afterEach(() => restoreConsole());
@@ -196,6 +236,36 @@ describe('payloads from the running features', () => {
       expect(payloads.filter((p) => p.channel === 'network' && /^(activities|health|training)/.test(p.name))).toEqual([]);
     } finally {
       jest.useRealTimers();
+    }
+  });
+
+  it('keeps strap heart rate and imported routes on the phone (stage 3)', async () => {
+    const restore = jest.replaceProperty(Platform, 'OS', 'android');
+    try {
+      // A strap during a run: two readings, kept on the phone as the app's own heart rate.
+      await savePairedStrap({ id: 'C3:9A:11:02:7F:E4', name: 'Polar H10 9A1102', battery: 64, batteryAt: 1 });
+      expect(await startStrapForRun('s3', true)).toBe(true);
+      mockHealth.packet!([0x16, 157, 0x2c, 0x03], 1_000_000);
+      mockHealth.packet!([0x16, 158, 0x30, 0x03], 1_002_000);
+      expect(await stopStrapForRun()).toBe(2);
+      expect(heartRateFrom(2)).toBe('strap');
+
+      // An imported run's route, shown and then switched off.
+      mockHealth.route = [[67.00112, 24.86071], [67.00213, 24.86152], [67.00321, 24.86233]];
+      setImportedMapsOn(true);
+      expect(await showImportedRoute(['hc-session-1'], 1_100_000)).toEqual({ kind: 'route', points: mockHealth.route });
+      setImportedMapsOn(false);
+
+      expect(mockHealth.kept).toHaveLength(3); // the two readings and the route, all on the phone
+      expect(payloads.filter((p) => p.channel === 'network')).toEqual([]);
+      expect(problems({ health: true, healthValues: [157, 158, 64] })).toEqual([]);
+      const sent = JSON.stringify(payloads);
+      expect(sent).not.toMatch(/C3:9A|Polar|9A1102|67\.001|24\.860/);
+      expect(payloads.filter((p) => p.channel === 'analytics').map((p) => p.body)).toEqual([
+        { action: 'turned_on' }, { action: 'shown' }, { action: 'turned_off' }
+      ]);
+    } finally {
+      restore.restore();
     }
   });
 

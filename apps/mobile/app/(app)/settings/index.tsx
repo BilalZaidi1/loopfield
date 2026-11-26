@@ -13,6 +13,9 @@ import { useAppConfig } from '@/lib/appConfig';
 import { useSupportUnread } from '@/features/support/api';
 import { installedVersion, runningUpdate } from '@/lib/version';
 import { useSession } from '@/state/session';
+import { bluetoothInBuild } from '@/features/sensors/ble';
+import { usePairedStrap } from '@/features/sensors/strap';
+import { strapName } from '@/features/sensors/text';
 
 /** S43 Settings — units, accessibility, profile, notification, privacy, support and sign-out controls. */
 export default function Settings() {
@@ -43,6 +46,7 @@ export default function Settings() {
           <Toggle label="Spoken cues" description="Splits, loop closure, GPS changes and gaps are read aloud." value={cues.audio} onChange={(v) => updateCues({ audio: v })} />
           <Toggle label="Haptic cues" description="A vibration accompanies each cue." value={cues.haptics} onChange={(v) => updateCues({ haptics: v })} />
           <MarkerToggle />
+          {bluetoothInBuild() ? <SensorsRow /> : null}
         </ListGroup>
       </Section>
       <Section title="Account" icon="user">
@@ -150,4 +154,10 @@ function MarkerToggle() {
     <Toggle label="Show my picture as my position" description="On the run map, your profile picture replaces the blue dot. Only you see it."
       value={on} onChange={(v) => { setOn(v); void saveMarkerPreference(v); }} />
   );
+}
+
+/** Settings → Sensors (R3), shown only in app builds that include Bluetooth. */
+function SensorsRow() {
+  const { strap } = usePairedStrap();
+  return <Row icon="heart" title="Sensors" subtitle={strap ? strapName(strap.name) : 'Pair a heart-rate strap'} onPress={() => router.push('/settings/sensors')} />;
 }

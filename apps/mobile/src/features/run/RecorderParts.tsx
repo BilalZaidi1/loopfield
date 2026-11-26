@@ -21,6 +21,9 @@ import { PreRunControls } from './PreRunPanel';
 import { followStatus } from '@/recording/follow';
 import { FriendsShareStatus, LiveShareSheet, LiveShareStatus } from '@/features/live/LiveShare';
 import { gpsColor, gpsLabel, useGpsReadiness, usePreRun, type Gps } from './usePreRun';
+import { zoneOf } from '@loopfield/core';
+import { getZoneConfig } from '@/health/cache';
+import { ensureStrapForRun, STRAP_TIMING, useStrapLive } from '@/features/sensors/runStrap';
 
 /**
  * The recorder's panels: before the run (close, GPS, run type and GO) and during it (status, alerts,
@@ -154,6 +157,11 @@ export function LiveParts({ live, now, onTop, onPanel, panelBottom }: { live: Li
   const [sharing, setSharing] = useState(false);
   const dist = splitValue(fmtDistance(live.summary?.distanceM ?? 0, units));
   const alerts = alertsFor(live, r);
+  const recording = r.s.state === 'recording';
+  // After the app was closed or reopened during a run, the strap is connected again (R3).
+  useEffect(() => {
+    if (recording) void ensureStrapForRun(r.s.id);
+  }, [r.s.id, recording]);
   return (
     <>
       <View pointerEvents="box-none" style={[recorderStyles.top, { top: insets.top + spacing.sm }]} onLayout={(e) => onTop(insets.top + spacing.sm + Math.round(e.nativeEvent.layout.height) + spacing.sm)}>
@@ -190,6 +198,7 @@ export function LiveParts({ live, now, onTop, onPanel, panelBottom }: { live: Li
         <FollowStrip sessionId={r.s.id} now={now} />
         <LiveShareStatus sessionId={r.s.id} onShare={() => setSharing(true)} />
         <FriendsShareStatus sessionId={r.s.id} />
+        <StrapStrip now={now} />
         {expanded && r.speed ? (
           <View style={[recorderStyles.strip, { backgroundColor: p.surfaceAlt }]}>
             <Icon name="stopwatch" color={p.orangeText} size={20} />
@@ -232,6 +241,37 @@ function FollowStrip({ sessionId, now }: { sessionId: string; now: number }) {
     <View style={[recorderStyles.strip, { backgroundColor: off ? p.warningSoft : p.surfaceAlt }]} accessible accessibilityLabel={`Route: ${label}`} accessibilityLiveRegion="polite">
       <Icon name={off ? 'alert' : 'route'} color={off ? p.warning : p.primary} size={20} />
       <Txt variant="label" style={{ flex: 1 }} numberOfLines={2}>{label}</Txt>
+    </View>
+  );
+}
+
+/**
+ * Heart rate from the paired strap (R3): the live value and zone, "Connecting…" at the start, and a warning while
+ * the strap is out of reach and the phone keeps trying. Nothing shows without a strap.
+ */
+function StrapStrip({ now }: { now: number }) {
+  const p = usePalette();
+  const s = useStrapLive();
+  if (s.status === 'idle') return null;
+  const fresh = s.bpm != null && s.at != null && now - s.at < STRAP_TIMING.staleMs;
+  let zones = null;
+  try {
+    zones = fresh ? getZoneConfig() : null;
+  } catch {
+    zones = null;
+  }
+  const zone = fresh ? zoneOf(s.bpm, zones) : null;
+  const lost = s.status === 'lost';
+  const label = lost
+    ? 'Heart-rate strap disconnected. Reconnecting…'
+    : fresh
+      ? `${s.bpm} bpm${zone ? ` · Zone ${zone}` : ''}`
+      : s.status === 'connected' ? 'Strap connected, waiting for heart rate' : 'Connecting to your heart-rate strap…';
+  return (
+    <View style={[recorderStyles.strip, { backgroundColor: lost ? p.warningSoft : p.surfaceAlt }]} accessible
+      accessibilityLabel={fresh ? `Heart rate ${s.bpm} beats per minute${zone ? `, zone ${zone}` : ''}` : label} accessibilityLiveRegion={lost ? 'polite' : 'none'}>
+      <Icon name={lost ? 'alert' : 'heart'} color={lost ? p.warning : p.danger} size={20} />
+      <Txt variant={fresh ? 'bodyStrong' : 'label'} tabular={fresh} style={{ flex: 1 }} numberOfLines={1}>{label}</Txt>
     </View>
   );
 }

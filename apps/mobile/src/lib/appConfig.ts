@@ -34,7 +34,8 @@ export const SWITCH_KEYS = [
   'avatar_marker_enabled',
   'run_summaries_enabled',
   'running_now_enabled',
-  'friends_live_enabled'
+  'friends_live_enabled',
+  'ble_sensors_enabled'
 ] as const;
 export type SwitchKey = (typeof SWITCH_KEYS)[number];
 
@@ -211,9 +212,12 @@ export function useAppConfigSync(): ReturnType<typeof useAppConfig> & { refetch:
   return { settings, loaded: data !== undefined, error: q.error, refetch: () => void q.refetch() };
 }
 
-/** For code outside React (the recorder): the cached settings when fresh, otherwise read now. */
+/**
+ * For code outside React (the recorder): the cached settings when fresh, otherwise read now. Kept like the hooks'
+ * copy (never dropped), which also means no clean-up timer is left running when the recorder reads them first.
+ */
 export async function fetchAppConfig(): Promise<AppSettings> {
-  const raw = await queryClient.fetchQuery({ queryKey: APP_CONFIG_QUERY_KEY, queryFn: loadAppConfig, staleTime: APP_CONFIG_REFRESH_MS });
+  const raw = await queryClient.fetchQuery({ queryKey: APP_CONFIG_QUERY_KEY, queryFn: loadAppConfig, staleTime: APP_CONFIG_REFRESH_MS, gcTime: Infinity });
   return parseAppConfig(raw);
 }
 
@@ -240,5 +244,6 @@ export const PAUSED_TEXT: Record<SwitchKey, string> = {
   avatar_marker_enabled: 'Your picture as the position dot is paused for now.',
   run_summaries_enabled: 'Run highlights are paused for now.',
   running_now_enabled: 'Runners out right now is paused for now.',
-  friends_live_enabled: 'Live runs with friends are paused for now. Nothing is shared while it is off.'
+  friends_live_enabled: 'Live runs with friends are paused for now. Nothing is shared while it is off.',
+  ble_sensors_enabled: 'Heart-rate straps are paused for now. Your strap is not connected during runs; heart rate from your health app still counts.'
 };

@@ -60,6 +60,18 @@ export function getGoals(): { weeklyRuns: number | null; weeklyDistanceM: number
 export function saveGoals(g: { weeklyRuns: number | null; weeklyDistanceM: number | null }): void {
   write('goals', g);
 }
+export function deleteOwnHeartRate(_from: number, _to: number): void {}
+export function getImportedMapsFlag(): boolean {
+  return false;
+}
+export function setImportedMapsFlag(_on: boolean): void {}
+export function getKeptRoute(_workoutId: string): [number, number][] | null | undefined {
+  return undefined;
+}
+export function keepRoute(_workoutId: string, _points: [number, number][] | null, _endAt: number): void {
+  throw new Error('Health data is stored only in the Loopfield phone app.');
+}
+export function deleteKeptRoutes(): void {}
 export async function clearHealthCache(): Promise<void> {
   try {
     for (const key of ['connection', 'zones', 'goals']) globalThis.localStorage?.removeItem(PREFIX + key);
@@ -69,7 +81,7 @@ export async function clearHealthCache(): Promise<void> {
 }
 
 // Compile-time check that this file offers every function the phone version does, with compatible types.
-const sameShape = { healthDb, loadStore, persistChanges, pruneOld, getCursor, setCursor, getConnection, saveConnection, getZoneConfig, saveZoneConfig, getGoals, saveGoals, clearHealthCache } satisfies {
+const sameShape = { healthDb, loadStore, persistChanges, pruneOld, deleteOwnHeartRate, getCursor, setCursor, getConnection, saveConnection, getZoneConfig, saveZoneConfig, getGoals, saveGoals, getImportedMapsFlag, setImportedMapsFlag, getKeptRoute, keepRoute, deleteKeptRoutes, clearHealthCache } satisfies {
   [K in keyof typeof PhoneCache]: (...args: never[]) => ReturnType<(typeof PhoneCache)[K]>;
 };
 void sameShape;

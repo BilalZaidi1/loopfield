@@ -95,7 +95,8 @@ export default function ActivityHistory() {
           {imported.length ? (
             <ListGroup>
               {imported.slice(0, 50).map((s) => (
-                <Row key={s.id} icon="pulse" title={fmtDate(s.start, { dateStyle: 'medium', timeStyle: 'short' })} subtitle={`${s.activity === 'running' ? 'Run' : 'Walk'} · ${s.distanceM != null ? fmtDistance(s.distanceM, units) : 'distance not recorded'} · ${fmtDuration(s.end - s.start)} · source ${s.primarySourceId}`} right={<Badge label="Imported" tone="muted" />} />
+                <Row key={s.id} icon="pulse" title={fmtDate(s.start, { dateStyle: 'medium', timeStyle: 'short' })} subtitle={`${s.activity === 'running' ? 'Run' : 'Walk'} · ${s.distanceM != null ? fmtDistance(s.distanceM, units) : 'distance not recorded'} · ${fmtDuration(s.end - s.start)} · source ${s.primarySourceId}`} right={<Badge label="Imported" tone="muted" />}
+                  onPress={() => router.push({ pathname: '/activities/imported/[id]', params: { id: s.id } })} />
               ))}
             </ListGroup>
           ) : <Txt color="textMuted">No imported workouts. Connect health data from Progress → Health.</Txt>}

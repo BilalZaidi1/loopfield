@@ -4,6 +4,7 @@ import {
   canonicalSessions,
   dailyCumulative,
   latestBySource,
+  preferOwnHeartRate,
   seriesByMethod,
   sleepNights,
   type FirstPartyRun,
@@ -43,7 +44,9 @@ export function useHealthStore(): HealthStore {
 export const deviceOffsetMin = () => -new Date().getTimezoneOffset();
 
 export function quantities(store: HealthStore, type: QuantitySample['type']): QuantitySample[] {
-  return [...store.quantity.values()].filter((q) => q.type === type);
+  const list = [...store.quantity.values()].filter((q) => q.type === type);
+  // A paired strap's readings outrank other sources' for the same minutes, so nothing is counted twice (R3).
+  return type === 'heart_rate' ? preferOwnHeartRate(list) : list;
 }
 
 /** First-party runs (server summaries the runner owns) used only on-device for duplicate resolution. */

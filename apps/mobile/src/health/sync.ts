@@ -6,6 +6,7 @@ import { isExpoGo } from '@/lib/runtime';
 import { clearHealthCache, getConnection, persistChanges, pruneOld, saveConnection, type ConnectionState, type HealthCardId } from './cache';
 import { healthKitAvailable, requestHealthKit, syncHealthKit } from './healthkit';
 import { healthConnectStatus, requestHealthConnect, revokeHealthConnect, syncHealthConnect } from './healthconnect';
+import { notifyHealthChanged } from './changes';
 
 const isWeb = Platform.OS === 'web';
 export const HEALTH_PLATFORM: ConnectionState['platform'] = Platform.OS === 'ios' ? 'healthkit' : 'health_connect';
@@ -20,22 +21,9 @@ export const UNAVAILABLE_TEXT = isWeb
     ? `${PLATFORM_LABEL} is not included in Expo Go, so it cannot be connected here. The installed Loopfield app can connect it. Recording, competition and social features work without it.`
     : `${PLATFORM_LABEL} is not available on this device. Recording, competition and social features work without it.`;
 
-type Listener = () => void;
-const listeners = new Set<Listener>();
-let version = 0;
-
-/** Lightweight change signal so on-device health views refresh after a sync or a clear. */
-export function onHealthChange(l: Listener): () => void {
-  listeners.add(l);
-  return () => listeners.delete(l);
-}
-export function healthVersion(): number {
-  return version;
-}
-function bump(): void {
-  version++;
-  for (const l of listeners) l();
-}
+/** Lightweight change signal so on-device health views refresh after a sync, a clear or a strap's readings. */
+export { healthVersion, notifyHealthChanged, onHealthChange } from './changes';
+const bump = notifyHealthChanged;
 
 export type Availability = 'available' | 'needs_update' | 'unavailable';
 
