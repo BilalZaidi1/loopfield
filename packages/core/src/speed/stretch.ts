@@ -1,0 +1,178 @@
+import { haversineMeters, type LatLng } from '../geo/geo.ts';
+import type { IntegrityRules } from '../integrity/speed.ts';
+import { canonicalSamples, isUsable } from '../recording/summary.ts';
+import type { LocationSample, RecordingEvent } from '../recording/types.ts';
+import { SPEED_RULES, TERRITORY_RULES } from '../rules/config.ts';
+import type { ReasonCode } from '../rules/decisions.ts';
+import { evaluateLoop } from '../territory/loop.ts';
+
+/**
+ * A speed route from part of a run. The phone only chooses where the part starts and ends, in metres
+ * along the run's own line (`personal_route`, a simplified copy of its usable fixes); the server finds
+ * those places in the run's evidence and checks the part as it checks a whole run.
+ */
+export const STRETCH_RULES = {
+  /** Each end is looked for near the same share of the run (at least this far either side), so a route that passes a place twice picks the right pass. */
+  windowShare: 0.15,
+  minWindowM: 250,
+  /** A usable fix must lie this close to each end. */
+  maxEndOffsetM: 50,
+  /** Ends this many corridors apart or closer make a loop; further apart, a start-to-finish route. */
+  closedCorridors: 1.5
+} as const;
+
+/** Distance (m) along a line at each of its points; the last value is the line's length. */
+export function alongMeters(path: readonly LatLng[]): number[] {
+  const out = path.length ? [0] : [];
+  for (let i = 1; i < path.length; i++) out.push(out[i - 1]! + haversineMeters(path[i - 1]!, path[i]!));
+  return out;
+}
+
+/** The point `m` metres along a line, clamped to its ends. */
+export function pointAlongLine(path: readonly LatLng[], m: number, along: readonly number[] = alongMeters(path)): LatLng {
+  if (path.length === 0) throw new Error('empty line');
+  const total = along[along.length - 1] ?? 0;
+  if (m <= 0 || path.length === 1) return path[0]!;
+  if (m >= total) return path[path.length - 1]!;
+  let lo = 0;
+  let hi = along.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (along[mid]! <= m) lo = mid;
+    else hi = mid;
+  }
+  const a = path[lo]!;
+  const b = path[hi]!;
+  const d = along[hi]! - along[lo]!;
+  const t = d === 0 ? 0 : (m - along[lo]!) / d;
+  return { lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t };
+}
+
+/** The part of a line between two distances along it, both ends interpolated. Empty when the range is empty. */
+export function sliceLine(path: readonly LatLng[], fromM: number, toM: number): LatLng[] {
+  if (path.length < 2 || !(toM > fromM)) return [];
+  const along = alongMeters(path);
+  const out: LatLng[] = [pointAlongLine(path, fromM, along)];
+  for (let i = 0; i < path.length; i++) if (along[i]! > fromM && along[i]! < toM) out.push(path[i]!);
+  out.push(pointAlongLine(path, toM, along));
+  return out;
+}
+
+/** Whether a line's ends are close enough for the route to be a loop. */
+export function isLoopShape(line: readonly LatLng[], corridorM: number = SPEED_RULES.corridorMeters.value): boolean {
+  return line.length > 1 && haversineMeters(line[0]!, line[line.length - 1]!) <= corridorM * STRETCH_RULES.closedCorridors;
+}
+
+export interface StretchEnds {
+  /** Indexes into the usable fixes given. */
+  startIndex: number;
+  endIndex: number;
+}
+
+/** Finds the usable fixes where a part of a run starts and ends, or null when either end cannot be placed. */
+export function locateStretch(
+  usable: readonly LocationSample[],
+  route: readonly LatLng[],
+  fromM: number,
+  toM: number,
+  rules: typeof STRETCH_RULES = STRETCH_RULES
+): StretchEnds | null {
+  if (usable.length < 2 || route.length < 2 || !(toM > fromM) || fromM < 0) return null;
+  const routeAlong = alongMeters(route);
+  const routeLen = routeAlong[routeAlong.length - 1]!;
+  if (routeLen <= 0 || fromM >= routeLen) return null;
+  const fixAlong = alongMeters(usable);
+  const fixLen = fixAlong[fixAlong.length - 1]!;
+  const window = Math.max(rules.minWindowM, fixLen * rules.windowShare);
+  const nearest = (m: number, from: number): number | null => {
+    const at = Math.min(m, routeLen);
+    const target = pointAlongLine(route, at, routeAlong);
+    const expected = (at / routeLen) * fixLen;
+    let best = -1;
+    let bestD = Infinity;
+    for (let i = from; i < usable.length; i++) {
+      if (Math.abs(fixAlong[i]! - expected) > window) continue;
+      const d = haversineMeters(usable[i]!, target);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    return best >= 0 && bestD <= rules.maxEndOffsetM ? best : null;
+  };
+  const startIndex = nearest(fromM, 0);
+  if (startIndex === null) return null;
+  const endIndex = nearest(toM, startIndex + 1);
+  if (endIndex === null || endIndex <= startIndex) return null;
+  return { startIndex, endIndex };
+}
+
+/** Land's loop-shape checks: a speed route has its own length rules, and a reviewer checks the rest. */
+const SHAPE_REASONS: readonly ReasonCode[] = ['open_loop', 'unreliable_endpoints', 'too_short', 'too_long', 'area_too_large', 'self_crossing', 'degenerate_geometry'];
+/** Noted but never blocking, as for whole runs. */
+const NOTED_REASONS: readonly ReasonCode[] = ['gps_spike_ignored'];
+
+export interface StretchEvaluation {
+  /** False when the part could not be found in the run's fixes. */
+  found: boolean;
+  /** Evidence problems inside the part (pauses, gaps, jumps, mock locations, speeds, no running steps); empty when fine. */
+  blocking: ReasonCode[];
+  /** The part's usable fixes, in order. */
+  trace: LocationSample[];
+  /** Starts and finishes in the same place (a loop) rather than start to finish. */
+  closed: boolean;
+  startT: number | null;
+  endT: number | null;
+}
+
+/**
+ * Checks part of a run the way a whole run is checked: the part becomes the capture interval for the
+ * evidence checks (pauses, gaps, accuracy, jumps, speeds, steps), and only land's shape rules are left out.
+ */
+export function evaluateStretch(
+  samples: readonly LocationSample[],
+  events: readonly RecordingEvent[],
+  route: readonly LatLng[],
+  fromM: number,
+  toM: number,
+  opts: { corridorM?: number; territory?: typeof TERRITORY_RULES; integrity?: IntegrityRules } = {}
+): StretchEvaluation {
+  const fixes = canonicalSamples(samples).filter((s) => isUsable(s));
+  const ends = locateStretch(fixes, route, fromM, toM);
+  if (!ends) return { found: false, blocking: [], trace: [], closed: false, startT: null, endT: null };
+  const first = fixes[ends.startIndex]!;
+  const last = fixes[ends.endIndex]!;
+  const capture: RecordingEvent[] = [
+    { kind: 'capture_start', t: first.t, afterSeq: first.seq - 1 },
+    { kind: 'capture_end', t: last.t, afterSeq: last.seq }
+  ];
+  const others = events.filter((e) => e.kind !== 'capture_start' && e.kind !== 'capture_end');
+  const loop = evaluateLoop(samples, [...others, ...capture], opts.territory, opts.integrity);
+  const blocking = loop.reasons.filter((r) => !SHAPE_REASONS.includes(r) && !NOTED_REASONS.includes(r));
+  const trace = fixes.slice(ends.startIndex, ends.endIndex + 1);
+  return { found: true, blocking, trace, closed: isLoopShape(trace, opts.corridorM), startT: first.t, endT: last.t };
+}
+
+/**
+ * The events that time only part of a run (a founding run on a route made from that part): the run's own
+ * speed window is replaced by one that opens `marginMs` before the part's first fix and closes after its last.
+ */
+export function stretchAttemptEvents(
+  samples: readonly LocationSample[],
+  events: readonly RecordingEvent[],
+  route: readonly LatLng[],
+  fromM: number,
+  toM: number,
+  marginMs = 10_000
+): RecordingEvent[] | null {
+  const fixes = canonicalSamples(samples).filter((s) => isUsable(s));
+  const ends = locateStretch(fixes, route, fromM, toM);
+  if (!ends) return null;
+  const first = fixes[ends.startIndex]!;
+  const last = fixes[ends.endIndex]!;
+  return [
+    ...events.filter((e) => e.kind !== 'speed_start' && e.kind !== 'speed_end'),
+    { kind: 'speed_start', t: first.t - marginMs, afterSeq: first.seq - 1 },
+    { kind: 'speed_end', t: last.t + marginMs, afterSeq: last.seq }
+  ];
+}

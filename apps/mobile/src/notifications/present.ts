@@ -27,7 +27,7 @@ const EVENT_KINDS = new Set(['event_starting', 'event_finished', 'event_cancelle
 
 export function filterOf(n: Pick<NotificationLike, 'category' | 'kind'>): Exclude<NotificationFilter, 'all'> {
   if (EVENT_KINDS.has(n.kind)) return 'events';
-  if (n.kind === 'badge_earned') return 'milestones';
+  if (n.kind === 'badge_earned' || n.kind === 'gear_reminder') return 'milestones';
   if (n.kind.startsWith('territory') || n.kind === 'title_digest' || n.kind === 'points_refunded') return 'land';
   if (n.category === 'social' || n.category === 'message') return 'social';
   if (n.category === 'club') return 'clubs';
@@ -125,6 +125,11 @@ export function presentNotification(n: NotificationLike, units: 'metric' | 'impe
       return { icon: 'flag', title: name ?? base.title, body: base.body };
     case 'club_challenge':
       return { icon: 'flag', title: name ? `New challenge: ${name}` : base.title, body: club ? `${n.actor?.display_name ?? 'An admin'} set it for ${club}` : base.body };
+    case 'gear_reminder':
+      // The pair's name stays out of the notification itself; its page shows which pair and how far.
+      return d.percent === 100
+        ? { icon: 'shoe', title: 'Shoes at their reminder distance', body: 'A pair of your shoes has reached the distance you set. Open to see it.' }
+        : { icon: 'shoe', title: 'Shoes nearly at their reminder distance', body: 'A pair of your shoes is at 90% of the distance you set.' };
   }
   const icon: IconName = n.object_type === 'competition' ? 'flag' : ({ social: 'heart', message: 'chat', club: 'clubs', competitive: 'hexagon', system: 'info' } as const)[n.category] ?? 'bell';
   return { icon, ...base };

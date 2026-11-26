@@ -2,7 +2,8 @@
  * What leaves the phone while the running features are used. Analytics and error reports must never carry a
  * position (or, for the health features, a health value); positions go only to the server calls whose job is
  * to carry them: a live-link push, a planned route and path following. Training numbers (efforts, loads,
- * predictions) and the heart rate behind them never leave the phone at all.
+ * predictions) and the heart rate behind them never leave the phone at all. Shoe names, distances and photos go
+ * only to the runner's own records on our server, and a replay or a chosen part of a run sends no line at all.
  */
 import { fireEvent, render, screen } from '@testing-library/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -21,6 +22,10 @@ import { savePairedStrap } from '@/features/sensors/strap';
 import { startStrapForRun, stopStrapForRun } from '@/features/sensors/runStrap';
 import { setImportedMapsOn, showImportedRoute } from '@/health/routes';
 import { heartRateFrom } from '@/recording/heartRateSource';
+import { buildReplay, encodePolyline } from '@loopfield/core';
+import { saveGear, setGearPhoto, setRunGear } from '@/features/gear/api';
+import { ReplayView } from '@/features/replay/ReplayView';
+import ProposeRoute from '../app/(app)/propose-route/[activityId]';
 import { captureAnalytics, captureConsole, payloads, problems, resetPayloads, type Payload } from './helpers/payloadCapture';
 import { fix, resetDb, samples } from './helpers/recordingDbStub';
 
@@ -56,8 +61,17 @@ jest.mock('@/lib/supabase', () => {
     };
     return q;
   };
-  return { supabase: () => ({ from: chain }) };
+  const storage = (bucket: string) => ({
+    upload: async (file: string) => (capture.captureRequest(`storage:${bucket}.upload`, { file }), { error: null }),
+    remove: async (files: string[]) => (capture.captureRequest(`storage:${bucket}.remove`, { files }), { error: null })
+  });
+  return { supabase: () => ({ from: chain, storage: { from: storage } }) };
 });
+jest.mock('@/features/social/media', () => ({
+  useSignedUrl: () => ({ data: null }),
+  prepareImage: async () => ({ uri: 'file:///prepared.jpg', width: 800, height: 800 }),
+  uploadToBucket: async (bucket: string, file: string) => require('./helpers/payloadCapture').captureRequest(`storage:${bucket}.upload`, { file })
+}));
 /* eslint-enable @typescript-eslint/no-require-imports */
 jest.mock('@/lib/cues', () => ({ emitCue: jest.fn() }));
 jest.mock('expo-notifications', () => ({ getPermissionsAsync: jest.fn(async () => ({ granted: false })), scheduleNotificationAsync: jest.fn() }));
@@ -98,9 +112,10 @@ jest.mock('@/features/sensors/ble', () => ({
     return () => {};
   }
 }));
-jest.mock('@/features/results/useActivity', () => ({ useActivityDetail: () => ({ data: null }) }));
+jest.mock('@/features/results/useActivity', () => ({ useActivityDetail: () => ({ data: mockDetail.data, isLoading: false }) }));
 
 const mockResults: Record<string, unknown> = {};
+const mockDetail: { data: unknown } = { data: null };
 const mockActivities: Record<string, unknown>[] = [];
 const mockHealth: {
   store: HealthStore;
@@ -126,6 +141,7 @@ beforeEach(() => {
   _resetLivePushForTests();
   _resetCheckinsForTests();
   for (const k of Object.keys(mockResults)) delete mockResults[k];
+  mockDetail.data = null;
   mockActivities.length = 0;
   mockHealth.store = emptyStore();
   mockHealth.zones = null;
@@ -267,6 +283,54 @@ describe('payloads from the running features', () => {
     } finally {
       restore.restore();
     }
+  });
+
+  it('keeps shoe names and distances, the run\'s line and replays out of analytics (stage 4)', async () => {
+    // Shoes: a pair with a photo, and a run moved to it. Only our own server hears of the pair.
+    mockResults.save_gear = 'g1';
+    await saveGear({ id: null, name: 'Blue trainers', startM: 123_456, reminderM: 654_321, isDefault: true });
+    await setGearPhoto('me', { id: 'g1', photo_path: null }, 'file:///picked.jpg');
+    await setRunGear('run-1', 'g1');
+
+    // Part of a run proposed: the phone sends where the part starts and ends, never the line.
+    const line = Array.from({ length: 41 }, (_, i) => along(i * 100));
+    mockResults.my_protected_areas = [];
+    mockDetail.data = { activity: { id: 'run-1', status: 'processed', modes: {}, personal_route: encodePolyline(line), distance_m: 4000, splits: null, gear_id: 'g1' } };
+    const wrap = (ui: React.ReactNode) => <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } })}>{ui}</QueryClientProvider>;
+    const view = await render(wrap(<ProposeRoute />));
+    await fireEvent(screen.getByTestId('stretch-start'), 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+    await fireEvent(screen.getByTestId('stretch-start'), 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+    await fireEvent.changeText(screen.getByLabelText('Route name'), 'Canal straight');
+    mockResults.propose_route = 'p1';
+    await view.unmount();
+
+    // A replay: played, dragged, flat.
+    const raf = jest.spyOn(global, 'requestAnimationFrame').mockImplementation(() => 0);
+    try {
+      const plan = buildReplay(line, [1, 2, 3, 4].map((i) => ({ index: i, distanceM: 1000, elapsedMs: 300_000, containsGap: false })))!;
+      await render(<ReplayView plan={plan} runM={4000} units="metric" reduced={false} />);
+      await fireEvent.press(screen.getByLabelText('Play'));
+      await fireEvent.press(screen.getByLabelText('Pause'));
+      await fireEvent(screen.getByTestId('replay-scrub'), 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+      await fireEvent(screen.getByLabelText('Flat map'), 'valueChange', true);
+    } finally {
+      raf.mockRestore();
+    }
+
+    expect(problems({ health: true })).toEqual([]);
+    const analytics = payloads.filter((p) => p.channel === 'analytics');
+    expect(JSON.stringify(analytics)).not.toMatch(/Blue trainers|123456|654321|Canal|g1|run-1|67\.0|24\.8/);
+    expect(analytics.map((p) => [p.name, p.body])).toEqual([
+      ['gear', { action: 'added' }], ['gear', { action: 'photo_added' }], ['gear', { action: 'changed_on_run' }],
+      ['replay', { action: 'played', length: '1-5km' }], ['replay', { action: 'dragged', length: '1-5km' }], ['replay', { action: 'switched_to_flat', length: '1-5km', cause: 'chosen' }]
+    ]);
+    // The pair's name goes only to our server's shoe function; the photo only to the runner's own folder.
+    const network = payloads.filter((p) => p.channel === 'network');
+    expect(network.filter((p) => JSON.stringify(p.body).includes('Blue trainers')).map((p) => p.name)).toEqual(['rpc:save_gear']);
+    expect(network.filter((p) => p.name.startsWith('storage:')).map((p) => [p.name, (p.body as { file: string }).file.split('/')[0]])).toEqual([['storage:gear-photos.upload', 'me']]);
+    // Choosing the part sent nothing; the line itself was never sent anywhere.
+    expect(network.map((p) => p.name)).not.toContain('rpc:propose_route');
+    expect(JSON.stringify(network)).not.toContain(encodePolyline(line));
   });
 
   it('drops anything outside the event schema before it is sent', () => {

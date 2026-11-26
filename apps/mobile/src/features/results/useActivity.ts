@@ -32,6 +32,8 @@ export interface ActivityJson {
   integrity_flags?: string[];
   integrity_cleared_at?: string | null;
   raw_evidence_purged_at: string | null;
+  /** The pair of shoes the run counts towards (R4); absent from servers before it. */
+  gear_id?: string | null;
 }
 
 export interface ActivityDetail {

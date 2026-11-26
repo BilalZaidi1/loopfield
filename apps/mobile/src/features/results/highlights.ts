@@ -33,7 +33,7 @@ const KEEP_RUNS = 40;
 
 interface Stored {
   memory: HighlightMemory;
-  runs: Record<string, { before: HighlightMemory; lines: Highlight[]; at: number; hidden?: boolean; land?: boolean }>;
+  runs: Record<string, { before: HighlightMemory; lines: Highlight[]; at: number; hidden?: boolean; land?: boolean; shoes?: boolean }>;
 }
 
 async function readStore(): Promise<Stored> {
@@ -115,6 +115,8 @@ export function useRunHighlights(activityId: string | null | undefined, opts: {
   landSettled: boolean;
   /** False reads only the lines already shown for the run (the share card), never working them out. */
   compute?: boolean;
+  /** The pair the run counts towards with its total (R4): null for none, undefined while not known yet. */
+  shoes?: { name: string; distanceM: number } | null;
 }): RunHighlights | null {
   const { settings } = useAppConfig();
   const units = useUnits();
@@ -146,13 +148,15 @@ export function useRunHighlights(activityId: string | null | undefined, opts: {
       units,
       goals: getGoals(),
       land: land ? { gained: land.gained, kept: land.kept, taken: land.taken } : null,
-      effortWord: effort?.word ?? null
+      effortWord: effort?.word ?? null,
+      shoes: opts.shoes ?? null
     };
-  }, [on, activityId, history.data, store, opts.run, units, land?.gained, land?.kept, land?.taken, effort?.word]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [on, activityId, history.data, store, opts.run, units, land?.gained, land?.kept, land?.taken, effort?.word, opts.shoes?.name, opts.shoes?.distanceM]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const entry = activityId && saved ? saved.runs[activityId] : undefined;
-  // Worked out once per run, and once more when the land result arrives.
-  const needsWork = opts.compute !== false && Boolean(ctx && saved && activityId && (!entry || (opts.landSettled && !entry.land)));
+  // Worked out once per run, and once more when the land result or the run's shoes arrive.
+  const shoesKnown = opts.shoes != null;
+  const needsWork = opts.compute !== false && Boolean(ctx && saved && activityId && (!entry || (opts.landSettled && !entry.land) || (shoesKnown && !entry.shoes)));
 
   useEffect(() => {
     if (!needsWork || !ctx || !saved || !activityId) return;
@@ -161,7 +165,7 @@ export function useRunHighlights(activityId: string | null | undefined, opts: {
     const result = runHighlights({ ...ctx, now, historyFrom: now - HIGHLIGHT_DAYS * 86_400_000, memory: before });
     const next: Stored = {
       memory: { ...saved.memory, ...result.memory },
-      runs: { ...saved.runs, [activityId]: { before, lines: result.lines, at: entry?.at ?? now, hidden: entry?.hidden, land: opts.landSettled } }
+      runs: { ...saved.runs, [activityId]: { before, lines: result.lines, at: entry?.at ?? now, hidden: entry?.hidden, land: opts.landSettled, shoes: Boolean(entry?.shoes) || shoesKnown } }
     };
     void writeStore(next).then(() => setSaved(next));
     if (!entry && result.lines.length) {

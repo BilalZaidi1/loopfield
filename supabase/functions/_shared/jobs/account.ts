@@ -62,11 +62,15 @@ export const exportData: JobHandler = async (payload, ctx) => {
     notification_preferences: (await ctx.sql`select * from public.notification_prefs where user_id = ${userId}`)[0],
     consents: await ctx.sql`select kind, version, granted, created_at from public.consents where user_id = ${userId} order by created_at`,
     protected_areas: await ctx.sql`select label, radius_m, extensions.st_asgeojson(center)::jsonb as center, created_at from public.protected_areas where user_id = ${userId}`,
-    activities: await ctx.sql`select id, started_at, ended_at, distance_m, elapsed_ms, moving_ms, avg_pace_s_per_km, elevation_gain_m, splits, gaps, personal_route, title, notes, perceived_effort, modes from public.activities where user_id = ${userId} and deleted_at is null order by started_at`,
+    activities: await ctx.sql`select id, started_at, ended_at, distance_m, elapsed_ms, moving_ms, avg_pace_s_per_km, elevation_gain_m, splits, gaps, personal_route, title, notes, perceived_effort, modes, gear_id from public.activities where user_id = ${userId} and deleted_at is null order by started_at`,
+    // Shoes (their photos stay in the app; the export says whether a pair has one).
+    gear: await ctx.sql`select g.id, g.kind, g.name, g.start_distance_m, g.reminder_m, g.is_default, g.retired_at, g.photo_path is not null as has_photo, g.created_at,
+                               internal.gear_total_m(g.id) as distance_m
+                          from public.gear g where g.user_id = ${userId} order by g.created_at`,
     territory_claims: await ctx.sql`select id, activity_id, status, reasons, eligible_area_m2, eligible_cell_count, completed_at, extensions.st_asgeojson(polygon)::jsonb as polygon from public.loop_claims where user_id = ${userId}`,
     speed_attempts: await ctx.sql`select id, activity_id, course_version_id, status, reasons, elapsed_ms, completed_at from public.speed_attempts where user_id = ${userId}`,
     exploration_cells: await ctx.sql`select cell::text, first_visited_at, last_visited_at, visits from public.exploration_cells where user_id = ${userId}`,
-    route_proposals: await ctx.sql`select id, name, status, decision_reason, created_at from public.route_proposals where creator_id = ${userId}`,
+    route_proposals: await ctx.sql`select id, name, status, decision_reason, from_m, to_m, closed, created_at from public.route_proposals where creator_id = ${userId}`,
     planned_routes: await ctx.sql`select id, name, path as encoded_polyline, distance_m, is_loop, snapped, created_at, updated_at from public.planned_routes where user_id = ${userId} order by created_at`,
     // Live positions are deleted within a day of each run, so only the links themselves are listed.
     live_links: await ctx.sql`select kind, show_everywhere, views, created_at, ended_at, revoked_at from public.live_links where user_id = ${userId} order by created_at`,
@@ -144,7 +148,7 @@ export const deleteAccount: JobHandler = async (payload, ctx) => {
         if (ctx.integrations.revenuecat) await ctx.integrations.revenuecat.deleteSubscriber(userId);
         break;
       case 'storage': {
-        for (const bucket of [BUCKETS.evidence, BUCKETS.avatars, BUCKETS.exports, BUCKETS.uploads]) {
+        for (const bucket of [BUCKETS.evidence, BUCKETS.avatars, BUCKETS.exports, BUCKETS.uploads, BUCKETS.gearPhotos]) {
           const files = await ctx.blobs.list(bucket, userId);
           if (files.length) await ctx.blobs.remove(bucket, files);
         }

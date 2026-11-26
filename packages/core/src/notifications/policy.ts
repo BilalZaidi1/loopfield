@@ -211,6 +211,9 @@ export function safePushPreview(kind: string, actorName: string | null): { title
       return { title: 'Event results', body: 'An event you took part in has finished. See where you placed.' };
     case 'event_cancelled':
       return { title: 'Event cancelled', body: 'An event you joined was cancelled.' };
+    case 'gear_reminder':
+      // Never the shoes' name: a lock screen shows it to anyone.
+      return { title: 'Shoe reminder', body: 'A pair of your shoes is nearly at, or past, its reminder distance. Open to see how far.' };
     case 'club_challenge':
       return { title: 'New club challenge', body: `${who} set a challenge for your club` };
     default:

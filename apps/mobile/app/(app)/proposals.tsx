@@ -3,7 +3,7 @@ import { router, Stack } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { friendlyError, rpc } from '@/lib/api';
 import { track } from '@/lib/analytics';
-import { fmtDate, fmtDistance } from '@/lib/format';
+import { fmtDate, fmtDistance, fmtRuleDistance } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingState, Screen, Txt } from '@/components/ui';
 import { Icon } from '@/components/icons';
@@ -16,6 +16,9 @@ interface Proposal {
   status: 'processing' | 'pending_review' | 'duplicate_linked' | 'approved' | 'declined' | 'withdrawn';
   length_m: number | null;
   closed: boolean | null;
+  /** Part of a run (R4): metres into the run's line; both empty for a whole run. */
+  from_m?: number | null;
+  to_m?: number | null;
   decision_reason: string | null;
   canonical_course_id: string | null;
   created_at: string;
@@ -40,7 +43,7 @@ export default function Proposals() {
   const list = useQuery({
     queryKey: ['route_proposals', userId],
     queryFn: async () => {
-      const { data, error } = await supabase().from('route_proposals').select('id, name, status, length_m, closed, decision_reason, canonical_course_id, created_at, decided_at').eq('creator_id', userId!).order('created_at', { ascending: false });
+      const { data, error } = await supabase().from('route_proposals').select('id, name, status, length_m, closed, from_m, to_m, decision_reason, canonical_course_id, created_at, decided_at').eq('creator_id', userId!).order('created_at', { ascending: false });
       if (error) throw error;
       return (data ?? []) as Proposal[];
     }
@@ -66,7 +69,8 @@ export default function Proposals() {
                 <Txt variant="heading" style={{ flex: 1 }}>{pr.name}</Txt>
                 <Badge label={s.label} tone={s.tone} />
               </View>
-              <Txt variant="caption">{pr.length_m ? `${fmtDistance(pr.length_m, units)} · ` : ''}submitted {fmtDate(pr.created_at)}{pr.decided_at ? ` · decided ${fmtDate(pr.decided_at)}` : ''}</Txt>
+              <Txt variant="caption">{pr.length_m ? `${fmtDistance(pr.length_m, units)} · ` : ''}{pr.closed === false ? 'start to finish · ' : ''}submitted {fmtDate(pr.created_at)}{pr.decided_at ? ` · decided ${fmtDate(pr.decided_at)}` : ''}</Txt>
+              {pr.from_m != null && pr.to_m != null ? <Txt variant="caption">{`Part of your run, from ${fmtRuleDistance(pr.from_m, units)} to ${fmtRuleDistance(pr.to_m, units)}`}</Txt> : null}
               <Txt color="textMuted">{s.help}</Txt>
               {pr.decision_reason ? <Txt>Reason: {pr.decision_reason}</Txt> : null}
               {pr.canonical_course_id && (pr.status === 'approved' || pr.status === 'duplicate_linked') ? <Button variant="secondary" icon="route" label="Open route" onPress={() => router.push({ pathname: '/routes/[id]', params: { id: pr.canonical_course_id! } })} /> : null}

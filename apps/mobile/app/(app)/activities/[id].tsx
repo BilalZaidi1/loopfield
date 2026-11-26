@@ -10,6 +10,7 @@ import { ActionBar, Banner, BigNumber, Button, Card, Chip, EmptyState, ErrorStat
 import { RunPointsCard } from '@/features/movement/Reclaim';
 import { EffortLine } from '@/features/training/EffortLine';
 import { HighlightsCard } from '@/features/results/HighlightsCard';
+import { RunShoesCard } from '@/features/gear/ShoeParts';
 import { Icon } from '@/components/icons';
 import { DataTable } from '@/components/charts';
 import { MapCanvas } from '@/features/map/MapCanvas';
@@ -29,6 +30,7 @@ export default function ActivityDetailScreen() {
   const units = useUnits();
   const qc = useQueryClient();
   const proposalsOn = useFeature('route_proposals_enabled');
+  const replayOn = useFeature('replay_enabled');
   const suspended = useSuspended();
   const { id } = useLocalSearchParams<{ id: string }>();
   const detail = useActivityDetail(id);
@@ -70,7 +72,10 @@ export default function ActivityDetailScreen() {
         <Txt variant="caption">{`${fmtDate(a.started_at, { dateStyle: 'full', timeStyle: 'short' })} · ${a.modes?.territory || a.modes?.speed ? 'Competitive' : 'Private'} · summary from ${a.summary_source === 'server' ? 'the server' : 'this phone'}`}</Txt>
       </View>
       {path.length > 1 ? (
-        <MapCanvas height={260} layers={{ path, closing: claimRing }} accessibilityLabel="Private map of this run. Only you can see it." />
+        <>
+          <MapCanvas height={260} layers={{ path, closing: claimRing }} accessibilityLabel="Private map of this run. Only you can see it." />
+          {replayOn ? <Button variant="secondary" icon="play" label="Replay this run" accessibilityLabel="Replay this run in 3D" onPress={() => router.push({ pathname: '/activities/replay/[id]', params: { id: a.id } })} /> : null}
+        </>
       ) : <Banner text={a.raw_evidence_purged_at ? 'The detailed route was removed under the retention policy; totals remain.' : 'The route map appears after the server processes this run.'} />}
       <HighlightsCard activityId={a.id} />
       <BigNumber value={dist.value} unit={dist.unit} label="Distance" />
@@ -83,6 +88,7 @@ export default function ActivityDetailScreen() {
         <IntegrityCard activity={a} />
         <RunPointsCard activityId={id} />
       </Card>
+      <RunShoesCard activityId={a.id} gearId={a.gear_id} />
       {a.gaps?.length ? <Banner tone="warning" text={`${a.gaps.length} recording gap(s), ${Math.round(a.gaps.reduce((t, g) => t + g.seconds, 0))} s in total. Missing movement is never filled in.`} /> : null}
       {a.splits?.length ? (
         <Section title={`Splits ${units === 'metric' ? 'per km' : 'per mile'}`} icon="flag">

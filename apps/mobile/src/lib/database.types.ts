@@ -28,6 +28,7 @@ export type Database = {
           evidence_digest: string | null
           expected_chunks: number | null
           gaps: Json | null
+          gear_id: string | null
           id: string
           integrity_cleared_at: string | null
           integrity_excluded_m: number
@@ -68,6 +69,7 @@ export type Database = {
           evidence_digest?: string | null
           expected_chunks?: number | null
           gaps?: Json | null
+          gear_id?: string | null
           id: string
           integrity_cleared_at?: string | null
           integrity_excluded_m?: number
@@ -107,6 +109,7 @@ export type Database = {
           evidence_digest?: string | null
           expected_chunks?: number | null
           gaps?: Json | null
+          gear_id?: string | null
           id?: string
           integrity_cleared_at?: string | null
           integrity_excluded_m?: number
@@ -137,6 +140,13 @@ export type Database = {
             columns: ["competition_id"]
             isOneToOne: false
             referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_gear_id_fkey"
+            columns: ["gear_id"]
+            isOneToOne: false
+            referencedRelation: "gear"
             referencedColumns: ["id"]
           },
           {
@@ -1303,6 +1313,63 @@ export type Database = {
           },
         ]
       }
+      gear: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean
+          kind: string
+          name: string
+          photo_path: string | null
+          reminded_100_at: string | null
+          reminded_90_at: string | null
+          reminder_m: number
+          retired_at: string | null
+          start_distance_m: number
+          updated_at: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          kind?: string
+          name: string
+          photo_path?: string | null
+          reminded_100_at?: string | null
+          reminded_90_at?: string | null
+          reminder_m: number
+          retired_at?: string | null
+          start_distance_m?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          kind?: string
+          name?: string
+          photo_path?: string | null
+          reminded_100_at?: string | null
+          reminded_90_at?: string | null
+          reminder_m?: number
+          retired_at?: string | null
+          start_distance_m?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gear_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integrity_cases: {
         Row: {
           assigned_to: string | null
@@ -2343,6 +2410,7 @@ export type Database = {
           creator_id: string
           decided_at: string | null
           decision_reason: string | null
+          from_m: number | null
           id: string
           length_m: number | null
           name: string
@@ -2352,6 +2420,7 @@ export type Database = {
           score_founding_run: boolean
           source_activity_id: string
           status: string
+          to_m: number | null
         }
         ComputedFields: never
         Insert: {
@@ -2364,6 +2433,7 @@ export type Database = {
           creator_id: string
           decided_at?: string | null
           decision_reason?: string | null
+          from_m?: number | null
           id?: string
           length_m?: number | null
           name: string
@@ -2373,6 +2443,7 @@ export type Database = {
           score_founding_run?: boolean
           source_activity_id: string
           status?: string
+          to_m?: number | null
         }
         Update: {
           canonical_course_id?: string | null
@@ -2384,6 +2455,7 @@ export type Database = {
           creator_id?: string
           decided_at?: string | null
           decision_reason?: string | null
+          from_m?: number | null
           id?: string
           length_m?: number | null
           name?: string
@@ -2393,6 +2465,7 @@ export type Database = {
           score_founding_run?: boolean
           source_activity_id?: string
           status?: string
+          to_m?: number | null
         }
         Relationships: [
           {
@@ -3040,6 +3113,7 @@ export type Database = {
         Returns: undefined
       }
       delete_comment: { Args: { p_comment: string }; Returns: undefined }
+      delete_gear: { Args: { p_id: string }; Returns: undefined }
       delete_post: { Args: { p_post: string }; Returns: undefined }
       discover_clubs: {
         Args: {
@@ -3230,6 +3304,21 @@ export type Database = {
           visibility: string
         }[]
       }
+      my_gear: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          created_at: string
+          distance_m: number
+          id: string
+          is_default: boolean
+          name: string
+          photo_path: string
+          reminder_m: number
+          retired_at: string
+          runs: number
+          start_distance_m: number
+        }[]
+      }
       my_live_links: { Args: Record<PropertyKey, never>; Returns: Json }
       my_lost_cells: {
         Args: {
@@ -3275,6 +3364,16 @@ export type Database = {
           occurred_at: string
           request_id: string
           verified_distance_m: number
+        }[]
+      }
+      my_protected_areas: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          label: string
+          lat: number
+          lng: number
+          radius_m: number
         }[]
       }
       my_staff_roles: { Args: Record<PropertyKey, never>; Returns: string[] }
@@ -3705,8 +3804,10 @@ export type Database = {
         Args: {
           p_activity: string
           p_consent_version: string
+          p_from_m?: number
           p_name: string
           p_score_founding_run?: boolean
+          p_to_m?: number
         }
         Returns: string
       }
@@ -3754,10 +3855,24 @@ export type Database = {
         Args: { p_accept: boolean; p_follower: string }
         Returns: undefined
       }
+      retire_gear: {
+        Args: { p_id: string; p_retired?: boolean }
+        Returns: undefined
+      }
       revoke_activity_link: { Args: { p_token: string }; Returns: undefined }
       running_now_counts: { Args: Record<PropertyKey, never>; Returns: Json }
       running_now_end: { Args: { p_session: string }; Returns: undefined }
       running_now_ping: { Args: { p_session: string }; Returns: Json }
+      save_gear: {
+        Args: {
+          p_default?: boolean
+          p_id: string
+          p_name: string
+          p_reminder_m?: number
+          p_start_distance_m?: number
+        }
+        Returns: string
+      }
       search_profiles: {
         Args: {
           p_city?: string
@@ -3817,7 +3932,15 @@ export type Database = {
         Args: { p_enabled: boolean }
         Returns: undefined
       }
+      set_gear_photo: {
+        Args: { p_id: string; p_path: string }
+        Returns: undefined
+      }
       set_live_share_people: { Args: { p_people: string[] }; Returns: Json }
+      set_run_gear: {
+        Args: { p_activity: string; p_gear: string }
+        Returns: undefined
+      }
       share_preview: {
         Args: { p_activity: string; p_share_fields: string[] }
         Returns: Json

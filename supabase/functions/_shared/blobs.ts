@@ -88,7 +88,8 @@ export const BUCKETS = {
   media: 'post-media',
   avatars: 'avatars',
   clubMedia: 'club-media',
-  exports: 'exports'
+  exports: 'exports',
+  gearPhotos: 'gear-photos'
 } as const;
 
 export const evidenceChunkPath = (userId: string, activityId: string, idx: number) => `${userId}/${activityId}/${String(idx).padStart(5, '0')}.txt`;

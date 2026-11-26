@@ -2,6 +2,16 @@
 
 Working file kept current so work survives context limits. Newest first.
 
+## 26 Nov 2026: running features, stage 4 (R4)
+
+* Features 7, 8 and 9 of the plan, traced as RF7, RF8 and RF9 in `TRACEABILITY.md`; decisions in `DECISIONS.md` ("Running features, stage 4"). Branch `feat/running-r4`, started from `feat/running-r3` before that stage was merged; one pull request for the stage, to be merged after stage 3's. This is the last app stage: the back-office pass comes next.
+* The two open questions for this stage were taken at the plan's recommendation: start-to-finish speed routes off (`route_proposals_a_to_b`) and 700 km for new shoes' reminders (`gear_reminder_default_km`).
+* A speed route from part of a run: *Whole run* or *Part of this run* with two sliders and live checks (length, loop or start to finish, protected areas through the new `my_protected_areas()`, parts already proposed). `propose_route` takes the part's ends as two optional arguments (older apps unchanged); the proposal job finds the ends in the run's fixes and checks just that part; a founding run times only the part. A whole private run, which the old path could never accept, is sent as a part from start to finish. Core `speed/stretch.ts`.
+* Shoes: `public.gear` (private, changed only through its functions), `activities.gear_id`, new runs counting towards the pair for new runs, totals and runs, reminders at 90% and 100% (no name in the notification), retiring and deleting, photos in the private `gear-photos` bucket, the export and account deletion. Me → Shoes, a pair's screen, the pair on the run summary and the run page, the shoe highlight with the run's pair (never shareable). Switch `gear_enabled`, settings `gear_max_items` and `gear_reminder_default_km`.
+* Replay: core `recording/replay.ts` (about 20 seconds whatever the length, smoothed headings, zoom by length, pace shades from splits, kilometre or mile markers); the replay screen with play, pause, drag and double speed; a flat map with Reduce Motion or under 30 frames a second. Switch `replay_enabled`. A one-thumb accessible slider (`components/Slider.tsx`) serves the replay and the part of a run.
+* Analytics: `route_proposed.from_stretch`/`shape`, `gear`, `replay`, `run_saved.gear`; no names, distances, lengths or places.
+* Checks: `npm run verify`, all 15 steps (core 166, worker 59, pgTAP 683 in 19 suites with 35 migrations, edge smoke 55, jest 259 in 26 suites, lint 0 errors), including the payload check extended to stage 4. Worker tests run a part of a run end to end, and the export and deletion with shoes. Visual check on the web build with sample data (Shoes, a pair, the run's shoes sheet, the sliders, the replay controls); maps aren't drawn on the web.
+
 ## 26 Nov 2026: running features, stage 3 (R3)
 
 * Features 4 and 6 of the plan, traced as RF4 and RF6 in `TRACEABILITY.md`; decisions in `DECISIONS.md` ("Running features, stage 3"). Branch `feat/running-r3`, started from `feat/running-r2` before that stage was merged; one pull request for the stage, to be merged after stage 2's.

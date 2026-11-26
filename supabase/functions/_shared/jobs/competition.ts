@@ -2,8 +2,10 @@ import {
   buildCourse,
   canonicalSamples,
   decide,
+  decodePolyline,
   encodePolyline,
   evaluateLoop,
+  evaluateStretch,
   evaluateMovement,
   evaluateSpeedAttempt,
   integrityRulesWith,
@@ -11,6 +13,7 @@ import {
   isUsable,
   SPEED_RULES,
   simplify,
+  stretchAttemptEvents,
   summarizeActivity,
   MOVEMENT_RULES,
   TERRITORY_RULES,
@@ -19,7 +22,9 @@ import {
   type CourseGeometry,
   type IntegrityRules,
   type LatLng,
-  type ReasonCode
+  type LocationSample,
+  type ReasonCode,
+  type RecordingEvent
 } from '../core/index.ts';
 import { candidateCells, cellRecords, visitedCells } from '../h3cells.ts';
 import { loadEvidence, type Evidence } from './evidence.ts';
@@ -252,22 +257,49 @@ export const evaluateAttemptJob: JobHandler = async (payload, ctx) => {
 
 const toGeoLine = (pts: LatLng[]) => ({ type: 'LineString', coordinates: pts.map((p) => [p.lng, p.lat]) });
 
-/** Builds a proposed course from validated evidence; clients never supply route geometry. */
+/** Whether start-to-finish speed routes may be proposed yet (App control; off until the owner decides). */
+async function aToBAllowed(ctx: JobContext): Promise<boolean> {
+  const [row] = await ctx.sql`select internal.config_bool('route_proposals_a_to_b', false) as on`;
+  return row?.on === true;
+}
+
+/** The run's own line, which the phone measured a part of a run along. */
+async function runLine(ctx: JobContext, activityId: string): Promise<LatLng[]> {
+  const [a] = await ctx.sql`select personal_route from public.activities where id = ${activityId}`;
+  return typeof a?.personal_route === 'string' && a.personal_route ? decodePolyline(a.personal_route) : [];
+}
+
+/**
+ * Builds a proposed course from validated evidence; clients never supply route geometry. A whole run is
+ * the runner's captured loop, as before; part of a run (from_m/to_m, metres along the run's own line) is
+ * cut from the run's fixes and checked for pauses, gaps and the rest over just that part.
+ */
 export const buildRouteProposal: JobHandler = async (payload, ctx) => {
   const proposalId = str(payload.proposal_id, 'proposal_id');
-  const [p] = await ctx.sql`select id, source_activity_id, creator_id, status from public.route_proposals where id = ${proposalId}`;
+  const [p] = await ctx.sql`select id, source_activity_id, creator_id, status, from_m, to_m from public.route_proposals where id = ${proposalId}`;
   if (!p || p.status !== 'processing') return;
   const decline = async (reason: string) => {
     await ctx.sql`update public.route_proposals set status = 'declined', decision_reason = ${reason}, decided_at = now() where id = ${proposalId}`;
     await ctx.sql`select internal.notify(${p.creator_id}::uuid, 'system', 'route_decided', null, 'route_proposal', ${proposalId}, '{"approved": false}'::jsonb, ${'route:' + proposalId})`;
   };
   const ev = await loadEvidence(ctx, p.source_activity_id);
-  const loop = evaluateLoop(ev.samples, ev.events);
-  const blocking = loop.reasons.filter((r) => !['no_eligible_cells', 'eligibility_data_unavailable', 'outside_season', 'season_boundary', 'late_upload', 'no_ticket', 'gps_spike_ignored'].includes(r));
-  if (!loop.interval || blocking.length) return decline(`source loop not suitable: ${blocking.join(', ') || 'no capture interval'}`);
-  const trace = canonicalSamples(ev.samples).filter((s) => s.t >= loop.interval!.startT && s.t <= loop.interval!.endT && isUsable(s));
-  const course = buildCourse(trace, { closed: true });
   const speed = await currentSpeedRules(ctx);
+  let trace: LocationSample[];
+  let closed = true;
+  if (p.from_m !== null && p.to_m !== null) {
+    const part = evaluateStretch(ev.samples, ev.events, await runLine(ctx, p.source_activity_id), Number(p.from_m), Number(p.to_m), { corridorM: speed.corridorMeters.value });
+    if (!part.found) return decline('the chosen part could not be found in the run\'s recording');
+    if (part.blocking.length) return decline(`source run not suitable for that part: ${part.blocking.join(', ')}`);
+    closed = part.closed;
+    if (!closed && !(await aToBAllowed(ctx))) return decline('only loops can be proposed for now: choose a part that starts and finishes in the same place');
+    trace = part.trace;
+  } else {
+    const loop = evaluateLoop(ev.samples, ev.events);
+    const blocking = loop.reasons.filter((r) => !['no_eligible_cells', 'eligibility_data_unavailable', 'outside_season', 'season_boundary', 'late_upload', 'no_ticket', 'gps_spike_ignored'].includes(r));
+    if (!loop.interval || blocking.length) return decline(`source loop not suitable: ${blocking.join(', ') || 'no capture interval'}`);
+    trace = canonicalSamples(ev.samples).filter((s) => s.t >= loop.interval!.startT && s.t <= loop.interval!.endT && isUsable(s));
+  }
+  const course = buildCourse(trace, { closed });
   if (course.lengthM < speed.minCourseLengthMeters.value || course.lengthM > speed.maxCourseLengthMeters.value) {
     return decline(`course length ${course.lengthM} m is outside the ${speed.minCourseLengthMeters.value / 1000}–${speed.maxCourseLengthMeters.value / 1000} km range`);
   }
@@ -301,7 +333,7 @@ export const buildRouteProposal: JobHandler = async (payload, ctx) => {
     corridor_m: course.corridorM
   };
   await ctx.sql`
-    update public.route_proposals set status = 'pending_review', region_id = ${region.id}, closed = true, length_m = ${course.lengthM},
+    update public.route_proposals set status = 'pending_review', region_id = ${region.id}, closed = ${closed}, length_m = ${course.lengthM},
            path = extensions.st_setsrid(extensions.st_geomfromgeojson(${JSON.stringify(path)}), 4326), course_geometry = ${ctx.sql.json(geometry as never)}
      where id = ${proposalId}`;
 };
@@ -314,7 +346,7 @@ export const evaluateFoundingAttempt: JobHandler = async (payload, ctx) => {
   const proposalId = str(payload.proposal_id, 'proposal_id');
   const courseVersionId = str(payload.course_version_id, 'course_version_id');
   const [p] = await ctx.sql`
-    select rp.source_activity_id, rp.creator_id, a.ticket_id, a.competition_id, a.season_id, a.received_at, a.ended_at, rs.modes
+    select rp.source_activity_id, rp.creator_id, rp.from_m, rp.to_m, a.ticket_id, a.competition_id, a.season_id, a.received_at, a.ended_at, rs.modes
       from public.route_proposals rp join public.activities a on a.id = rp.source_activity_id
       left join internal.recording_sessions rs on rs.ticket_id = a.ticket_id
      where rp.id = ${proposalId}`;
@@ -328,7 +360,13 @@ export const evaluateFoundingAttempt: JobHandler = async (payload, ctx) => {
   if (!course) return;
   const startEvt = ev.events.find((e) => e.kind === 'capture_start' || e.kind === 'speed_start');
   if (!startEvt) return;
-  const events = [...ev.events, { ...startEvt, kind: 'speed_start' as const }];
+  let events: RecordingEvent[] = [...ev.events, { ...startEvt, kind: 'speed_start' as const }];
+  if (p.from_m !== null && p.to_m !== null) {
+    // A route from part of a run times only that part.
+    const part = stretchAttemptEvents(ev.samples, ev.events, await runLine(ctx, p.source_activity_id), Number(p.from_m), Number(p.to_m));
+    if (!part) return;
+    events = part;
+  }
   const r = evaluateSpeedAttempt(ev.samples, events, course.geometry);
   const [att] = await ctx.sql`
     insert into public.speed_attempts (activity_id, user_id, course_version_id, competition_id, season_id, status, reasons, rule_version, algorithm_version,
