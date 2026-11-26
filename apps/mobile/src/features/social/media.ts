@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase';
  */
 const TTL = SOCIAL_RULES.mediaUrlTtlSeconds.value;
 
-export function useSignedUrl(bucket: 'post-media' | 'avatars' | 'club-media', path: string | null | undefined) {
+export function useSignedUrl(bucket: 'post-media' | 'avatars' | 'club-media' | 'gear-photos', path: string | null | undefined) {
   return useQuery({
     queryKey: ['signed', bucket, path],
     enabled: Boolean(path),
@@ -53,15 +53,15 @@ export function useSignedUrls(bucket: 'avatars' | 'club-media', paths: (string |
  * Re-encode a picked image to JPEG on device before upload: bounded size, and re-encoding drops
  * EXIF/GPS metadata. The server strips metadata again regardless (defence in depth).
  */
-export async function prepareImage(uri: string): Promise<{ uri: string; width: number; height: number }> {
-  const edge = SOCIAL_RULES.maxImageEdgePixels.value;
+export async function prepareImage(uri: string, opts: { maxEdge?: number } = {}): Promise<{ uri: string; width: number; height: number }> {
+  const edge = Math.min(opts.maxEdge ?? Infinity, SOCIAL_RULES.maxImageEdgePixels.value);
   // Downsample while decoding (never upscales); re-encoding writes a JPEG without the source metadata.
   const img = await ImageManipulator.ImageManipulator.manipulate(uri, { maxWidth: edge, maxHeight: edge }).renderAsync();
   const out = await img.saveAsync({ format: ImageManipulator.SaveFormat.JPEG, compress: 0.82 });
   return { uri: out.uri, width: out.width, height: out.height };
 }
 
-export async function uploadToBucket(bucket: 'media-uploads' | 'avatars' | 'club-media', path: string, fileUri: string): Promise<void> {
+export async function uploadToBucket(bucket: 'media-uploads' | 'avatars' | 'club-media' | 'gear-photos', path: string, fileUri: string): Promise<void> {
   const res = await fetch(fileUri);
   const body = await res.arrayBuffer();
   if (body.byteLength > SOCIAL_RULES.maxOriginalImageBytes.value) throw new Error('This photo is larger than 10 MB.');

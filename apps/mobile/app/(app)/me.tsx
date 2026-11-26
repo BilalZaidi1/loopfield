@@ -19,6 +19,8 @@ import { useProfileCard } from '@/features/social/profile';
 import { useCompetition } from '@/state/competition';
 import { useMyTerritorySummary } from '@/features/territory/useTerritoryStats';
 import { useSession, useUnits } from '@/state/session';
+import { useFeature } from '@/lib/appConfig';
+import { shoesSubtitle, useMyGear } from '@/features/gear/api';
 import { spacing, usePalette } from '@/theme/tokens';
 
 /** S35 My profile — identity, followers/following, own posts, land and titles, clubs, season history and settings. */
@@ -38,6 +40,8 @@ export default function MyProfile() {
   const clubs = useMyClubs();
   const posts = useFeed('profile_posts', { p_profile: userId }, Boolean(userId));
   const achievements = useAchievementProfile();
+  const gearOn = useFeature('gear_enabled');
+  const gear = useMyGear();
   const challenges = useMyChallenges();
   const movement = useMovement();
   if (!profile) return <Screen><LoadingState variant="cards" /></Screen>;
@@ -134,6 +138,7 @@ export default function MyProfile() {
         <Row icon="clubs" title="Connections" subtitle="Followers, following and requests" onPress={() => router.push('/connections')} />
         <Row icon="edit" title="Edit profile" onPress={() => router.push('/settings/profile')} />
         <Row icon="calendar" title="Season history" onPress={() => router.push('/seasons')} />
+        {gearOn ? <Row icon="shoe" title="Shoes" subtitle={shoesSubtitle(gear.data)} onPress={() => router.push('/shoes')} /> : null}
         <Row icon="settings" title="Settings" subtitle="Privacy, notifications, theme and account" onPress={() => router.push('/settings')} />
         {staff.permissions.length ? <Row icon="shield" title="Operator tools" onPress={() => router.push('/ops')} /> : null}
       </ListGroup>

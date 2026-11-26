@@ -50,7 +50,8 @@ const FRIENDLY: Record<string, string> = {
   region_unavailable: 'Competition in that area is not available.',
   name_length: 'Use 3 to 60 characters for the name.',
   owner_must_transfer: 'Choose a new owner first: offer ownership in Manage. Once they accept, you can leave.',
-  confirm_name: 'Type the name exactly to confirm.'
+  confirm_name: 'Type the name exactly to confirm.',
+  'a proposal for this activity already exists': 'You have already proposed this run, or a part of it that overlaps.'
 };
 
 /** Server messages that are a key (for example `event_window`) may carry their own explanation. */

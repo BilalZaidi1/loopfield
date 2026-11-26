@@ -35,7 +35,9 @@ export const SWITCH_KEYS = [
   'run_summaries_enabled',
   'running_now_enabled',
   'friends_live_enabled',
-  'ble_sensors_enabled'
+  'ble_sensors_enabled',
+  'gear_enabled',
+  'replay_enabled'
 ] as const;
 export type SwitchKey = (typeof SWITCH_KEYS)[number];
 
@@ -81,6 +83,10 @@ export interface AppSettings {
   /** Running tools (R2): runners out right now and live runs with friends. */
   runningNowMinCount: number;
   friendsLiveMaxPeople: number;
+  /** Running tools (R4): start-to-finish speed routes (off until decided) and shoes. */
+  routeProposalsAToB: boolean;
+  gearMaxItems: number;
+  gearReminderDefaultKm: number;
 }
 
 const VERSION = /^\d+(\.\d+){0,2}$/;
@@ -163,7 +169,10 @@ export function parseAppConfig(raw: AppConfigRaw | null | undefined): AppSetting
     liveLinkMaxHours: Math.min(count(r.live_link_max_hours, 6), 12),
     // Counts under five are never shown, whatever the setting says.
     runningNowMinCount: Math.max(count(r.running_now_min_count, 5), 5),
-    friendsLiveMaxPeople: Math.min(Math.max(count(r.friends_live_max_people, 50), 1), 200)
+    friendsLiveMaxPeople: Math.min(Math.max(count(r.friends_live_max_people, 50), 1), 200),
+    routeProposalsAToB: bool(r.route_proposals_a_to_b, false),
+    gearMaxItems: Math.min(count(r.gear_max_items, 20), 100),
+    gearReminderDefaultKm: Math.min(Math.max(count(r.gear_reminder_default_km, 700), 300), 1500)
   };
 }
 
@@ -245,5 +254,7 @@ export const PAUSED_TEXT: Record<SwitchKey, string> = {
   run_summaries_enabled: 'Run highlights are paused for now.',
   running_now_enabled: 'Runners out right now is paused for now.',
   friends_live_enabled: 'Live runs with friends are paused for now. Nothing is shared while it is off.',
-  ble_sensors_enabled: 'Heart-rate straps are paused for now. Your strap is not connected during runs; heart rate from your health app still counts.'
+  ble_sensors_enabled: 'Heart-rate straps are paused for now. Your strap is not connected during runs; heart rate from your health app still counts.',
+  gear_enabled: 'Shoes are paused for now. New runs count towards no pair until this is back; your shoes and their distances are kept.',
+  replay_enabled: 'Replay is paused for now.'
 };

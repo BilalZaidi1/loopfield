@@ -58,6 +58,7 @@ export default function Help() {
         <Bullet>To take a title you must beat the record by a clear margin: the larger of {S.marginMinSeconds.value} s, {S.marginFraction.value * 100}% of the record, or the combined timing uncertainty. Near ties do not change the title.</Bullet>
         <Bullet>Titles count only on the same version of a route. Speed never moves land, and land never protects a title.</Bullet>
         <Bullet>Anyone can propose a route ({fmtRuleDistance(S.minCourseLengthMeters.value, units)}–{fmtRuleDistance(S.maxCourseLengthMeters.value, units)}) from one of their runs; reviewers check safety, public access and duplicates.</Bullet>
+        <Bullet>A route can be the whole run or part of it: choose where the part starts and ends, and the same checks apply to just that part. Several parts of one run can be proposed if they don’t overlap.</Bullet>
         </Card>
       </Section>
       <Section title="Movement points and reclaiming" icon="bolt">
@@ -92,7 +93,9 @@ export default function Help() {
         <Bullet>Your picture as your position dot shows only on your own screen.</Bullet>
         <Bullet>Live runs with friends are off until you turn them on, and only friends you choose (or all your friends, if you pick that) see you. They see your position while you run, including runs that take land, before the usual delay; inside your protected areas they see only that you are running.</Bullet>
         <Bullet>Runners out right now is a count by city and country, from the city on your profile. It never sends where you are, shows no names, and never shows fewer than 5. You can leave the count in Privacy.</Bullet>
-        <Bullet>Highlights are written on this phone. They go on a share card only if you add them, and the effort line never does.</Bullet>
+        <Bullet>Highlights are written on this phone. They go on a share card only if you add them, and the effort and shoe lines never do.</Bullet>
+        <Bullet>Your shoes are yours alone: they are not on your profile or in anything you share. A shoe photo is kept in your own private folder, without its location.</Bullet>
+        <Bullet>Replays of your runs are only for you. They are worked out on this phone from your run’s line.</Bullet>
         </Card>
       </Section>
       <Section title="Health data" icon="heart">

@@ -8,6 +8,7 @@ import { ActionBar, Badge, Banner, BigNumber, Button, Card, EmptyState, ListGrou
 import { RunPointsCard } from '@/features/movement/Reclaim';
 import { EffortLine } from '@/features/training/EffortLine';
 import { HighlightsCard } from '@/features/results/HighlightsCard';
+import { RunShoesCard } from '@/features/gear/ShoeParts';
 import { Icon } from '@/components/icons';
 import { Celebration } from '@/features/run/Celebration';
 import { IntegrityCard, LandCard, TitleCards } from '@/features/results/ResultCards';
@@ -96,6 +97,7 @@ export default function RunSummary() {
       {uploaded ? (
         <>
           {detail.error ? <Banner tone="danger" text={friendlyError(detail.error)} action={{ label: 'Retry', onPress: () => void detail.refetch() }} /> : null}
+          {a ? <RunShoesCard activityId={a.id} gearId={a.gear_id} /> : null}
           <IntegrityCard activity={detail.data?.activity} />
           <RunPointsCard activityId={id} />
           <LandCard claim={detail.data?.claim ?? null} territoryRequested={territoryRequested} layers={detail.data?.layers} activityId={id} />

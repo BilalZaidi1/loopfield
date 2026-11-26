@@ -5,6 +5,7 @@ import { Icon, type IconName } from '@/components/icons';
 import { spacing, usePalette } from '@/theme/tokens';
 import { useRunHighlights } from './highlights';
 import { useActivityDetail, type LocalRun } from './useActivity';
+import { useRunShoes } from '@/features/gear/api';
 
 const ICON: Record<HighlightKind, IconName> = {
   longest: 'route',
@@ -27,10 +28,12 @@ export function HighlightsCard({ activityId, local }: { activityId: string | nul
   const detail = useActivityDetail(activityId ?? undefined, Boolean(activityId) && uploaded);
   const s = local?.summary ?? null;
   const settled = Boolean(detail.data && detail.data.claim?.status !== 'processing');
+  const pair = useRunShoes(detail.data?.activity);
   const h = useRunHighlights(activityId, {
     run: local?.startedAt && s ? { start: local.startedAt, distanceM: s.distanceM, durationMs: s.movingMs || s.elapsedMs, splits: s.splits } : null,
     layers: detail.data?.layers,
-    landSettled: settled
+    landSettled: settled,
+    shoes: pair === undefined ? undefined : pair ? { name: pair.name, distanceM: pair.distance_m } : null
   });
   if (!h || h.hidden || !h.lines.length) return null;
   return (

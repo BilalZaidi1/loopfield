@@ -16,6 +16,7 @@ import { attachCheckins, endRunningNow, pingRunningNow } from './checkins';
 import { markerShown } from './marker';
 import { discardStrapForRun, ensureStrapForRun, startStrapForRun, stopStrapForRun } from '@/features/sensors/runStrap';
 import { heartRateFrom } from './heartRateSource';
+import { countsTowardsShoes } from './gearSource';
 import { fetchAppConfig } from '@/lib/appConfig';
 
 // The live movement check pauses through the same path as the Pause button.
@@ -234,6 +235,7 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
   void endRunningNow(sessionId);
   const strapReadings = await stopStrapForRun().catch(() => 0);
   const follow = followSummary(sessionId);
+  const gear = await countsTowardsShoes().catch(() => false);
   track('run_saved', {
     activity_id: sessionId.replace(/-/g, '').slice(0, 32),
     mode: s.mode,
@@ -243,7 +245,8 @@ export async function finishRun(sessionId: string): Promise<ReturnType<typeof su
     followed: follow.followed,
     off_route_alerts: alertBucket(follow.alerts),
     marker: markerShown(),
-    hr_source: heartRateFrom(strapReadings)
+    hr_source: heartRateFrom(strapReadings),
+    gear
   });
   return summary;
 }

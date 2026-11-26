@@ -40,7 +40,7 @@ export interface MapMarker {
   id: string;
   coord: [number, number];
   label: string;
-  kind: 'start' | 'finish' | 'checkpoint' | 'cell';
+  kind: 'start' | 'finish' | 'checkpoint' | 'cell' | 'km';
 }
 
 export interface MapLayers {
@@ -65,10 +65,27 @@ export interface MapLayers {
   /** Friends running now who share with me (R2), and the last few minutes of their paths ([lng, lat]). */
   friends?: FriendMarkerData[];
   friendTrails?: [number, number][][];
+  /** The rest of a run, drawn thin and quiet under `path` (choosing part of a run). */
+  faint?: [number, number][];
+  /** A line in coloured parts (a replay's pace shading), each with its own colour. */
+  paceLines?: { coords: [number, number][]; color: string }[];
+  /** One position dot (where a replay has got to). */
+  dot?: [number, number] | null;
+}
+
+export interface CameraConfig {
+  centerCoordinate?: [number, number];
+  zoomLevel?: number;
+  pitch?: number;
+  heading?: number;
+  animationDuration: number;
+  animationMode: 'flyTo' | 'easeTo' | 'linearTo' | 'moveTo' | 'none';
 }
 
 export interface MapHandle {
   flyTo: (coord: [number, number], zoom?: number) => void;
+  /** Moves the camera directly (a replay steps it from frame to frame). */
+  setCamera: (config: CameraConfig) => void;
 }
 
 /** The Mapbox module when this build can draw maps (native build with a token), otherwise null. */
@@ -86,7 +103,7 @@ const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: 
 
 /** The part of the Mapbox camera handle this screen uses. */
 interface CameraHandle {
-  setCamera: (config: { centerCoordinate?: [number, number]; zoomLevel?: number; pitch?: number; animationDuration: number; animationMode: 'flyTo' | 'easeTo' }) => void;
+  setCamera: (config: CameraConfig) => void;
 }
 
 export function MapCanvas({
@@ -111,7 +128,11 @@ export function MapCanvas({
   mapRef,
   threeD = false,
   animate = false,
-  userImage = null
+  userImage = null,
+  initialPitch,
+  initialHeading,
+  locked = false,
+  onLoaded
 }: {
   layers: MapLayers;
   fit?: Bounds | null;
@@ -141,6 +162,13 @@ export function MapCanvas({
   animate?: boolean;
   /** The runner's picture as their position dot (a file URI), or null for the plain dot. */
   userImage?: string | null;
+  /** Camera tilt and heading to open with (a replay), instead of the 3D default. */
+  initialPitch?: number;
+  initialHeading?: number;
+  /** No panning, zooming or turning by hand (while a replay flies the camera). */
+  locked?: boolean;
+  /** Called once the map has loaded its style, when the camera can be moved. */
+  onLoaded?: () => void;
 }) {
   const t = useTheme();
   const tc = t.territory;
@@ -148,13 +176,14 @@ export function MapCanvas({
   const camera = useRef<CameraHandle>(null);
   const featureTap = useRef(0);
   useImperativeHandle(mapRef, () => ({
-    flyTo: (coord, z) => camera.current?.setCamera({ centerCoordinate: coord, zoomLevel: z ?? 15, animationDuration: 700, animationMode: 'flyTo' })
+    flyTo: (coord, z) => camera.current?.setCamera({ centerCoordinate: coord, zoomLevel: z ?? 15, animationDuration: 700, animationMode: 'flyTo' }),
+    setCamera: (config) => camera.current?.setCamera(config)
   }), []);
   const reduced = useReducedMotion();
   useEffect(() => {
-    if (!Mapbox) return;
+    if (!Mapbox || initialPitch !== undefined) return;
     camera.current?.setCamera({ pitch: threeD ? 55 : 0, animationDuration: reduced ? 0 : 800, animationMode: 'easeTo' });
-  }, [threeD, reduced]);
+  }, [threeD, reduced, initialPitch]);
   // Own land "breathes": one state flip every few seconds; Mapbox animates the change natively.
   const [glow, setGlow] = useState(false);
   useEffect(() => {
@@ -167,6 +196,15 @@ export function MapCanvas({
     return parts.length ? { type: 'FeatureCollection' as const, features: parts.map((x) => lineFeature(x)) } : null;
   }, [layers.path, layers.pathParts]);
   const closingFc = useMemo(() => (layers.closing && layers.closing.length > 1 ? { type: 'FeatureCollection' as const, features: [lineFeature(layers.closing)] } : null), [layers.closing]);
+  const faintFc = useMemo(() => (layers.faint && layers.faint.length > 1 ? { type: 'FeatureCollection' as const, features: [lineFeature(layers.faint)] } : null), [layers.faint]);
+  const paceFc = useMemo<GeoJSON.FeatureCollection | null>(() => {
+    const parts = (layers.paceLines ?? []).filter((x) => x.coords.length > 1);
+    return parts.length ? { type: 'FeatureCollection', features: parts.map((x) => ({ ...lineFeature(x.coords), properties: { color: x.color } })) } : null;
+  }, [layers.paceLines]);
+  const dotFc = useMemo<GeoJSON.FeatureCollection | null>(
+    () => (layers.dot ? { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: layers.dot }, properties: {} }] } : null),
+    [layers.dot]
+  );
   const friendTrailsFc = useMemo(() => {
     const parts = (layers.friendTrails ?? []).filter((x) => x.length > 1);
     return parts.length ? { type: 'FeatureCollection' as const, features: parts.map((x) => lineFeature(x)) } : null;
@@ -178,7 +216,7 @@ export function MapCanvas({
         : null,
     [layers.markers]
   );
-  const fitBounds = fit ?? (layers.path?.length ? boundsOf(layers.path) : layers.pathParts?.length ? boundsOf(layers.pathParts.flat()) : null);
+  const fitBounds = fit ?? (layers.faint?.length ? boundsOf(layers.faint) : layers.path?.length ? boundsOf(layers.path) : layers.pathParts?.length ? boundsOf(layers.pathParts.flat()) : null);
   const frame = fill ? { flex: 1 } : { height, borderRadius: radius.lg, overflow: 'hidden' as const };
 
   if (!avail.ok || !Mapbox) {
@@ -210,8 +248,11 @@ export function MapCanvas({
         compassEnabled
         compassPosition={{ top: fill ? 120 : 8, right: 12 }}
         scaleBarEnabled={false}
-        pitchEnabled
-        rotateEnabled
+        pitchEnabled={!locked}
+        rotateEnabled={!locked}
+        scrollEnabled={!locked}
+        zoomEnabled={!locked}
+        onDidFinishLoadingMap={onLoaded}
         onPress={() => {
           if (Date.now() - featureTap.current > 300) onPressMap?.();
         }}
@@ -222,7 +263,7 @@ export function MapCanvas({
         }}>
         <Camera
           ref={camera as never}
-          defaultSettings={center ? { centerCoordinate: center, zoomLevel: zoom } : undefined}
+          defaultSettings={center ? { centerCoordinate: center, zoomLevel: zoom, ...(initialPitch !== undefined ? { pitch: initialPitch } : null), ...(initialHeading !== undefined ? { heading: initialHeading } : null) } : undefined}
           bounds={fitBounds ? { ne: [fitBounds.maxLng, fitBounds.maxLat], sw: [fitBounds.minLng, fitBounds.minLat], paddingTop: 48, paddingBottom: 48, paddingLeft: 40, paddingRight: 40 } : undefined}
           followUserLocation={followUser}
           followZoomLevel={followUser ? 16 : undefined}
@@ -316,6 +357,17 @@ export function MapCanvas({
           <LineLayer id="routes-line" filter={['!=', ['get', 'status'], 'suspended']} style={{ lineColor: ['case', ['==', ['get', 'mine'], true], tc.routeMine, tc.route], lineWidth: 4.5, lineCap: 'round', lineJoin: 'round' }} />
           <LineLayer id="routes-suspended" filter={['==', ['get', 'status'], 'suspended']} style={{ lineColor: tc.routeSuspended, lineWidth: 3.5, lineDasharray: [1, 2], lineCap: 'round' }} />
         </ShapeSource>
+        {faintFc ? (
+          <ShapeSource id="faint" shape={faintFc}>
+            <LineLayer id="faint-line" style={{ lineColor: tc.routeSuspended, lineWidth: 3, lineOpacity: 0.7, lineCap: 'round', lineJoin: 'round' }} />
+          </ShapeSource>
+        ) : null}
+        {paceFc ? (
+          <ShapeSource id="pace" shape={paceFc}>
+            <LineLayer id="pace-casing" style={{ lineColor: tc.pathCasing, lineWidth: 9, lineCap: 'round', lineJoin: 'round' }} />
+            <LineLayer id="pace-line" style={{ lineColor: ['get', 'color'], lineWidth: 5.5, lineCap: 'round', lineJoin: 'round' }} />
+          </ShapeSource>
+        ) : null}
         {pathFc ? (
           <ShapeSource id="path" shape={pathFc} lineMetrics>
             <LineLayer id="path-casing" style={{ lineColor: tc.pathCasing, lineWidth: 9, lineCap: 'round', lineJoin: 'round' }} />
@@ -330,8 +382,13 @@ export function MapCanvas({
         ) : null}
         {markerFc ? (
           <ShapeSource id="markers" shape={markerFc}>
-            <CircleLayer id="markers-circle" style={{ circleRadius: 8, circleColor: ['match', ['get', 'kind'], 'start', tc.start, 'finish', tc.finish, tc.checkpoint], circleStrokeColor: tc.pathCasing, circleStrokeWidth: 3 }} />
+            <CircleLayer id="markers-circle" style={{ circleRadius: ['match', ['get', 'kind'], 'km', 5, 8], circleColor: ['match', ['get', 'kind'], 'start', tc.start, 'finish', tc.finish, 'km', tc.pathCasing, tc.checkpoint], circleStrokeColor: ['match', ['get', 'kind'], 'km', tc.label, tc.pathCasing], circleStrokeWidth: ['match', ['get', 'kind'], 'km', 2, 3] }} />
             <SymbolLayer id="markers-label" style={{ textField: ['get', 'label'], textSize: 12, textOffset: [0, 1.5], textColor: tc.label, textHaloColor: tc.labelHalo, textHaloWidth: 1.5 }} />
+          </ShapeSource>
+        ) : null}
+        {dotFc ? (
+          <ShapeSource id="dot" shape={dotFc}>
+            <CircleLayer id="dot-circle" style={{ circleRadius: 9, circleColor: tc.path, circleStrokeColor: tc.pathCasing, circleStrokeWidth: 3, circlePitchAlignment: 'map' }} />
           </ShapeSource>
         ) : null}
         {friendTrailsFc ? (
