@@ -7,6 +7,7 @@ import { rpc, settle } from '@/lib/rpc';
 import { viewerTimeZone } from '@/lib/tz';
 import { age, ageMinutes, change, count, dateTime, num, relativeTime, shortDay } from '@/lib/format';
 import { SWITCHES, asMaintenance } from '@/lib/switches';
+import { snapAlertState } from '@/lib/running';
 import { BAND_LAYOUT, availableWidgets, bandSpans, chosenWidgets, type WidgetBand, type WidgetDef } from '@/lib/widgets';
 import type { Metrics, Overview, SupportQueue } from '@/lib/types';
 import { AutoRefresh } from '@/components/client';
@@ -124,6 +125,7 @@ function Widget({ w, env }: { w: WidgetDef; env: Env }) {
       return <Tile icon="chat" label={w.label} value={count(c?.open ?? 0)} note={c ? `${c.unassigned} unassigned · ${c.urgent} urgent` : 'Not available'} href="/support" />;
     }
     if (w.id === 'kpi_runners') return <Tile icon="users" label={w.label} value={count(o.totals.runners)} note={`${count(o.totals.suspended)} suspended · ${count(o.totals.clubs)} clubs`} href="/runners" />;
+    if (RUNNING_TILES.has(w.id)) return <RunningTile w={w} env={env} />;
     if (!m) return <Tile icon={KPI_ICON[w.id] ?? 'pulse'} label={w.label} value="–" note={<NotLoadedNote error={env.metricsError} />} href="/analytics" />;
     const s = m.series[w.metric!] ?? [];
     const todayVal = s[s.length - 1] ?? 0;
@@ -161,11 +163,54 @@ function Widget({ w, env }: { w: WidgetDef; env: Env }) {
   return <Panel id={w.id} label={w.label} env={env} />;
 }
 
-function Tile({ icon, label, value, unit, note, spark, href }: { icon: IconName; label: string; value: ReactNode; unit?: string; note?: ReactNode; spark?: number[]; href?: string }) {
+const RUNNING_TILES = new Set(['kpi_live_links', 'kpi_route_snap', 'kpi_running_now', 'kpi_routes_waiting']);
+
+/** The running tools on the Overview: counts only, never anything about one runner. */
+function RunningTile({ w, env }: { w: WidgetDef; env: Env }) {
+  const { o, ctx } = env;
+  const s = o.settings;
+  const run = o.running;
+  const routes = o.queues.routes;
+  if (w.id === 'kpi_routes_waiting') {
+    const over = routes.over_target ?? 0;
+    return (
+      <Tile icon="route" label={w.label} value={count(routes.open)} tone={over ? 'warning' : undefined} href={can(ctx, 'routes') ? '/routes' : undefined}
+        note={routes.open ? <>Oldest has waited {age(routes.oldest)}{over ? ` · ${over} past the ${routes.target_hours ?? 48} h target` : ''}</> : 'Nothing waiting'} />
+    );
+  }
+  if (!run) return <Tile icon={w.id === 'kpi_running_now' ? 'users' : 'link'} label={w.label} value="–" note="Not available until the database has the running features" />;
+  if (w.id === 'kpi_live_links') {
+    return (
+      <Tile icon="link" label={w.label} value={count(run.live_links_now)}
+        note={s.live_links_enabled === false ? 'Live links are switched off' : `Runs being shared now · ${count(run.friends_live_now)} more with friends`} />
+    );
+  }
+  if (w.id === 'kpi_route_snap') {
+    const state = snapAlertState(run.route_snap_month, run.route_snap_alert);
+    const off = s.route_snapping_enabled === false;
+    return (
+      <Tile icon="map" label={w.label} value={count(run.route_snap_month)} tone={state === 'over' && !off ? 'warning' : undefined}
+        href={state === 'over' || off ? '/settings?tab=switch#route_snapping_enabled' : can(ctx, 'analytics') ? '/analytics#running-tools' : undefined}
+        note={off ? 'Path following is switched off'
+          : state === 'unset' ? 'No alert level set yet (App control → System)'
+          : state === 'over' ? `Past the alert level of ${count(run.route_snap_alert)}. Open the switch to pause path following.`
+          : `Alert at ${count(run.route_snap_alert)}${state === 'near' ? ' · getting close' : ''} · UTC month`} />
+    );
+  }
+  const now = run.running_now;
+  return (
+    <Tile icon="users" label={w.label} value={!now.enabled ? 'Off' : now.everywhere == null ? `Under ${now.min_count}` : count(now.everywhere)}
+      note={!now.enabled ? 'Switched off in App control' : now.everywhere == null ? 'Runners see no number below this' : 'The same count runners see, everywhere'} />
+  );
+}
+
+function Tile({ icon, label, value, unit, note, spark, href, tone }: { icon: IconName; label: string; value: ReactNode; unit?: string; note?: ReactNode; spark?: number[]; href?: string; tone?: 'warning' }) {
   const body = (
-    <div className="rounded-lg bg-surface p-5 flex flex-col gap-3 h-full w-full hover:bg-surface-alt/40 transition-colors">
+    <div className={cx('rounded-lg p-5 flex flex-col gap-3 h-full w-full transition-colors', tone === 'warning' ? 'bg-warning-soft' : 'bg-surface hover:bg-surface-alt/40')}>
       <div className="flex items-center gap-2 text-muted">
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary-soft text-primary"><Icon name={icon} size={16} /></span>
+        <span className={cx('inline-flex h-8 w-8 items-center justify-center rounded-full', tone === 'warning' ? 'bg-surface text-warning' : 'bg-primary-soft text-primary')}>
+          <Icon name={tone === 'warning' ? 'alert' : icon} size={16} />
+        </span>
         <span className="type-label">{label}</span>
       </div>
       <div className="flex items-baseline gap-1.5">
@@ -203,7 +248,8 @@ function Panel({ id, label, env }: { id: string; label: string; env: Env }) {
         <Row icon="flag" title="Moderation" subtitle={queueSubtitle(q.moderation.open, q.moderation.oldest, `${q.reports_24h} reports in 24 h`)} href={can(ctx, 'moderation') ? '/moderation' : undefined} right={<QueueBadges open={q.moderation.open} urgent={q.moderation.urgent} />} />
         <Row icon="shield" title="Integrity" subtitle={queueSubtitle(q.integrity.open, q.integrity.oldest, q.integrity.held ? `${q.integrity.held} held` : null)} href={can(ctx, 'integrity') ? '/integrity' : undefined} right={<QueueBadges open={q.integrity.open} />} />
         <Row icon="scale" title="Appeals" subtitle={queueSubtitle(q.appeals.open, q.appeals.oldest)} href={can(ctx, 'moderation') || can(ctx, 'integrity') ? '/appeals' : undefined} right={<QueueBadges open={q.appeals.open} />} />
-        <Row icon="route" title="Route proposals" subtitle={queueSubtitle(q.routes.open, q.routes.oldest)} href={can(ctx, 'routes') ? '/routes' : undefined} right={<QueueBadges open={q.routes.open} />} />
+        <Row icon="route" title="Route proposals" subtitle={queueSubtitle(q.routes.open, q.routes.oldest, q.routes.over_target ? `${q.routes.over_target} past the ${q.routes.target_hours ?? 48} h target` : null)}
+          href={can(ctx, 'routes') ? '/routes' : undefined} right={<QueueBadges open={q.routes.open} />} />
         <Row icon="users" title="Account requests" subtitle={`${q.exports} exports running · ${q.deletions} deletions pending`} />
       </>);
     case 'switches':

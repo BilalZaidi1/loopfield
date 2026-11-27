@@ -130,6 +130,11 @@ export function presentNotification(n: NotificationLike, units: 'metric' | 'impe
       return d.percent === 100
         ? { icon: 'shoe', title: 'Shoes at their reminder distance', body: 'A pair of your shoes has reached the distance you set. Open to see it.' }
         : { icon: 'shoe', title: 'Shoes nearly at their reminder distance', body: 'A pair of your shoes is at 90% of the distance you set.' };
+    case 'live_links_ended':
+      // Support's safety action: what changed and how to share again. Never who asked or why.
+      return d.friend_sharing_off === true
+        ? { icon: 'shield', title: 'Support ended your live sharing', body: 'Your live links stopped working and sharing runs with friends is off. You can turn it back on in Privacy.' }
+        : { icon: 'shield', title: 'Support ended your live links', body: 'Your live links stopped working. You can make a new one when you next run.' };
   }
   const icon: IconName = n.object_type === 'competition' ? 'flag' : ({ social: 'heart', message: 'chat', club: 'clubs', competitive: 'hexagon', system: 'info' } as const)[n.category] ?? 'bell';
   return { icon, ...base };

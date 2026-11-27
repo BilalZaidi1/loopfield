@@ -7,7 +7,8 @@ export type IconName =
   | 'pulse' | 'sliders' | 'flag' | 'shield' | 'scale' | 'route' | 'users' | 'list' | 'layers'
   | 'logout' | 'sun' | 'moon' | 'monitor' | 'check' | 'x' | 'chevron' | 'arrow-right' | 'alert' | 'info'
   | 'refresh' | 'clock' | 'lock' | 'history' | 'sparkle' | 'bolt' | 'trophy' | 'hexagon' | 'mail' | 'calendar'
-  | 'chart' | 'code' | 'target' | 'key' | 'user' | 'download' | 'copy' | 'play' | 'save' | 'trash' | 'edit' | 'grid' | 'send' | 'phone' | 'database';
+  | 'chart' | 'code' | 'target' | 'key' | 'user' | 'download' | 'copy' | 'play' | 'save' | 'trash' | 'edit' | 'grid' | 'send' | 'phone' | 'database'
+  | 'link' | 'shoe';
 
 export function Icon({ name, size = 20, className, strokeWidth = 2 }: { name: IconName; size?: number; className?: string; strokeWidth?: number }) {
   const p = { fill: 'none', stroke: 'currentColor', strokeWidth, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -22,6 +23,8 @@ export function Icon({ name, size = 20, className, strokeWidth = 2 }: { name: Ic
       {name === 'bell' && <path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0" {...p} />}
       {name === 'chat' && <path d="M4 5h16v11H9l-5 4z" {...p} />}
       {name === 'chart' && <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" {...p} />}
+      {name === 'link' && <path d="M10 14a4 4 0 0 0 5.7 0l3-3A4 4 0 1 0 13 5.3l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 1 0 5.7 5.7l1-1" {...p} />}
+      {name === 'shoe' && <path d="M3 17.5V9.5l4-1 2 3.2 3.5 1.6 5 1.6c2.4.8 4 1.6 4 2.6zM3 20.5h18.5M9.6 10.6l1.6-1.5M11.6 12.1l1.6-1.5" {...p} />}
       {name === 'code' && <path d="M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" {...p} />}
       {name === 'target' && (<><circle cx={12} cy={12} r={9} {...p} /><circle cx={12} cy={12} r={5} {...p} /><circle cx={12} cy={12} r={1.5} fill="currentColor" /></>)}
       {name === 'key' && (<><circle cx={8} cy={15} r={4} {...p} /><path d="M11 12l9-9M17 6l3 3M14 9l2 2" {...p} /></>)}

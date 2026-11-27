@@ -16,7 +16,7 @@ export interface Overview {
     moderation: { open: number; urgent: number; oldest: string | null };
     integrity: { open: number; held: number; oldest: string | null };
     appeals: { open: number; oldest: string | null };
-    routes: { open: number; oldest: string | null };
+    routes: { open: number; oldest: string | null; over_target?: number; target_hours?: number };
     reports_24h: number;
     exports: number;
     deletions: number;
@@ -27,6 +27,27 @@ export interface Overview {
   email: { bounced_7d: number; failed_7d: number };
   seasons: { competition: string; number: number; status: string; starts_at: string; ends_at: string }[];
   cron: { job: string; schedule: string; active: boolean; last_status: string | null; last_start: string | null; last_end: string | null }[];
+  /** Running tools (counts only). Missing until the database has the back-office migration for the running features. */
+  running?: RunningOverview;
+}
+
+export interface RunningOverview {
+  /** Live links with a run being shared right now (for one run or standing links; friends shares are separate). */
+  live_links_now: number;
+  friends_live_now: number;
+  /** Path-following requests this UTC month, and the level that raises the alert (0 = no alert). */
+  route_snap_month: number;
+  route_snap_alert: number;
+  /** The same everywhere count runners see: null below the smallest count ever shown. */
+  running_now: { enabled: boolean; min_count: number; everywhere: number | null; computed_at: string | null };
+}
+
+/** Whether a runner's live sharing is on. Counts and yes or no only: never positions or who they share with. */
+export interface LiveSharing {
+  live_links: number;
+  friends_sharing: boolean;
+  live_links_enabled: boolean;
+  friends_live_enabled: boolean;
 }
 
 export type ValueType = 'boolean' | 'integer' | 'number' | 'string' | 'string_array' | 'version' | 'object' | 'array' | 'null';
@@ -44,7 +65,8 @@ export interface ConfigRow {
   min_value: number | null;
   max_value: number | null;
   allowed: string[] | null;
-  min_role: 'admin' | 'territory_operator';
+  /** The permission (or legacy role name) that may change it. */
+  min_role: 'admin' | 'territory_operator' | 'config' | 'monetization' | 'rules.edit' | (string & {});
   sort: number;
   help: string | null;
   can_edit: boolean;
@@ -156,6 +178,25 @@ export interface RouteProposalRow {
     corridor_m?: number;
   } | null;
   score_founding_run: boolean;
+  /** Where a proposal made from part of a run starts and ends, in metres along the run; both null for a whole run. */
+  from_m?: number | null;
+  to_m?: number | null;
+  shape?: 'loop' | 'a_to_b' | null;
+  waited_hours?: number;
+  over_target?: boolean;
+  /** What the server checked before the proposal reached review. */
+  checks?: RouteChecks;
+}
+
+export interface RouteChecks {
+  length_min_m: number | null;
+  length_max_m: number | null;
+  region: string | null;
+  /** Always "passed": a proposal touching a protected area never reaches review, and the areas are never shown. */
+  protected_areas: 'passed';
+  nearby: { id: string; name: string; distance_m: number }[];
+  nearby_within_m: number;
+  target_hours: number;
 }
 
 export interface StaffRow {
@@ -320,6 +361,7 @@ export interface RunnerOverview {
   lifecycle: { exports: { status: string; created_at: string; completed_at: string | null }[]; deletion: { status: string; requested_at: string; completed_at: string | null } | null };
   roles: { role: string; label: string; granted_at: string }[];
   staff_actions: { id: number | string; action: string; object_type: string; created_at: string; reason: string | null; actor: string | null }[];
+  sharing?: LiveSharing;
   can_manage: boolean;
   is_self: boolean;
 }
@@ -357,9 +399,12 @@ export interface SupportTicketDetail {
     app_version: string | null; platform: string | null; device: string | null; context: Record<string, unknown>; created_at: string; last_message_at: string;
     first_response_at: string | null; solved_at: string | null;
   };
-  runner: { id: string; handle: string; display_name: string; status: string; joined_at: string; avatar_kind: string | null; runs: number; last_run_at: string | null; tickets: number } | null;
+  runner: {
+    id: string; handle: string; display_name: string; status: string; joined_at: string; avatar_kind: string | null; runs: number; last_run_at: string | null; tickets: number;
+    sharing?: LiveSharing;
+  } | null;
   assignee: { id: string; handle: string; display_name: string } | null;
-  messages: { id: string; from: 'runner' | 'staff' | 'system'; body: string; internal: boolean; at: string; author: string | null }[];
+  messages:{ id: string; from: 'runner' | 'staff' | 'system'; body: string; internal: boolean; at: string; author: string | null }[];
   other_tickets: { id: string; subject: string; status: SupportStatus; created_at: string }[];
   agents: { id: string; handle: string; display_name: string }[];
   me: string;
@@ -372,8 +417,10 @@ export interface MetricDef {
   key: string;
   label: string;
   unit: string;
-  agg: 'sum' | 'distinct' | 'median';
+  /** How a range is totalled: summed, distinct runners, the average of daily medians, or the highest day. */
+  agg: 'sum' | 'distinct' | 'median' | 'max';
   group: string;
+  description?: string;
 }
 export interface Metrics {
   time_zone: string;

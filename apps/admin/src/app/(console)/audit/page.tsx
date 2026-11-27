@@ -63,7 +63,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
                   {r.actor_handle ? <Link className="text-primary" href={`/audit?actor=${r.actor_id}`}>@{r.actor_handle}</Link> : <span className="text-muted">{r.actor_kind}</span>}
                   {r.actor_kind !== 'staff' && r.actor_handle ? <span className="type-caption text-muted"> · {r.actor_kind}</span> : null}
                 </td>
-                <td><Badge label={humanize(r.action)} tone={/remov|suspend|invalid|revoke|dead/.test(r.action) ? 'danger' : 'info'} /></td>
+                <td><Badge label={humanize(r.action)} tone={/remov|suspend|invalid|revoke|dead|end_live/.test(r.action) ? 'danger' : 'info'} /></td>
                 <td className="whitespace-nowrap">
                   <span className="text-muted">{r.object_type}</span>
                   {r.object_id ? <> · <Link className="font-mono text-[13px] text-primary" href={`/audit?object_type=${encodeURIComponent(r.object_type)}&object_id=${encodeURIComponent(r.object_id)}`}>{r.object_id.length > 24 ? `${r.object_id.slice(0, 8)}…` : r.object_id}</Link></> : null}

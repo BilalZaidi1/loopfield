@@ -136,3 +136,58 @@ describe('placeLabels', () => {
     expect(placed.at(-1)!.x).toBeLessThan(300);
   });
 });
+
+import { endedMessage, HEALTH_CARD_LABELS, lengthCheck, shapeLabel, sharingLines, snapAlertState, sourceLabel, stretchText, waitedText } from '../running';
+
+describe('running tools', () => {
+  it('describes a runner\'s live sharing with counts and yes or no only', () => {
+    const on = sharingLines({ live_links: 2, friends_sharing: true, live_links_enabled: true, friends_live_enabled: true });
+    expect(on).toEqual({ live: 'Active · 2 open links', friends: 'On', note: null, anything: true });
+    const off = sharingLines({ live_links: 0, friends_sharing: false, live_links_enabled: false, friends_live_enabled: true });
+    expect(off.live).toBe('None');
+    expect(off.anything).toBe(false);
+    expect(off.note).toBe('Switched off in App control: Live links. Nothing is shared that way until it is back on.');
+    expect(sharingLines(undefined).live).toBe('Not available');
+  });
+
+  it('says what support ended', () => {
+    expect(endedMessage({ links_ended: 3, friend_sharing_off: false })).toBe('Ended 3 live links. The runner is told in the app.');
+    expect(endedMessage({ links_ended: 1, friend_sharing_off: true })).toBe('Ended 1 live link and turned off sharing with friends. The runner is told in the app.');
+    expect(endedMessage({ links_ended: 0, friend_sharing_off: true })).toBe('Turned off sharing with friends. The runner is told in the app.');
+    expect(endedMessage({ links_ended: 0, friend_sharing_off: false })).toBe('Nothing was open, so nothing changed.');
+  });
+
+  it('labels proposals for reviewers', () => {
+    expect(sourceLabel({ from_m: 1200, to_m: 2700 })).toBe('Part of a run');
+    expect(sourceLabel({ from_m: null, to_m: null })).toBe('Whole run');
+    expect(stretchText({ from_m: 1200, to_m: 2700 })).toBe('1.2 to 2.7 km along the run');
+    expect(stretchText({ from_m: null, to_m: null })).toBeNull();
+    expect(shapeLabel({ shape: 'a_to_b', closed: false })).toBe('Start to finish');
+    expect(shapeLabel({ shape: undefined, closed: true })).toBe('Loop');
+    expect(waitedText(0.4)).toBe('under an hour');
+    expect(waitedText(5.6)).toBe('5 h');
+    expect(waitedText(53.2)).toBe('2 days 5 h');
+    expect(waitedText(24)).toBe('1 day');
+    expect(lengthCheck(1500, 1000, 5000)).toEqual({ ok: true, text: '1.5 km, limits 1.0–5.0 km' });
+    expect(lengthCheck(800, 1000, 5000).ok).toBe(false);
+  });
+
+  it('warns about path-following requests only once a level is set', () => {
+    expect(snapAlertState(5000, 0)).toBe('unset');
+    expect(snapAlertState(1000, 10_000)).toBe('ok');
+    expect(snapAlertState(8500, 10_000)).toBe('near');
+    expect(snapAlertState(10_000, 10_000)).toBe('over');
+  });
+
+  it('offers the health cards the app can hide, and refuses others', () => {
+    const cards = meta({ key: 'disabled_health_cards', label: 'Suspended health cards', value_type: 'string_array', allowed: Object.keys(HEALTH_CARD_LABELS) });
+    expect(validateConfigValue(cards, ['training', 'imported_routes'])).toBeNull();
+    expect(validateConfigValue(cards, ['traning'])).toMatch(/not one of the options/);
+    expect(validateConfigValue(meta({ key: 'premium_features', value_type: 'string_array' }), ['anything_new'])).toBeNull();
+  });
+
+  it('puts the four running tiles on the default Overview', () => {
+    expect(DEFAULT_WIDGETS).toEqual(expect.arrayContaining(['kpi_live_links', 'kpi_route_snap', 'kpi_running_now', 'kpi_routes_waiting']));
+    expect(chosenWidgets(undefined, []).map((w) => w.id)).toEqual(expect.arrayContaining(['kpi_live_links', 'kpi_routes_waiting']));
+  });
+});

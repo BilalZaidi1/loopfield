@@ -48,6 +48,12 @@ describe('push previews', () => {
     }
     expect(safePushPreview('territory_lost', 'Sara').body).not.toContain('Sara'); // rivals are never named in pushes
   });
+
+  it('tells a runner that support ended their live links, without naming anyone', () => {
+    const p = safePushPreview('live_links_ended', 'Sara');
+    expect(p).toEqual({ title: 'Live sharing ended', body: 'Loopfield support ended your live links. Open to see your sharing settings.' });
+    expect(pushAllowed({ ...DEFAULT_PREFS, social: false, messages: false, clubs: false }, 'system', 'live_links_ended')).toBe(true);
+  });
 });
 
 describe('email preferences', () => {

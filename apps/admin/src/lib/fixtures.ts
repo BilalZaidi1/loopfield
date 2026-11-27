@@ -16,6 +16,10 @@ const loop: [number, number][] = Array.from({ length: 41 }, (_, i) => {
   return [67.0606 + 0.0062 * Math.cos(t) + 0.0015 * Math.cos(3 * t), 24.8138 + 0.0041 * Math.sin(t)];
 });
 
+// A start-to-finish stretch along the seafront, with gates across each end.
+const stretch: [number, number][] = Array.from({ length: 21 }, (_, i) => [67.0472 + i * 0.0009, 24.8092 + 0.0011 * Math.sin(i / 3) + i * 0.0002]);
+const gate = ([lng, lat]: [number, number]): { type: string; coordinates: [number, number][] } => ({ type: 'LineString', coordinates: [[lng, lat - 0.00018], [lng, lat + 0.00018]] });
+
 const configRow = (key: string, value: unknown, label: string, category: string, value_type: string, extra: Record<string, unknown> = {}) => ({
   key, value, is_public: true, description: null, updated_at: ago(60 * 26), label, category, value_type,
   min_value: null, max_value: null, allowed: null, min_role: category === 'switch' ? 'territory_operator' : 'admin', sort: 0, help: null,
@@ -30,14 +34,16 @@ export function fixture(fn: string): unknown {
     case 'ops_overview':
       return {
         generated_at: new Date().toISOString(),
-        settings: { territory_capture_enabled: true, speed_titles_enabled: true, public_publication_enabled: true, photo_uploads_enabled: true, messaging_enabled: true, reclaim_enabled: false, disabled_health_cards: [], paywall_enabled: false, maintenance_mode: { enabled: false, message: null, until: null }, ops_require_mfa: false, min_supported_app_version: '0.1.0' },
+        settings: { territory_capture_enabled: true, speed_titles_enabled: true, public_publication_enabled: true, photo_uploads_enabled: true, messaging_enabled: true, reclaim_enabled: false, disabled_health_cards: [], paywall_enabled: false, maintenance_mode: { enabled: false, message: null, until: null }, ops_require_mfa: false, min_supported_app_version: '0.1.0',
+          route_builder_enabled: true, route_snapping_enabled: true, live_links_enabled: true, running_now_enabled: true, friends_live_enabled: true, gear_enabled: true },
+        running: { live_links_now: 7, friends_live_now: 12, route_snap_month: 41_870, route_snap_alert: 50_000, running_now: { enabled: true, min_count: 5, everywhere: 38, computed_at: ago(0.5) } },
         jobs: {
           territory: { queued: 2, running: 1, dead: 0, failed_24h: 0, oldest_ready_at: ago(1) },
           notifications: { queued: 14, running: 2, dead: 3, failed_24h: 5, oldest_ready_at: ago(12) },
           media: { queued: 0, running: 0, dead: 0, failed_24h: 0, oldest_ready_at: null },
           email: { queued: 1, running: 0, dead: 0, failed_24h: 0, oldest_ready_at: ago(0.5) }
         },
-        queues: { moderation: { open: 4, urgent: 1, oldest: ago(95) }, integrity: { open: 2, held: 1, oldest: ago(60 * 7) }, appeals: { open: 2, oldest: ago(60 * 20) }, routes: { open: 1, oldest: ago(60 * 3) }, reports_24h: 6, exports: 1, deletions: 0 },
+        queues: { moderation: { open: 4, urgent: 1, oldest: ago(95) }, integrity: { open: 2, held: 1, oldest: ago(60 * 7) }, appeals: { open: 2, oldest: ago(60 * 20) }, routes: { open: 2, oldest: ago(60 * 53), over_target: 1, target_hours: 48 }, reports_24h: 6, exports: 1, deletions: 0 },
         activity_24h: { runs: 312, claims: 87, sign_ups: 19, posts: 41 },
         totals: { runners: 1284, suspended: 3, clubs: 22, staff: 3 },
         billing: { failed_events_7d: 0 },
@@ -54,7 +60,15 @@ export function fixture(fn: string): unknown {
         configRow('territory_capture_enabled', true, 'Land capture', 'switch', 'boolean', { help: 'Off stops new land claims. Private recording keeps working.' }),
         configRow('speed_titles_enabled', true, 'Speed titles', 'switch', 'boolean', { help: 'Off stops new speed titles from being awarded.' }),
         configRow('reclaim_enabled', false, 'Reclaim', 'switch', 'boolean', { help: 'Off stops spending movement points to reclaim land.', last_changed_by: 'bilal', last_reason: 'Pausing reclaim while we fix cell refunds', last_changed_at: ago(42) }),
-        configRow('disabled_health_cards', [], 'Suspended health cards', 'switch', 'string_array', { help: 'Health dashboard cards hidden because of a known data-quality fault.' }),
+        configRow('disabled_health_cards', ['training'], 'Suspended health cards', 'switch', 'string_array', {
+          allowed: ['heart_rate', 'steps', 'calories', 'sleep', 'resting_hr', 'hrv', 'vo2_max', 'training', 'imported_routes'],
+          help: 'Health cards hidden in the app because of a known data-quality fault. Training and maps of imported runs can be hidden here too.' }),
+        configRow('route_snapping_enabled', true, 'Path following in the route builder', 'switch', 'boolean', { help: 'Off draws straight lines between points instead of asking Mapbox. Stops path-following costs at once.' }),
+        configRow('live_links_enabled', true, 'Live links', 'switch', 'boolean', { help: 'Off stops new live links; links already open end within a minute.' }),
+        configRow('route_proposals_a_to_b', false, 'Start-to-finish speed routes', 'tunable', 'boolean', { min_role: 'rules.edit',
+          help: 'On lets runners propose part of a run with a separate start and finish; reviewers see a start-to-finish badge. Off allows loops only.' }),
+        configRow('route_snap_monthly_alert', 50000, 'Path-following alert (requests per month)', 'system', 'integer', { min_role: 'config', min_value: 0, max_value: 10000000, help: 'The Overview warns when the month’s path-following requests pass this. 0 means no alert.' }),
+        configRow('route_review_target_hours', 48, 'Route review target (hours)', 'system', 'integer', { min_role: 'config', min_value: 1, max_value: 336, is_public: false, help: 'Proposals waiting longer than this are highlighted in the review queue and counted on the Overview.' }),
         configRow('movement_points_per_km', 10, 'Movement points per km', 'tunable', 'integer', { min_value: 0, max_value: 100, help: 'Points earned for each verified kilometre.' }),
         configRow('achievement_tier_points', { bronze: 10, silver: 25, gold: 60, platinum: 150 }, 'Achievement points per tier', 'tunable', 'object', { allowed: ['bronze', 'silver', 'gold', 'platinum'] }),
         configRow('min_supported_app_version', '0.1.0', 'Minimum supported version', 'release', 'version', { help: 'Older builds are told to update before uploading runs.' }),
@@ -104,7 +118,19 @@ export function fixture(fn: string): unknown {
         { id: 'ab000000-0000-4000-8000-000000000002', track: 'competitive', object_type: 'loop_claim', object_id: 'y', reason: 'I ran this loop with friends, the gap is a tunnel under the flyover.', status: 'submitted', response: null, created_at: ago(60 * 5), decided_at: null, user_id: 'u2', user_handle: 'hamza.k', integrity_case_id: '1e1e1e1e-0000-4000-8000-000000000001' }
       ];
     case 'ops_route_queue':
-      return [{ id: 'cd000000-0000-4000-8000-000000000001', name: 'Sea View sunrise loop', creator_handle: 'saba_runs', length_m: 4120, closed: true, created_at: ago(60 * 3), path_geojson: { type: 'LineString', coordinates: loop }, course_geometry: { corridor_m: 25 }, score_founding_run: true }];
+      return [
+        { id: 'cd000000-0000-4000-8000-000000000002', name: 'Seafront promenade', creator_handle: 'trailhawk', length_m: 1980, closed: false, created_at: ago(60 * 53),
+          path_geojson: { type: 'LineString', coordinates: stretch }, course_geometry: { corridor_m: 20, start_gate: gate(stretch[0]!), finish_gate: gate(stretch[stretch.length - 1]!) },
+          score_founding_run: false, from_m: 1200, to_m: 3180, shape: 'a_to_b', waited_hours: 53.2, over_target: true,
+          checks: { length_min_m: 1000, length_max_m: 5000, region: 'Development region (Karachi test area)', protected_areas: 'passed',
+            nearby: [{ id: 'k1', name: 'Clifton beach line', distance_m: 42 }], nearby_within_m: 100, target_hours: 48 } },
+        { id: 'cd000000-0000-4000-8000-000000000001', name: 'Sea View sunrise loop', creator_handle: 'saba_runs', length_m: 4120, closed: true, created_at: ago(60 * 3),
+          path_geojson: { type: 'LineString', coordinates: loop }, course_geometry: { corridor_m: 25 }, score_founding_run: true,
+          from_m: null, to_m: null, shape: 'loop', waited_hours: 3, over_target: false,
+          checks: { length_min_m: 1000, length_max_m: 5000, region: 'Development region (Karachi test area)', protected_areas: 'passed', nearby: [], nearby_within_m: 100, target_hours: 48 } }
+      ];
+    case 'ops_end_live_links':
+      return { links_ended: 2, friend_sharing_off: true };
     case 'ops_staff_list':
       return [
         { user_id: me, handle: 'bilal', display_name: 'Bilal Zaidi', status: 'active', roles: ['admin'], granted_at: ago(60 * 24 * 3), mfa_enabled: true, last_sign_in_at: ago(5) },
@@ -114,6 +140,7 @@ export function fixture(fn: string): unknown {
       return [{ user_id: 'c1', handle: 'saba_runs', display_name: 'Saba', status: 'active', city_label: 'Karachi', created_at: ago(60 * 24 * 40), roles: [], matched_by: 'handle' }];
     case 'ops_audit_log':
       return [
+        { id: 121, created_at: ago(12), actor_id: me, actor_handle: 'bilal', actor_kind: 'staff', action: 'end_live_links', object_type: 'profile', object_id: 'c7', details: { reason: 'Runner reports a stranger has her standing link', links_ended: 1, friend_sharing_off: true } },
         { id: 120, created_at: ago(42), actor_id: me, actor_handle: 'bilal', actor_kind: 'staff', action: 'config_changed', object_type: 'app_config', object_id: 'reclaim_enabled', details: { old: true, new: false, reason: 'Pausing reclaim while we fix cell refunds' } },
         { id: 119, created_at: ago(180), actor_id: me, actor_handle: 'bilal', actor_kind: 'staff', action: 'role_granted', object_type: 'profile', object_id: 'b1', details: { role: 'moderator' } },
         { id: 118, created_at: ago(300), actor_id: null, actor_handle: null, actor_kind: 'system', action: 'season_started', object_type: 'season', object_id: 's3', details: {} }

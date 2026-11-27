@@ -7,12 +7,27 @@ import type { ActionResult } from '@/lib/errors';
 import { Button, cx, inputClass } from '@/components/ui';
 import { toast } from '@/components/client';
 
-const SAVED_REPLIES = [
-  { label: 'Thanks, looking into it', body: 'Thanks for letting us know. We are looking into it and will get back to you here.' },
-  { label: 'Ask for the run time', body: 'Could you tell us roughly when the run was (date and time)? That lets us check the GPS data for it.' },
-  { label: 'Loop rules', body: 'A loop claims land when the finish is close to the start, the run is long enough and the GPS has no long gaps. Help and game rules in the app explains each check.' },
-  { label: 'Fixed in an update', body: 'This is fixed in the latest version of the app. Please update from the store and let us know if it still happens.' }
+const SAVED_REPLIES: { group: string; label: string; body: string }[] = [
+  { group: 'General', label: 'Thanks, looking into it', body: 'Thanks for letting us know. We are looking into it and will get back to you here.' },
+  { group: 'General', label: 'Ask for the run time', body: 'Could you tell us roughly when the run was (date and time)? That lets us check the GPS data for it.' },
+  { group: 'General', label: 'Loop rules', body: 'A loop claims land when the finish is close to the start, the run is long enough and the GPS has no long gaps. Help and game rules in the app explains each check.' },
+  { group: 'General', label: 'Fixed in an update', body: 'This is fixed in the latest version of the app. Please update from the store and let us know if it still happens.' },
+  { group: 'Running tools', label: 'Live link sent to the wrong person',
+    body: 'You can stop a live link at any time in Settings → Privacy, under Live location: End a link for one run, or Turn off the standing link. It stops working at once and the positions it showed are deleted. To keep a standing link but give it a new address, use Change the link, then send the new one only to the people you meant.' },
+  { group: 'Running tools', label: 'Someone has my live link',
+    body: 'Thank you for telling us. We have ended all of your live links, so the link they have no longer shows anything, and the positions it showed are deleted. When you want to share again, make a new link and send it only to people you trust. If you ever feel unsafe, contact your local emergency services first.' },
+  { group: 'Running tools', label: 'Stop friends seeing my runs live',
+    body: 'In Settings → Privacy, under Live runs with friends, turn off Share my live runs with friends. A run being shared ends at once. To share with only some people, choose Friends I choose instead and pick who can see your runs. Only people you follow who follow you back can be chosen.' },
+  { group: 'Running tools', label: 'Path following isn’t working',
+    body: 'When the route builder can’t follow paths, it draws that leg as a straight line and says why under the map. There is a daily limit on legs that follow paths, so after a lot of planning they are straight lines until the next day. Check that Follow paths is on and that you have a connection. Routes you have saved keep their lines either way.' },
+  { group: 'Running tools', label: 'Heart-rate strap won’t connect',
+    body: 'Most straps only wake up when they touch the skin, so put it on (a little water on the sensor pads helps) and keep it near the phone, then pair it in Settings → Sensors. A strap connects to one app at a time, so close other apps that use it. On Android, Loopfield needs the Nearby devices permission. Once it is paired, the phone connects to it by itself when a run starts.' },
+  { group: 'Running tools', label: 'Imported run has no map',
+    body: 'Maps of imported runs are off until you turn on Show maps for imported runs in Health → Sources. A map appears only when the app that recorded the run saved its route, and on Android you are asked once for each run another app recorded. These maps stay on your phone: they are never uploaded or shared.' },
+  { group: 'Running tools', label: 'Shoe reminders',
+    body: 'Each pair of shoes reminds you once when it reaches 90% of the distance you set, and once at 100%. You can change the distance on the pair’s page, and the reminders then follow the new distance. Retired pairs don’t send reminders.' }
 ];
+const GROUPS = [...new Set(SAVED_REPLIES.map((r) => r.group))];
 
 /** Reply composer: send to the runner (notified) or add an internal note; optionally change the status. */
 export function ReplyBox({ id, status, reply }: {
@@ -42,7 +57,11 @@ export function ReplyBox({ id, status, reply }: {
           <select aria-label="Insert a saved reply" className="border border-line-strong rounded-md px-2 min-h-9 type-label bg-surface text-ink" value=""
             onChange={(e) => { const r = SAVED_REPLIES[Number(e.target.value)]; if (r) setBody((b) => (b ? `${b}\n\n${r.body}` : r.body)); }}>
             <option value="">Saved replies…</option>
-            {SAVED_REPLIES.map((r, i) => <option key={r.label} value={i}>{r.label}</option>)}
+            {GROUPS.map((g) => (
+              <optgroup key={g} label={g}>
+                {SAVED_REPLIES.map((r, i) => (r.group === g ? <option key={r.label} value={i}>{r.label}</option> : null))}
+              </optgroup>
+            ))}
           </select>
         ) : null}
       </div>

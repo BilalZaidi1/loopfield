@@ -9,6 +9,7 @@ import { ColumnChart, HBars, LineChart, Sparkline } from '@/components/charts';
 import { Banner, BannerAction, buttonClass, Card, cx, inputClass, PageHeader, SegmentedLinks } from '@/components/ui';
 import { Icon } from '@/components/icons';
 import { bandSpans } from '@/lib/widgets';
+import { RUNNING_TOOLS_DASHBOARD_URL } from '@/lib/running';
 
 export const metadata: Metadata = { title: 'Analytics' };
 
@@ -137,6 +138,26 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
         {(['posts', 'comments', 'follows', 'club_joins'] as const).map((k) => <Chart key={k} title={label(k)} compact total={m?.totals[k]}>{cols(k, 150)}</Chart>)}
       </Group>
 
+      <Group title="Running tools" id="running-tools"
+        action={RUNNING_TOOLS_DASHBOARD_URL
+          ? <a href={RUNNING_TOOLS_DASHBOARD_URL} target="_blank" rel="noreferrer" className={buttonClass('secondary', 'sm')}>PostHog dashboard <Icon name="arrow-right" size={14} /></a>
+          : <span className="type-caption text-muted">PostHog dashboard not linked yet</span>}>
+        <p className="col-span-12 type-caption text-muted -mt-1">
+          Counts only. Where runners go, their planned routes, heart rate, training and shoe names never reach these figures. How the phone-only features are used (training, straps, highlights, replay) is in PostHog.
+        </p>
+        <Chart title={label('planned_routes_created')} note="Routes runners planned and saved in the route builder">{cols('planned_routes_created')}</Chart>
+        <Chart title={label('route_snap_requests')} note="Legs drawn along paths with Mapbox, counted per UTC day">{cols('route_snap_requests')}</Chart>
+        <Chart title={label('live_links_started')} note={m ? openedNote(m.totals.live_links_opened, m.totals.live_links_started) : 'Live links made for one run or as a standing link'}>{cols('live_links_started')}</Chart>
+        <Chart title={label('running_now_peak')} note="The busiest moment each day, counted per UTC day. The total is the busiest day.">{line('running_now_peak')}</Chart>
+        <Chart title={label('route_review_hours_median')} note="Median hours from proposal to a reviewer’s decision">
+          {m ? <LineChart days={m.days} values={m.series.route_review_hours_median ?? []} previous={prevOf('route_review_hours_median')} label={label('route_review_hours_median')} unit="h" /> : <NotLoaded />}
+        </Chart>
+        <Chart title={label('runs_with_gear')} note={m ? shareNote(m.totals.runs_with_gear, m.totals.runs, 'of all runs counted towards a pair of shoes') : 'Runs counted towards a pair of shoes'}>{cols('runs_with_gear')}</Chart>
+        {(['live_links_opened', 'friends_live_runs', 'route_proposals_stretch', 'route_proposals_a_to_b', 'gear_added', 'gear_reminders_sent'] as const).map((k, i, all) => (
+          <Chart key={k} title={label(k)} compact span={bandSpans(all.length, 3, 2)[i]} total={m?.totals[k]}>{cols(k, 150)}</Chart>
+        ))}
+      </Group>
+
       <Group title="Trust, safety and support">
         <Chart title={label('support_opened')} note="New conversations each day">{cols('support_opened')}</Chart>
         <Chart title={label('support_first_response_min')} note="Median minutes until the first reply">
@@ -188,13 +209,27 @@ function Kpi({ label, value, previous, unit, series, lowerIsBetter, format, miss
   );
 }
 
-function Group({ title, children }: { title: string; children: ReactNode }) {
+function Group({ title, children, id, action }: { title: string; children: ReactNode; id?: string; action?: ReactNode }) {
   return (
-    <section className="flex flex-col gap-3" aria-label={title}>
-      <h2 className="type-headline">{title}</h2>
+    <section className="flex flex-col gap-3 scroll-mt-24" aria-label={title} id={id}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="type-headline">{title}</h2>
+        {action}
+      </div>
       <div className="grid grid-cols-12 gap-4">{children}</div>
     </section>
   );
+}
+
+/** "12 of 30 opened at least once (40%)". */
+function openedNote(opened: number | null | undefined, started: number | null | undefined): string {
+  if (!started) return 'Live links made for one run or as a standing link';
+  return `${num(opened ?? 0)} of ${num(started)} opened at least once (${Math.round((100 * (opened ?? 0)) / started)}%)`;
+}
+
+function shareNote(part: number | null | undefined, whole: number | null | undefined, what: string): string {
+  if (!whole) return `None yet ${what.replace(/^of all /, 'among ')}`;
+  return `${Math.round((100 * (part ?? 0)) / whole)}% ${what}`;
 }
 
 function Chart({ title, note, children, compact, wide, total, span }: { title: string; note?: string; children: ReactNode; compact?: boolean; wide?: boolean; total?: number | null; span?: string }) {

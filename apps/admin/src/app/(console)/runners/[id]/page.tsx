@@ -7,9 +7,10 @@ import { count, dateTime, humanize, km, platformLabel, relativeTime } from '@/li
 import type { RunnerOverview } from '@/lib/types';
 import { ActionButton } from '@/components/client';
 import { Avatar, Badge, Banner, Card, KeyValue, ListGroup, PageHeader, Row, Table } from '@/components/ui';
+import { LiveSharingDetails } from '@/components/live-sharing';
 import { STATUS_BADGE } from '../../support/status';
 import { ResetProfile } from './reset-profile';
-import { resetRunnerProfile, setRunnerStatus, signOutRunner } from '../actions';
+import { endLiveLinks, resetRunnerProfile, setRunnerStatus, signOutRunner } from '../actions';
 
 export const metadata: Metadata = { title: 'Runner' };
 
@@ -112,19 +113,26 @@ export default async function RunnerPage({ params }: { params: Promise<{ id: str
       </section>
 
       <section className="grid grid-cols-12 gap-4">
-        <ListGroup title="Moderation cases" className="col-span-12 md:col-span-6 xl:col-span-4 h-full">
+        <ListGroup title="Live sharing" className="col-span-12 md:col-span-6 xl:col-span-3 h-full">
+          <div className="pt-2 pb-5">
+            <LiveSharingDetails handle={p.handle} sharing={r.sharing}
+              end={can(ctx, 'support') && p.status !== 'deleted' ? endLiveLinks.bind(null, p.id) : undefined}
+              endNeeds={can(ctx, 'support') ? undefined : 'Ending live links needs the Support inbox permission.'} />
+          </div>
+        </ListGroup>
+        <ListGroup title="Moderation cases" className="col-span-12 md:col-span-6 xl:col-span-3 h-full">
           {r.moderation_cases.length ? r.moderation_cases.map((m) => (
             <Row key={m.id} icon="flag" title={`${humanize(m.object_type)} · ${m.report_count} report${m.report_count === 1 ? '' : 's'}`} subtitle={`${humanize(m.status)}${m.outcome ? ` · ${humanize(m.outcome)}` : ''} · ${relativeTime(m.created_at)}`}
               href={can(ctx, 'moderation') ? `/moderation/${m.id}` : undefined} />
           )) : <p className="type-body text-muted pb-4">None.</p>}
         </ListGroup>
-        <ListGroup title="Integrity cases" className="col-span-12 md:col-span-6 xl:col-span-4 h-full">
+        <ListGroup title="Integrity cases" className="col-span-12 md:col-span-6 xl:col-span-3 h-full">
           {r.integrity_cases.length ? r.integrity_cases.map((c) => (
             <Row key={c.id} icon="shield" title={humanize(c.kind)} subtitle={`${humanize(c.status)}${c.hold_from_competition ? ' · held' : ''} · ${relativeTime(c.created_at)}`}
               href={can(ctx, 'integrity') ? `/integrity/${c.id}` : undefined} />
           )) : <p className="type-body text-muted pb-4">None.</p>}
         </ListGroup>
-        <ListGroup title="Account" className="col-span-12 md:col-span-12 xl:col-span-4 h-full">
+        <ListGroup title="Account" className="col-span-12 md:col-span-6 xl:col-span-3 h-full">
           <Row icon="sparkle" title="Premium" subtitle={r.entitlements.length ? r.entitlements.map((e) => `${e.entitlement}: ${e.status}${e.expires_at ? `, until ${relativeTime(e.expires_at)}` : ''}`).join(' · ') : 'Free'} />
           <Row icon="check" title="Consents" subtitle={r.consents.length ? r.consents.map((c) => `${humanize(c.kind)} ${c.granted ? 'yes' : 'no'}`).join(' · ') : 'None recorded'} />
           <Row icon="download" title="Data export" subtitle={r.lifecycle.exports[0] ? `${humanize(r.lifecycle.exports[0].status)} · ${relativeTime(r.lifecycle.exports[0].created_at)}` : 'Never requested'} />

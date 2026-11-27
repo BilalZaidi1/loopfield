@@ -52,4 +52,12 @@ describe('notification centre', () => {
     expect(routeForNotification({ kind: 'club_announcement', object_type: 'post', object_id: 'p1', data: {} })).toEqual({ pathname: '/post/[id]', params: { id: 'p1' } });
     expect(routeForNotification({ kind: 'club_deleted', object_type: 'club', object_id: 'k1', data: {} })).toBe('/clubs');
   });
+
+  it('says plainly when support ended live sharing, and opens the sharing settings', () => {
+    const ended = (friendSharingOff: boolean) => n('live_links_ended', { category: 'system', object_type: 'profile', data: { links: 2, friend_sharing_off: friendSharingOff } });
+    expect(presentNotification(ended(false), 'metric')).toEqual({ icon: 'shield', title: 'Support ended your live links', body: 'Your live links stopped working. You can make a new one when you next run.' });
+    expect(presentNotification(ended(true), 'metric').body).toBe('Your live links stopped working and sharing runs with friends is off. You can turn it back on in Privacy.');
+    expect(filterOf(ended(true))).toBe('account');
+    expect(routeForNotification({ kind: 'live_links_ended', object_type: 'profile', object_id: 'u1', data: {} })).toBe('/settings/privacy');
+  });
 });
