@@ -70,7 +70,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: (BUNDLE_ID + suffix).replace(/-/g, '_'),
-    adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', backgroundColor: '#0E1A14' },
+    // The icon, splash and notification icon are drawn from the Loopfield mark by scripts/make-brand-assets.mjs.
+    adaptiveIcon: { foregroundImage: './assets/adaptive-icon.png', monochromeImage: './assets/adaptive-icon-monochrome.png', backgroundColor: '#101114' },
     allowBackup: false,
     // Firebase config for push (FCM) arrives as an EAS file variable; without it the app runs with in-app notifications only.
     ...(process.env.GOOGLE_SERVICES_JSON ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON } : {}),
@@ -99,11 +100,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-router',
-    ['expo-splash-screen', { image: './assets/splash.png', imageWidth: 200, resizeMode: 'contain', backgroundColor: '#0E1A14' }],
+    // Same ground and mark size as BrandSplash, which takes over from it, so the start-up doesn't change colour.
+    ['expo-splash-screen', { image: './assets/splash.png', imageWidth: 200, resizeMode: 'contain', backgroundColor: '#101114' }],
     'expo-sqlite',
     'expo-secure-store',
     ['expo-location', { isAndroidBackgroundLocationEnabled: true, isAndroidForegroundServiceEnabled: true, isIosBackgroundLocationEnabled: true }],
-    ['expo-notifications', { color: '#1F6F4A', defaultChannel: 'default' }],
+    ['expo-notifications', { icon: './assets/notification-icon.png', color: '#6762F0', defaultChannel: 'default' }],
     ['expo-image-picker', { photosPermission: 'Choose photos to add to a post. Location metadata is removed before upload.', cameraPermission: 'Take a photo to add to a post.', microphonePermission: false }],
     ['@rnmapbox/maps', {}],
     ['@kingstinct/react-native-healthkit', { NSHealthShareUsageDescription: 'Optional: read health data for your private on-device dashboard. It is never uploaded or shared.', NSHealthUpdateUsageDescription: 'Optional: save runs you record to Apple Health.', background: false }],

@@ -19,6 +19,10 @@ One loud element per screen, everything else quiet. The loud elements are huge h
 
 Blocks carry white text (violet, blue) or ink text (orange, green) so every pairing meets WCAG AA. Components inside a `Card tone="…"` recolour themselves (text, buttons, badges, icons) through a block context.
 
+## Icon and start-up
+
+The app icon, the Android adaptive and themed icons, the native splash and the Android notification icon are all drawn from the Loopfield mark (`LoopMark` in `src/components/Brand.tsx`): the violet ring `#6762F0` and the orange dot `#FF7A1A` on `#101114`, by `scripts/make-brand-assets.mjs`. Single-colour versions (themed icon, notification icon) leave a small gap round the dot so it still reads as a dot. The native splash uses the same ground and mark size as `BrandSplash`, which takes over from it, so start-up stays one colour; notifications are tinted violet. Change the mark there and re-run the script; the images change only with a new native build.
+
 ## Type
 
 Figtree: 500 body, 600 labels, 700 headings, 800 titles, 900 italic for numerals and the two display headlines (welcome, ready-to-run). Each weight is its own font family so Android never synthesises bold; style overrides with `fontWeight` are mapped to the right file by `Txt`.

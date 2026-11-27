@@ -2,6 +2,12 @@
 
 Working file kept current so work survives context limits. Newest first.
 
+## 27 Nov 2026: app icon and start-up colours
+
+* Reported on build 4: the Android app opened with a green logo that turned purple, and the launcher showed a green icon. The icon, adaptive icon and native splash were still the first placeholder (green ring, yellow dot on `#0E1A14`); the redesign on 6 Nov recoloured the in-app mark and its start-up animation (`BrandSplash`, violet and orange on `#101114`) but not those images, so the native splash showed green until the app's own start-up took over. Notifications were also tinted the old green (`#1F6F4A`), with no notification icon.
+* `scripts/make-brand-assets.mjs` draws every one from the mark: `icon.png` (opaque, for iOS and older Android), `adaptive-icon.png` and a new `adaptive-icon-monochrome.png` (Android 13 themed icons), `splash.png` (the mark the same size as `BrandSplash`'s) and a new `notification-icon.png`. `app.config.ts` uses `#101114` for the splash and the adaptive icon's background, adds the themed icon and the notification icon, and tints notifications `#6762F0`.
+* Checked with a local `expo prebuild` for Android and iOS (then deleted): the launcher icon layers (with the themed layer), `#101114` for the splash and icon backgrounds on both platforms, the opaque 1,024 px iOS icon, and the notification icon and colour in the Android manifest. The images are native, so they show only with a new build (build 5); the change also changes the native fingerprint, so updates published after it reach only build 5.
+
 ## 26 Nov 2026: running features, stage 4 (R4)
 
 * Features 7, 8 and 9 of the plan, traced as RF7, RF8 and RF9 in `TRACEABILITY.md`; decisions in `DECISIONS.md` ("Running features, stage 4"). Branch `feat/running-r4`, started from `feat/running-r3` before that stage was merged; one pull request for the stage, to be merged after stage 3's. This is the last app stage: the back-office pass comes next.
