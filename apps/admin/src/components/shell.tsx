@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon, type IconName } from './icons';
 import { Brand } from './brand';
 import { CountPill, cx } from './ui';
@@ -74,22 +75,43 @@ export function Sidebar({ groups }: { groups: NavGroup[] }) {
   );
 }
 
-/** Narrower screens: the same navigation in a drawer. */
+/**
+ * Narrower screens: the same navigation in a drawer below the top bar. It closes on a link, on Escape and
+ * whenever the page changes (the back button too), and the page behind it doesn't scroll while it is open.
+ */
 export function MobileNav({ groups }: { groups: NavGroup[] }) {
-  const [open, setOpen] = useState(false);
+  const path = usePathname();
+  const [openOn, setOpenOn] = useState<string | null>(null);
+  const open = openOn === path;
+  const close = () => setOpenOn(null);
   const waiting = groups.flatMap((g) => g.items).reduce((n, it) => n + (it.count ?? 0), 0);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpenOn(null); };
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
   return (
     <div className="lg:hidden flex items-center gap-3">
-      <button type="button" aria-expanded={open} aria-controls="mobile-nav" aria-label="Menu" onClick={() => setOpen((o) => !o)}
+      <button type="button" aria-expanded={open} aria-controls="mobile-nav" aria-label="Menu" onClick={() => setOpenOn(open ? null : path)}
         className="relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-surface text-ink">
         <Icon name={open ? 'x' : 'list'} />
         {waiting && !open ? <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-orange" aria-label="Items waiting" /> : null}
       </button>
       <Brand compact />
-      {open ? (
-        <div id="mobile-nav" className="fixed inset-x-0 top-16 bottom-0 z-40 overflow-y-auto bg-surface p-4">
-          <NavLinks groups={groups} onNavigate={() => setOpen(false)} />
-        </div>
+      {/* Rendered into <body>, not inside the top bar: the bar's backdrop blur makes it the box a fixed element
+          is measured against, which left the drawer only as tall as its padding. The bottom padding lets the
+          last item scroll clear of a phone browser's floating toolbar. */}
+      {open ? createPortal(
+        <div id="mobile-nav" className="lg:hidden fixed inset-x-0 top-16 bottom-0 z-40 overflow-y-auto overscroll-contain bg-surface px-4 pt-4 pb-24">
+          <NavLinks groups={groups} onNavigate={close} />
+        </div>,
+        document.body
       ) : null}
     </div>
   );
